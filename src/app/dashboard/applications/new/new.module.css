@@ -1,0 +1,519 @@
+.newReg {
+  max-width: 880px;
+}
+
+.newRegHeader {
+  margin-bottom: var(--space-8);
+}
+
+.newRegHeader h1 {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-neutral-900);
+  margin-bottom: var(--space-2);
+}
+
+.newRegHeader p {
+  font-size: var(--text-sm);
+  color: var(--color-neutral-500);
+}
+
+/* Progress Steps */
+.progressBar {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-8);
+}
+
+.progressStep {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  position: relative;
+}
+
+.progressDot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--color-neutral-300);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-neutral-400);
+  background: var(--color-neutral-0);
+  transition: all var(--transition-base);
+  z-index: 1;
+}
+
+.progressDot.active {
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-500);
+  color: white;
+}
+
+.progressDot.completed {
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-500);
+  color: white;
+}
+
+.progressLabel {
+  font-size: var(--text-xs);
+  color: var(--color-neutral-500);
+  font-weight: var(--font-weight-medium);
+  text-align: center;
+}
+
+.progressLabel.active {
+  color: var(--color-primary-600);
+  font-weight: var(--font-weight-semibold);
+}
+
+.progressLine {
+  position: absolute;
+  top: 15px;
+  left: calc(50% + 20px);
+  right: calc(-50% + 20px);
+  height: 2px;
+  background: var(--color-neutral-300);
+}
+
+.progressLine.completed {
+  background: var(--color-primary-500);
+}
+
+/* Step Content Card */
+.stepCard {
+  background: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius-xl);
+  padding: var(--space-8);
+}
+
+.stepTitle {
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-neutral-900);
+  margin-bottom: var(--space-2);
+}
+
+.stepDesc {
+  font-size: var(--text-sm);
+  color: var(--color-neutral-500);
+  margin-bottom: var(--space-8);
+}
+
+/* Business Type Selection */
+.typeGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+}
+
+.typeCard {
+  padding: var(--space-6);
+  border: 2px solid var(--color-neutral-200);
+  border-radius: var(--radius-xl);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  text-align: left;
+  background: var(--color-neutral-0);
+}
+
+.typeCard:hover {
+  border-color: var(--color-primary-200);
+  box-shadow: var(--shadow-md);
+}
+
+.typeCard.selected {
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-50);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08);
+}
+
+.typeIcon {
+  font-size: 32px;
+  margin-bottom: var(--space-3);
+}
+
+.typeCard h3 {
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-neutral-900);
+  margin-bottom: var(--space-1);
+}
+
+.typeCard p {
+  font-size: var(--text-sm);
+  color: var(--color-neutral-500);
+}
+
+.typeFormRef {
+  display: inline-block;
+  margin-top: var(--space-2);
+  padding: 2px 8px;
+  background: var(--color-neutral-100);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  color: var(--color-neutral-500);
+  font-weight: var(--font-weight-medium);
+}
+
+.typeCard.selected .typeFormRef {
+  background: var(--color-primary-100);
+  color: var(--color-primary-700);
+}
+
+.typePrice {
+  margin-top: var(--space-3);
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary-600);
+}
+
+/* Form Section Title */
+.formSectionTitle {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-600);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: var(--space-6);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-neutral-100);
+}
+
+.formSectionTitle:first-of-type {
+  margin-top: 0;
+}
+
+/* Form Fields */
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-5);
+}
+
+.formFull {
+  grid-column: 1 / -1;
+}
+
+/* Navigation */
+.stepNav {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-8);
+}
+
+/* Review Section */
+.reviewSection {
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-6);
+  border-bottom: 1px solid var(--color-neutral-100);
+}
+
+.reviewSection:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.reviewSection h3 {
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-neutral-900);
+  margin-bottom: var(--space-4);
+}
+
+.reviewRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-2) 0;
+}
+
+.reviewLabel {
+  font-size: var(--text-sm);
+  color: var(--color-neutral-500);
+}
+
+.reviewValue {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-neutral-900);
+  text-align: right;
+  max-width: 60%;
+}
+
+/* Add-Ons */
+.addOnGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+
+.addOnCard {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1.5px solid var(--color-neutral-200);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  background: var(--color-neutral-0);
+}
+
+.addOnCard:hover {
+  border-color: var(--color-primary-200);
+}
+
+.addOnCard.selected {
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-50);
+}
+
+.addOnCheck {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-neutral-300);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+  transition: all var(--transition-fast);
+}
+
+.addOnCheck.checked {
+  background: var(--color-primary-500);
+  border-color: var(--color-primary-500);
+  color: white;
+  font-size: 11px;
+}
+
+.addOnCard h4 {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-neutral-900);
+  margin-bottom: var(--space-1);
+}
+
+.addOnCard p {
+  font-size: var(--text-xs);
+  color: var(--color-neutral-500);
+}
+
+.addOnPrice {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary-600);
+  margin-top: var(--space-2);
+}
+
+/* Total */
+.totalBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-5);
+  background: var(--color-neutral-50);
+  border-radius: var(--radius-lg);
+  margin-top: var(--space-6);
+}
+
+.totalLabel {
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-neutral-700);
+}
+
+.totalAmount {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary-600);
+}
+
+/* Success State */
+.successState {
+  text-align: center;
+  padding: var(--space-10);
+}
+
+.successIcon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--color-success-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto var(--space-6);
+  font-size: 36px;
+}
+
+.successState h2 {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-neutral-900);
+  margin-bottom: var(--space-2);
+}
+
+.successState > p {
+  font-size: var(--text-base);
+  color: var(--color-neutral-500);
+  margin-bottom: var(--space-6);
+}
+
+.trackingBox {
+  background: var(--color-neutral-50);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  margin-bottom: var(--space-8);
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.trackingBox label {
+  font-size: var(--text-sm);
+  color: var(--color-neutral-500);
+}
+
+.trackingBox span {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary-600);
+  letter-spacing: 0.05em;
+}
+
+.successActions {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-4);
+}
+
+/* Person / Director Blocks */
+.personBlock {
+  margin-bottom: var(--space-8);
+  padding-bottom: var(--space-6);
+  border-bottom: 2px solid var(--color-neutral-100);
+}
+
+.personBlock:last-of-type {
+  border-bottom: none;
+}
+
+.personBlockHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.personBlockTitle {
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-neutral-900);
+}
+
+.removeBtn {
+  color: var(--color-error) !important;
+}
+
+.removeBtn:hover {
+  background: var(--color-error-light) !important;
+}
+
+.addPersonBtn {
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+/* Shareholder Blocks */
+.shareholderBlock {
+  margin-bottom: var(--space-6);
+  padding: var(--space-5);
+  background: var(--color-neutral-50);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-neutral-200);
+}
+
+/* Radio Group */
+.radioGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.radioLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-neutral-700);
+  cursor: pointer;
+}
+
+.radioLabel input[type="radio"] {
+  accent-color: var(--color-primary-500);
+  width: 16px;
+  height: 16px;
+}
+
+/* Review Sub-block (for shareholders) */
+.reviewSubBlock {
+  padding: var(--space-3) 0;
+  margin-bottom: var(--space-2);
+  border-bottom: 1px dashed var(--color-neutral-200);
+}
+
+.reviewSubBlock:last-child {
+  border-bottom: none;
+}
+
+.reviewSubBlock strong {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-neutral-500);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: var(--space-2);
+}
+
+@media (max-width: 768px) {
+  .typeGrid,
+  .formGrid,
+  .addOnGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .stepNav {
+    flex-direction: column-reverse;
+    gap: var(--space-3);
+  }
+
+  .stepNav .btn {
+    width: 100%;
+  }
+
+  .progressLabel {
+    display: none;
+  }
+
+  .shareholderBlock {
+    padding: var(--space-4);
+  }
+}
