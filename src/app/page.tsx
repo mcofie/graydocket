@@ -187,111 +187,49 @@ export default function Home() {
   return (
     <>
       <Header />
-
-      {/* Hero Section */}
       <section className={styles.hero} id="hero">
-        <div className={styles.heroBg}>
-          <div className={styles.heroOrb1} />
-          <div className={styles.heroOrb2} />
-          <div className={styles.heroOrb3} />
-        </div>
-
-        <div className={styles.heroContent}>
-          <div className={styles.heroText}>
-            <div className={styles.heroBadge}>
-              <span className={styles.heroBadgeDot} />
-              Now accepting applications
+        <div className={styles.heroLayout}>
+          <div className={styles.heroTextContent}>
+            <div className={styles.announcement}>
+              <span className={styles.newBadge}>PREMIUM</span>
+              Now live in Ghana & USA
             </div>
-
-            <h1 className={styles.heroTitle}>
-              Your Business <span className={styles.heroTitleHighlight}>Operating System</span> in Africa
+            <h1 className={styles.title}>
+              Launch your Business <span className={styles.gradientText}>with a Single Engine.</span>
             </h1>
-
-            <p className={styles.heroDescription}>
-              GrayDocket automates company incorporation, tax registration, and
-              banking — providing everything you need to launch and scale beyond borders.
+            <p className={styles.subtitle}>
+              GrayDocket is the digital-first 'Business-in-a-Box' platform that automates incorporation, tax registration, and banking through a single, hassle-free interface.
             </p>
-
-            <div className={styles.heroProof}>
-              <div className={styles.proofItem}>
-                <span className={styles.proofStat}>66% Faster</span>
-                <span className={styles.proofLabel}>than local advisors</span>
-              </div>
-              <div className={styles.proofItem}>
-                <span className={styles.proofStat}>Save 40+ Hours</span>
-                <span className={styles.proofLabel}>of paperwork & visits</span>
-              </div>
+            <div className={styles.heroActions}>
+              <Link href="/auth/register" className="btn btn-primary btn-lg">Start Your Engine →</Link>
+              <Link href="#how-it-works" className="btn btn-secondary btn-lg">Watch Demo</Link>
             </div>
-
-            <div className={styles.heroCtas}>
-              <Link href="/auth/register" className="btn btn-primary btn-lg">
-                Register Your Business →
-              </Link>
-              <Link href="#how-it-works" className="btn btn-secondary btn-lg">
-                See How It Works
-              </Link>
-            </div>
-
-            <div className={styles.heroStats}>
-              <div className={styles.heroStat}>
-                <h3>500+</h3>
-                <p>Businesses Registered</p>
-              </div>
-              <div className={styles.heroStat}>
-                <h3>15min</h3>
-                <p>Average Setup Time</p>
-              </div>
-              <div className={styles.heroStat}>
-                <h3>98%</h3>
-                <p>Success Rate</p>
+            <div className={styles.heroTrust}>
+              <p>Trusted by 500+ Founders & Ventures</p>
+              <div className={styles.partnerLogos}>
+                <span className={styles.partnerLogo}>ORC</span>
+                <span className={styles.partnerLogo}>GRA</span>
+                <span className={styles.partnerLogo}>GCB</span>
               </div>
             </div>
           </div>
-
           <div className={styles.heroVisual}>
-            <div className={styles.heroCard}>
-              <div className={styles.heroCardHeader}>
-                <span className={styles.heroCardTitle}>Registration Progress</span>
-                <span className={styles.heroCardBadge}>In Progress</span>
-              </div>
-              <div className={styles.heroCardSteps}>
-                <div className={`${styles.heroStep} ${styles.completed}`}>
-                  <div className={`${styles.heroStepIcon} ${styles.completed}`}>
-                    <Check size={16} />
-                  </div>
-                  <div className={styles.heroStepContent}>
-                    <h4>Business Type Selected</h4>
-                    <p>Sole Proprietorship</p>
-                  </div>
+            <div className={styles.visualContainer}>
+              <img 
+                src="/premium_business_platform_hero_1774525453935.png" 
+                alt="GrayDocket Engine"
+                className={styles.heroImage}
+              />
+              <div className={styles.floatingStats}>
+                <div className={styles.floatingStat}>
+                  <span>99.9%</span>
+                  <p>Success Rate</p>
                 </div>
-                <div className={`${styles.heroStep} ${styles.completed}`}>
-                  <div className={`${styles.heroStepIcon} ${styles.completed}`}>
-                    <Check size={16} />
-                  </div>
-                  <div className={styles.heroStepContent}>
-                    <h4>Details Submitted</h4>
-                    <p>Personal & business information</p>
-                  </div>
-                </div>
-                <div className={`${styles.heroStep} ${styles.active}`}>
-                  <div className={`${styles.heroStepIcon} ${styles.active}`}>3</div>
-                  <div className={styles.heroStepContent}>
-                    <h4>Under Review</h4>
-                    <p>ORC processing your application</p>
-                  </div>
-                </div>
-                <div className={styles.heroStep}>
-                  <div className={`${styles.heroStepIcon} ${styles.pending}`}>4</div>
-                  <div className={styles.heroStepContent}>
-                    <h4>Certificate Ready</h4>
-                    <p>Awaiting previous step</p>
-                  </div>
+                <div className={styles.floatingStat}>
+                  <span>&lt;24h</span>
+                  <p>Sync Speed</p>
                 </div>
               </div>
-            </div>
-            <div className={styles.heroFloating}>
-              <span className={styles.heroFloatingDot} />
-              <span>Live Tracking</span>
             </div>
           </div>
         </div>

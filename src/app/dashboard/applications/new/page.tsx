@@ -215,6 +215,17 @@ export default function NewRegistrationPage() {
     beneficialOwnerDOB: '',
   })
 
+  // ---- Delivery Details ----
+  const [deliveryMethod, setDeliveryMethod] = useState<'digital' | 'courier'>('digital')
+  const [deliveryAddress, setDeliveryAddress] = useState({
+    street: '',
+    city: '',
+    region: '',
+    digitalAddress: '',
+    phone: '',
+    recipientName: '',
+  })
+
   const [submitted, setSubmitted] = useState(false)
 
   const selectedBusiness = businessTypes.find((t) => t.id === selectedType)
@@ -234,7 +245,8 @@ export default function NewRegistrationPage() {
   }
 
   const totalPrice = (selectedBusiness?.price || 0) +
-    addOns.filter((a) => selectedAddOns.includes(a.id)).reduce((sum, a) => sum + a.price, 0)
+    addOns.filter((a) => selectedAddOns.includes(a.id)).reduce((sum, a) => sum + a.price, 0) +
+    (deliveryMethod === 'courier' ? 50 : 0)
 
   const progressSteps = isCompany
     ? [
@@ -243,6 +255,7 @@ export default function NewRegistrationPage() {
         { label: 'Directors' },
         { label: 'Secretary & Shareholders' },
         { label: 'Add-Ons' },
+        { label: 'Delivery' },
         { label: 'Review' },
       ]
     : [
@@ -250,6 +263,7 @@ export default function NewRegistrationPage() {
         { label: 'Business Info' },
         { label: 'Proprietor' },
         { label: 'Add-Ons' },
+        { label: 'Delivery' },
         { label: 'Review' },
       ]
 
@@ -345,7 +359,9 @@ export default function NewRegistrationPage() {
       businessName: formData.businessName,
       formData: fullFormData,
       selectedAddOns,
-      totalAmount: totalPrice,
+      deliveryMethod,
+      deliveryAddress: deliveryMethod === 'courier' ? deliveryAddress : null,
+      totalAmount: totalPrice + (deliveryMethod === 'courier' ? 50 : 0),
     })
 
     if (result.error) {
@@ -1029,8 +1045,124 @@ export default function NewRegistrationPage() {
             <button className="btn btn-ghost" onClick={() => setStep(isCompany ? 3 : 2)}>
               <ArrowLeft size={16} /> Back
             </button>
-            <button className="btn btn-primary" onClick={() => setStep(isCompany ? 5 : 4)} id={`next-step-${isCompany ? 4 : 3}`}>
-              Review & Submit <ArrowRight size={16} />
+            <button className="btn btn-primary" onClick={() => setStep(step + 1)}>
+              Continue to Delivery <ArrowRight size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============ Step: Delivery Preference ============ */}
+      {progressSteps[step]?.label === 'Delivery' && (
+        <div className={styles.stepCard}>
+          <h2 className={styles.stepTitle}>Delivery Preference</h2>
+          <p className={styles.stepDesc}>How would you like to receive your official registration documents?</p>
+
+          <div className={styles.typeGrid}>
+            <button
+              className={`${styles.typeCard} ${deliveryMethod === 'digital' ? styles.selected : ''}`}
+              onClick={() => setDeliveryMethod('digital')}
+            >
+              <div className={styles.typeIcon}>📧</div>
+              <h3>Digital-Only</h3>
+              <p>Receive high-resolution PDF certificates via email and in your vault.</p>
+              <div className={styles.typePrice}>Free</div>
+            </button>
+            <button
+              className={`${styles.typeCard} ${deliveryMethod === 'courier' ? styles.selected : ''}`}
+              onClick={() => setDeliveryMethod('courier')}
+            >
+              <div className={styles.typeIcon}>📦</div>
+              <h3>Courier Delivery</h3>
+              <p>Physical hard-copy docs delivered to your door via partner courier.</p>
+              <div className={styles.typePrice}>GH₵ 50.00</div>
+            </button>
+          </div>
+
+          {deliveryMethod === 'courier' && (
+            <div className={styles.deliveryForm} style={{ marginTop: 'var(--space-8)' }}>
+              <div className={styles.formSectionTitle}>Delivery Address</div>
+              <div className={styles.formGrid}>
+                <div className={`form-group ${styles.formFull}`}>
+                  <label className="form-label">Recipient Name *</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="Full name of person receiving docs"
+                    value={deliveryAddress.recipientName}
+                    onChange={(e) => setDeliveryAddress({...deliveryAddress, recipientName: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className={`form-group ${styles.formFull}`}>
+                  <label className="form-label">Street / House Address *</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="House number, street name"
+                    value={deliveryAddress.street}
+                    onChange={(e) => setDeliveryAddress({...deliveryAddress, street: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">City *</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="e.g. Accra"
+                    value={deliveryAddress.city}
+                    onChange={(e) => setDeliveryAddress({...deliveryAddress, city: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Region *</label>
+                  <select 
+                    className="form-input"
+                    value={deliveryAddress.region}
+                    onChange={(e) => setDeliveryAddress({...deliveryAddress, region: e.target.value})}
+                    required
+                  >
+                    <option value="">Select Region</option>
+                    {ghanaRegions.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Digital Address (GPS)</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="e.g. GA-XXX-XXXX"
+                    value={deliveryAddress.digitalAddress}
+                    onChange={(e) => setDeliveryAddress({...deliveryAddress, digitalAddress: e.target.value})}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Phone *</label>
+                  <input 
+                    type="tel" 
+                    className="form-input" 
+                    placeholder="+233 XXX XXX XXX"
+                    value={deliveryAddress.phone}
+                    onChange={(e) => setDeliveryAddress({...deliveryAddress, phone: e.target.value})}
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className={styles.stepNav}>
+            <button className="btn btn-ghost" onClick={() => setStep(step - 1)}>
+              <ArrowLeft size={16} /> Back
+            </button>
+            <button 
+              className="btn btn-primary" 
+              onClick={() => setStep(step + 1)}
+              disabled={deliveryMethod === 'courier' && (!deliveryAddress.recipientName || !deliveryAddress.street || !deliveryAddress.city || !deliveryAddress.phone)}
+            >
+              Continue to Review <ArrowRight size={16} />
             </button>
           </div>
         </div>
@@ -1236,6 +1368,27 @@ export default function NewRegistrationPage() {
                 ))}
             </div>
           )}
+
+          {/* Delivery Review */}
+          <div className={styles.reviewSection}>
+            <h3>Delivery Preference</h3>
+            <div className={styles.reviewRow}>
+              <span className={styles.reviewLabel}>Method</span>
+              <span className={styles.reviewValue}>
+                {deliveryMethod === 'digital' ? 'Digital-Only (Vault & Email)' : 'Courier Delivery (Hard Copy)'}
+              </span>
+            </div>
+            {deliveryMethod === 'courier' && (
+              <div className={styles.reviewRow}>
+                <span className={styles.reviewLabel}>Delivery Destination</span>
+                <span className={styles.reviewValue}>
+                  {deliveryAddress.recipientName}<br />
+                  {deliveryAddress.street}, {deliveryAddress.city}, {deliveryAddress.region}<br />
+                  {deliveryAddress.phone}
+                </span>
+              </div>
+            )}
+          </div>
 
           <div className={styles.totalBar}>
             <span className={styles.totalLabel}>Total Amount</span>

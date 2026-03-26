@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { PlusCircle, FileText, Building2 } from 'lucide-react'
 import { getDashboardStats } from '@/lib/actions'
 import styles from './overview.module.css'
+import Skeleton from '@/components/ui/Skeleton'
 
 interface DashboardData {
   total: number
@@ -104,8 +105,63 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className={styles.overview} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-        <p style={{ color: 'var(--color-neutral-400)', fontSize: 'var(--text-lg)' }}>Loading your dashboard...</p>
+      <div className={styles.overview}>
+        <div className={styles.topSection}>
+          <div className={styles.healthScoreCard}>
+            <div className={styles.healthHeader}>
+              <Skeleton width="180px" height="24px" />
+            </div>
+            <div className={styles.healthScoreContent}>
+              <Skeleton circle width="120px" height="120px" />
+              <div className={styles.healthInfo}>
+                <Skeleton width="150px" height="20px" style={{ marginBottom: '8px' }} />
+                <Skeleton width="250px" height="40px" />
+              </div>
+            </div>
+          </div>
+          <div className={styles.engineMonitorCard}>
+            <div className={styles.engineHeader}>
+              <Skeleton width="180px" height="24px" />
+            </div>
+            <div className={styles.engineActivity}>
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className={styles.engineStat}>
+                  <Skeleton width="200px" height="18px" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className={styles.mainGrid}>
+          <div className={styles.leftCol}>
+            <Skeleton width="150px" height="28px" style={{ marginBottom: '16px' }} />
+            <div className={styles.quickActions}>
+              {[1, 2, 3].map(i => (
+                <div key={i} className={styles.quickAction}>
+                  <Skeleton circle width="40px" height="40px" />
+                  <div style={{ flex: 1 }}>
+                    <Skeleton width="100px" height="18px" style={{ marginBottom: '4px' }} />
+                    <Skeleton width="150px" height="14px" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className={styles.rightCol}>
+            <Skeleton width="150px" height="28px" style={{ marginBottom: '16px' }} />
+            <div className={styles.timeline}>
+              {[1, 2, 3].map(i => (
+                <div key={i} className={styles.timelineItem} style={{ marginBottom: '24px' }}>
+                  <Skeleton circle width="12px" height="12px" />
+                  <div className={styles.timelineContent}>
+                    <Skeleton width="120px" height="18px" />
+                    <Skeleton width="200px" height="32px" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     )
   }

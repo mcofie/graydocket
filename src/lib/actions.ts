@@ -17,6 +17,8 @@ export async function submitApplication(data: {
   formData: Record<string, unknown>
   selectedAddOns: string[]
   totalAmount: number
+  deliveryMethod: string
+  deliveryAddress: any
 }) {
   const supabase = await createClient()
 
@@ -40,6 +42,8 @@ export async function submitApplication(data: {
       form_data: data.formData,
       total_amount: data.totalAmount,
       payment_status: 'pending',
+      delivery_method: data.deliveryMethod,
+      delivery_address: data.deliveryAddress,
     })
     .select()
     .single()
@@ -440,6 +444,18 @@ export async function deleteBankingPartner(id: string) {
   revalidatePath('/admin/banking')
   return { error: error?.message || null }
 }
+
+export async function getApplicationHistory(applicationId: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('application_status_history')
+    .select('*')
+    .eq('application_id', applicationId)
+    .order('created_at', { ascending: false })
+
+  return { history: data || [], error: error?.message || null }
+}
+
 
 
 

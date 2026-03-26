@@ -3,107 +3,142 @@
 import { useState, useEffect } from 'react'
 import { getAdminStats } from '@/lib/actions'
 import styles from '../dashboard/overview.module.css'
-
-const statusColorMap: Record<string, string> = {
-  draft: '#6b7280',
-  submitted: '#3b82f6',
-  name_search: '#f59e0b',
-  under_review: '#f59e0b',
-  approved: '#10b981',
-  rejected: '#ef4444',
-  completed: '#10b981',
-  cancelled: '#6b7280',
-}
+import Skeleton from '@/components/ui/Skeleton'
 
 export default function AdminDashboardPage() {
-  const [data, setData] = useState<any>(null)
+  const [stats, setStats] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    getAdminStats().then((res) => {
-      setData(res)
+    async function fetchStats() {
+      const data = await getAdminStats()
+      setStats(data)
       setLoading(false)
-    })
+    }
+    fetchStats()
   }, [])
 
   if (loading) {
-    return <div className={styles.overview}>Loading admin data...</div>
+    return (
+      <div className={styles.overview}>
+        <div className={styles.sectionHeader}>
+          <Skeleton width="200px" height="32px" />
+        </div>
+        <div className={styles.statsGrid}>
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className={styles.statCard}>
+              <Skeleton circle width="48px" height="48px" />
+              <div className={styles.statContent}>
+                <Skeleton width="60px" height="28px" style={{ marginBottom: '4px' }} />
+                <Skeleton width="100px" height="14px" />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className={styles.sectionHeader} style={{ marginTop: 'var(--space-8)' }}>
+          <Skeleton width="180px" height="28px" />
+        </div>
+        <div className={styles.applicationsTable}>
+          <div style={{ padding: 'var(--space-6)' }}>
+            {[1, 2, 3].map(i => (
+              <div key={i} style={{ display: 'flex', gap: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
+                <Skeleton width="100px" height="20px" />
+                <Skeleton width="200px" height="20px" />
+                <Skeleton width="150px" height="20px" />
+                <Skeleton width="100px" height="20px" style={{ marginLeft: 'auto' }} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
   }
 
-  const statCards = [
-    { icon: '📋', label: 'Total Applications', value: data?.appCount || 0, variant: 'primary' },
-    { icon: '👥', label: 'Total Users', value: data?.userCount || 0, variant: 'info' },
-    { icon: '💰', label: 'Revenue (GH₵)', value: data?.revenue || 0, variant: 'accent' },
-    { icon: '✅', label: 'Completed', value: data?.completedCount || 0, variant: 'success' },
-  ]
+  if (!stats) {
+    return (
+      <div className={styles.overview}>
+        <div className={styles.emptyState}>
+          <div className={styles.emptyIcon}>🔒</div>
+          <h3>Access Denied</h3>
+          <p>You do not have administrative permissions to view these statistics.</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={styles.overview}>
-      {/* Stats */}
-      <div className={styles.statsGrid}>
-        {statCards.map((stat, i) => (
-          <div key={i} className={styles.statCard}>
-            <div className={`${styles.statIcon} ${styles[stat.variant as keyof typeof styles]}`}>
-              {stat.icon}
-            </div>
-            <div className={styles.statContent}>
-              <h3>{stat.value}</h3>
-              <p>{stat.label}</p>
-            </div>
-          </div>
-        ))}
+      <div className={styles.sectionHeader}>
+        <h2 className={styles.sectionTitle}>Platform Overview</h2>
       </div>
 
-      {/* Recent Applications */}
-      <div>
-        <div className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle}>Recent Applications</h2>
+      <div className={styles.statsGrid}>
+        <div className={styles.statCard}>
+          <div className={`${styles.statIcon} ${styles.primary}`}>📋</div>
+          <div className={styles.statContent}>
+            <h3>{stats.appCount}</h3>
+            <p>Total Apps</p>
+          </div>
         </div>
+        <div className={styles.statCard}>
+          <div className={`${styles.statIcon} ${styles.info}`}>👥</div>
+          <div className={styles.statContent}>
+            <h3>{stats.userCount}</h3>
+            <p>Total Users</p>
+          </div>
+        </div>
+        <div className={styles.statCard}>
+          <div className={`${styles.statIcon} ${styles.success}`}>✅</div>
+          <div className={styles.statContent}>
+            <h3>{stats.completedCount}</h3>
+            <p>Completed Apps</p>
+          </div>
+        </div>
+        <div className={styles.statCard}>
+          <div className={`${styles.statIcon} ${styles.accent}`}>💰</div>
+          <div className={styles.statContent}>
+            <h3>GH₵{stats.revenue.toLocaleString()}</h3>
+            <p>Platform Revenue</p>
+          </div>
+        </div>
+      </div>
 
-        {!data?.recentApps || data.recentApps.length === 0 ? (
+      <div className={styles.sectionHeader}>
+        <h2 className={styles.sectionTitle}>Recent Submissions</h2>
+      </div>
+
+      <div className={styles.applicationsTable}>
+        {stats.recentApps.length === 0 ? (
           <div className={styles.emptyState}>
-            <div className={styles.emptyIcon}>📊</div>
-            <h3>No applications yet</h3>
-            <p>Applications submitted by users will appear here.</p>
+            <div className={styles.emptyIcon}>📂</div>
+            <h3>No recent activity</h3>
+            <p>New applications will appear here as they come in.</p>
           </div>
         ) : (
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead style={{ background: 'var(--color-neutral-50)', borderBottom: '1px solid var(--color-neutral-200)' }}>
-                <tr>
-                  <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>TRK ID</th>
-                  <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>BUSINESS NAME</th>
-                  <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>USER</th>
-                  <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>STATUS</th>
-                  <th style={{ padding: 'var(--space-4)', textAlign: 'right', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>DATE</th>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>TRK ID</th>
+                <th>Business Name</th>
+                <th>User</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.recentApps.map((app: any) => (
+                <tr key={app.id}>
+                  <td style={{ fontSize: '11px', fontFamily: 'var(--font-mono)' }}>{app.tracking_id}</td>
+                  <td style={{ fontWeight: 600 }}>{app.business_name}</td>
+                  <td>{app.profiles?.full_name}</td>
+                  <td>
+                    <span className={`badge badge-${app.status}`}>
+                      {app.status}
+                    </span>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {data.recentApps.map((app: any) => (
-                  <tr key={app.id} style={{ borderBottom: '1px solid var(--color-neutral-100)' }}>
-                    <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-xs)', fontFamily: 'var(--font-mono)' }}>{app.tracking_id}</td>
-                    <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)', fontWeight: 600 }}>{app.business_name}</td>
-                    <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)' }}>{app.profiles?.full_name || 'User'}</td>
-                    <td style={{ padding: 'var(--space-4)' }}>
-                      <span style={{ 
-                        padding: '2px 8px', 
-                        borderRadius: '12px', 
-                        fontSize: '11px', 
-                        fontWeight: 600, 
-                        background: `${statusColorMap[app.status]}20`, 
-                        color: statusColorMap[app.status] 
-                      }}>
-                        {app.status.toUpperCase()}
-                      </span>
-                    </td>
-                    <td style={{ padding: 'var(--space-4)', textAlign: 'right', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>
-                      {new Date(app.created_at).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
     </div>

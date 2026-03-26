@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { getBankingPartners, updateBankingPartner, createBankingPartner, deleteBankingPartner } from '@/lib/actions'
 import Modal from '../components/Modal'
 import styles from '../../dashboard/overview.module.css'
+import Image from 'next/image'
 
 export default function AdminBankingPage() {
   const [partners, setPartners] = useState<any[]>([])
@@ -12,7 +13,7 @@ export default function AdminBankingPage() {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingPartner, setEditingPartner] = useState<any>(null)
-  const [formData, setFormData] = useState({ name: '', description: '' })
+  const [formData, setFormData] = useState({ name: '', description: '', logo_url: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
@@ -27,13 +28,17 @@ export default function AdminBankingPage() {
 
   const openCreateModal = () => {
     setEditingPartner(null)
-    setFormData({ name: '', description: '' })
+    setFormData({ name: '', description: '', logo_url: '' })
     setIsModalOpen(true)
   }
 
   const openEditModal = (partner: any) => {
     setEditingPartner(partner)
-    setFormData({ name: partner.name, description: partner.description || '' })
+    setFormData({ 
+      name: partner.name, 
+      description: partner.description || '', 
+      logo_url: partner.logo_url || '' 
+    })
     setIsModalOpen(true)
   }
 
@@ -88,6 +93,7 @@ export default function AdminBankingPage() {
         <table className={styles.table}>
           <thead>
             <tr>
+              <th style={{ width: '80px' }}>Logo</th>
               <th>Bank Name</th>
               <th>Description</th>
               <th>Status</th>
@@ -97,6 +103,31 @@ export default function AdminBankingPage() {
           <tbody>
             {partners.map((partner) => (
               <tr key={partner.id}>
+                <td>
+                  <div style={{ 
+                    width: '40px', 
+                    height: '40px', 
+                    borderRadius: '8px', 
+                    background: 'var(--color-neutral-100)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden'
+                  }}>
+                    {partner.logo_url ? (
+                      <img 
+                        src={partner.logo_url} 
+                        alt={partner.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                        onError={(e) => {
+                          (e.target as any).src = 'https://via.placeholder.com/40?text=Bank'
+                        }}
+                      />
+                    ) : (
+                      <span style={{ fontSize: '10px', color: 'var(--color-neutral-400)' }}>Logo</span>
+                    )}
+                  </div>
+                </td>
                 <td style={{ fontWeight: 600 }}>{partner.name}</td>
                 <td style={{ color: 'var(--color-neutral-500)', fontSize: '11px' }}>
                   {partner.description || 'No description available.'}
@@ -149,6 +180,22 @@ export default function AdminBankingPage() {
               required
               placeholder="e.g. Ghana Commercial Bank"
             />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Logo URL</label>
+            <input 
+              type="text" 
+              className="form-input" 
+              value={formData.logo_url}
+              onChange={(e) => setFormData({ ...formData, logo_url: e.target.value })}
+              placeholder="https://example.com/logo.png"
+            />
+            {formData.logo_url && (
+              <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '10px', color: 'var(--color-neutral-500)' }}>Preview:</span>
+                <img src={formData.logo_url} alt="Preview" style={{ height: '24px', objectFit: 'contain' }} />
+              </div>
+            )}
           </div>
           <div className="form-group">
             <label className="form-label">Description</label>

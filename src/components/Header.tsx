@@ -7,10 +7,9 @@ import styles from './Header.module.css'
 
 const navLinks = [
   { label: 'Services', href: '#services' },
-  { label: 'How It Works', href: '#how-it-works' },
+  { label: 'Process', href: '#how-it-works' },
   { label: 'Pricing', href: '#pricing' },
   { label: 'FAQ', href: '#faq' },
-  { label: 'Track', href: '/track' },
 ]
 
 export default function Header() {
@@ -19,7 +18,7 @@ export default function Header() {
 
   useEffect(() => {
     const handleScroll = () => {
-      setScrolled(window.scrollY > 20)
+      setScrolled(window.scrollY > 50)
     }
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
@@ -32,27 +31,24 @@ export default function Header() {
       >
         <div className={styles.headerInner}>
           <Link href="/" className={styles.logo}>
-            <span className={styles.logoIcon}>G</span>
-            <span>
-              <span className={styles.logoTextGray}>Gray</span>
-              <span className={styles.logoTextDocket}>Docket</span>
-            </span>
+            <div className={styles.logoIcon}>G</div>
+            <span className={styles.logoText}>GrayDocket</span>
           </Link>
 
           <nav className={styles.nav}>
             {navLinks.map((link) => (
-              <a
+              <Link
                 key={link.href}
                 href={link.href}
                 className={styles.navLink}
               >
                 {link.label}
-              </a>
+              </Link>
             ))}
           </nav>
 
           <div className={styles.navActions}>
-            <Link href="/auth/login" className="btn btn-ghost btn-sm">
+            <Link href="/auth/login" className={styles.loginLink}>
               Sign In
             </Link>
             <Link href="/auth/register" className="btn btn-primary btn-sm">
@@ -64,7 +60,6 @@ export default function Header() {
             className={styles.mobileToggle}
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label="Toggle menu"
-            id="mobile-menu-toggle"
           >
             {mobileOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
@@ -72,31 +67,35 @@ export default function Header() {
       </header>
 
       <div className={`${styles.mobileMenu} ${mobileOpen ? styles.open : ''}`}>
-        {navLinks.map((link) => (
-          <a
-            key={link.href}
-            href={link.href}
-            className={styles.mobileNavLink}
-            onClick={() => setMobileOpen(false)}
-          >
-            {link.label}
-          </a>
-        ))}
-        <div className={styles.mobileActions}>
-          <Link
-            href="/auth/login"
-            className="btn btn-secondary btn-lg"
-            onClick={() => setMobileOpen(false)}
-          >
-            Sign In
-          </Link>
-          <Link
-            href="/auth/register"
-            className="btn btn-primary btn-lg"
-            onClick={() => setMobileOpen(false)}
-          >
-            Get Started Free
-          </Link>
+        <div className={styles.mobileMenuInner}>
+          <div className={styles.mobileNav}>
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={styles.mobileNavLink}
+                onClick={() => setMobileOpen(false)}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
+          <div className={styles.mobileActions}>
+            <Link
+              href="/auth/login"
+              className="btn btn-secondary btn-lg"
+              onClick={() => setMobileOpen(false)}
+            >
+              Sign In
+            </Link>
+            <Link
+              href="/auth/register"
+              className="btn btn-primary btn-lg"
+              onClick={() => setMobileOpen(false)}
+            >
+              Get Started Free
+            </Link>
+          </div>
         </div>
       </div>
     </>

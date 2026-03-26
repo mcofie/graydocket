@@ -94,6 +94,8 @@ CREATE TABLE IF NOT EXISTS graydocket.applications (
   form_data JSONB DEFAULT '{}',
   total_amount DECIMAL(10,2) DEFAULT 0,
   payment_status TEXT DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'refunded')),
+  delivery_method TEXT DEFAULT 'digital', -- 'digital', 'courier'
+  delivery_address JSONB, -- { street, city, region, digital_address, phone }
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()

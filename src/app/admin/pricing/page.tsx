@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { getAllBusinessTypes, updateBusinessType } from '@/lib/actions'
 import Modal from '../components/Modal'
 import styles from '../../dashboard/overview.module.css'
+import Skeleton from '@/components/ui/Skeleton'
 
 export default function AdminPricingPage() {
   const [pricing, setPricing] = useState<any[]>([])
@@ -66,7 +67,30 @@ export default function AdminPricingPage() {
   }
 
   if (loading) {
-    return <div className={styles.overview}>Loading pricing...</div>
+    return (
+      <div className={styles.overview}>
+        <div className={styles.sectionHeader}>
+          <Skeleton width="180px" height="28px" />
+        </div>
+        <div className={styles.applicationsTable}>
+          {[1, 2, 3].map(i => (
+            <div key={i} style={{ padding: 'var(--space-4)', display: 'flex', gap: 'var(--space-6)', borderBottom: '1px solid var(--color-neutral-100)' }}>
+              <Skeleton width="150px" height="20px" />
+              <Skeleton width="100px" height="20px" />
+              <Skeleton width="80px" height="20px" />
+              <Skeleton width="120px" height="20px" />
+              <Skeleton width="100px" height="20px" style={{ marginLeft: 'auto' }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  const formatDate = (date: any) => {
+    if (!date) return 'Never'
+    const d = new Date(date)
+    return isNaN(d.getTime()) ? 'Never' : d.toLocaleDateString()
   }
 
   return (
@@ -101,7 +125,7 @@ export default function AdminPricingPage() {
                   </button>
                 </td>
                 <td style={{ fontSize: '11px', color: 'var(--color-neutral-500)' }}>
-                  {new Date(item.updated_at).toLocaleDateString()}
+                  {formatDate(item.updated_at || item.created_at)}
                 </td>
                 <td>
                   <button 

@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { getAdminApplications, updateApplicationStatus } from '@/lib/actions'
+import Modal from '../components/Modal'
 import styles from '../../dashboard/overview.module.css'
+import Skeleton from '@/components/ui/Skeleton'
 
 const statusOptions = [
   'draft', 'submitted', 'name_search', 'under_review', 
-  'approved', 'rejected', 'completed', 'cancelled'
+  'approved', 'rejected', 'dispatched', 'delivered', 'completed', 'cancelled', 'on_hold'
 ]
 
 const statusColorMap: Record<string, string> = {
@@ -16,8 +18,11 @@ const statusColorMap: Record<string, string> = {
   under_review: '#f59e0b',
   approved: '#10b981',
   rejected: '#ef4444',
+  dispatched: '#8b5cf6',
+  delivered: '#10b981',
   completed: '#10b981',
   cancelled: '#6b7280',
+  on_hold: '#ef4444',
 }
 
 export default function AdminApplicationsPage() {
@@ -44,7 +49,24 @@ export default function AdminApplicationsPage() {
   }
 
   if (loading) {
-    return <div className={styles.overview}>Loading applications...</div>
+    return (
+      <div className={styles.overview}>
+        <div className={styles.sectionHeader}>
+          <Skeleton width="180px" height="28px" />
+        </div>
+        <div className={styles.applicationsTable}>
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} style={{ padding: 'var(--space-4)', display: 'flex', gap: 'var(--space-6)', borderBottom: '1px solid var(--color-neutral-100)' }}>
+              <Skeleton width="120px" height="20px" />
+              <Skeleton width="200px" height="20px" />
+              <Skeleton width="150px" height="20px" />
+              <Skeleton width="100px" height="20px" />
+              <Skeleton width="120px" height="20px" style={{ marginLeft: 'auto' }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -68,6 +90,7 @@ export default function AdminApplicationsPage() {
                 <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>BUSINESS NAME</th>
                 <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>USER</th>
                 <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>TYPE</th>
+                <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>DELIVERY</th>
                 <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>STATUS</th>
                 <th style={{ padding: 'var(--space-4)', textAlign: 'right', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>UPDATED ON</th>
               </tr>
@@ -81,6 +104,24 @@ export default function AdminApplicationsPage() {
                     <div>{app.profiles?.full_name || 'Anonymous'}</div>
                   </td>
                   <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)' }}>{app.business_types?.name}</td>
+                  <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-xs)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ 
+                        padding: '2px 6px', 
+                        borderRadius: '4px', 
+                        background: app.delivery_method === 'courier' ? '#fef3c7' : '#f3f4f6',
+                        color: app.delivery_method === 'courier' ? '#92400e' : '#4b5563',
+                        fontWeight: 600
+                      }}>
+                        {app.delivery_method === 'courier' ? '📦 COURIER' : '📧 DIGITAL'}
+                      </span>
+                    </div>
+                    {app.delivery_method === 'courier' && app.delivery_address && (
+                      <div style={{ marginTop: '4px', color: 'var(--color-neutral-500)', fontSize: '10px', maxWidth: '150px' }}>
+                        {app.delivery_address.recipientName} - {app.delivery_address.city} ({app.delivery_address.phone})
+                      </div>
+                    )}
+                  </td>
                   <td style={{ padding: 'var(--space-4)' }}>
                     <select 
                       value={app.status}
@@ -104,7 +145,7 @@ export default function AdminApplicationsPage() {
                     </select>
                   </td>
                   <td style={{ padding: 'var(--space-4)', textAlign: 'right', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>
-                    {new Date(app.updated_at).toLocaleDateString()}
+                    {app.updated_at ? new Date(app.updated_at).toLocaleDateString() : new Date(app.created_at).toLocaleDateString()}
                   </td>
                 </tr>
               ))}
