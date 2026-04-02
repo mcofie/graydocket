@@ -1,166 +1,48 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { Check, ArrowLeft, ArrowRight, Plus, Trash2 } from 'lucide-react'
-import { submitApplication, getBusinessTypes } from '@/lib/actions'
+import { 
+  submitApplication, getBusinessTypes, getSystemFee, 
+  saveApplicationDraft, getLatestDraft 
+} from '@/lib/actions'
 import styles from './new.module.css'
+import {
+  businessTypes, businessSectors, ghanaRegions, addOns,
+  PersonEntry, emptyPerson, ShareholderEntry, emptyShareholder
+} from './constants'
+import PersonForm from './PersonForm'
 
-// =====================================================
-// Constants
-// =====================================================
-
-const businessTypes = [
-  {
-    id: 'sole_proprietorship',
-    icon: '🏢',
-    name: 'Sole Proprietorship',
-    desc: 'For individual entrepreneurs. Register under the Registration of Business Names Act (Form A).',
-    price: 350,
-    formRef: 'Form A',
-  },
-  {
-    id: 'limited_by_shares',
-    icon: '🏛️',
-    name: 'Company Limited by Shares',
-    desc: 'For teams and investors. Limited liability with share capital under the Companies Act 2019 (Form 3).',
-    price: 1200,
-    formRef: 'Form 3',
-  },
-  {
-    id: 'limited_by_guarantee',
-    icon: '🤝',
-    name: 'Company Limited by Guarantee',
-    desc: 'For NGOs, associations, and non-profits. No share capital required.',
-    price: 1200,
-    formRef: 'Form 3',
-  },
-]
-
-const businessSectors = [
-  'Agriculture & Agro-Processing',
-  'Manufacturing',
-  'Mining & Quarrying',
-  'Construction',
-  'Wholesale & Retail Trade',
-  'Information & Communication Technology',
-  'Financial & Insurance Services',
-  'Real Estate & Property',
-  'Education & Training',
-  'Health & Social Services',
-  'Hospitality & Tourism',
-  'Transportation & Logistics',
-  'Professional, Scientific & Technical Services',
-  'Arts, Entertainment & Recreation',
-  'Other (specify below)',
-]
-
-const ghanaRegions = [
-  'Greater Accra',
-  'Ashanti',
-  'Western',
-  'Eastern',
-  'Central',
-  'Northern',
-  'Volta',
-  'Upper East',
-  'Upper West',
-  'Bono',
-  'Bono East',
-  'Ahafo',
-  'Western North',
-  'Oti',
-  'Savannah',
-  'North East',
-]
-
-const addOns = [
-  { id: 'domain', name: 'Domain Name', desc: 'Purchase a .com or .com.gh domain', price: 80 },
-  { id: 'email', name: 'Business Email', desc: 'Professional email address setup', price: 120 },
-  { id: 'website', name: 'Business Website', desc: 'Professional one-page website', price: 500 },
-  { id: 'bank', name: 'Bank Account Setup', desc: 'Business bank account with partner bank', price: 0 },
-]
-
-// =====================================================
-// Types
-// =====================================================
-
-interface PersonEntry {
-  title: string
-  surname: string
-  firstName: string
-  otherNames: string
-  dateOfBirth: string
-  gender: string
-  nationality: string
-  occupation: string
-  ghanaCardNumber: string
-  tinNumber: string
-  residentialAddress: string
-  city: string
-  region: string
-  digitalAddress: string
-  phone: string
-  email: string
-}
-
-const emptyPerson: PersonEntry = {
-  title: '',
-  surname: '',
-  firstName: '',
-  otherNames: '',
-  dateOfBirth: '',
-  gender: '',
-  nationality: '',
-  occupation: '',
-  ghanaCardNumber: '',
-  tinNumber: '',
-  residentialAddress: '',
-  city: '',
-  region: '',
-  digitalAddress: '',
-  phone: '',
-  email: '',
-}
-
-interface ShareholderEntry {
-  type: 'individual' | 'corporate'
-  name: string
-  tinNumber: string
-  nationality: string
-  address: string
-  numberOfShares: string
-  valuePerShare: string
-}
-
-const emptyShareholder: ShareholderEntry = {
-  type: 'individual',
-  name: '',
-  tinNumber: '',
-  nationality: '',
-  address: '',
-  numberOfShares: '',
-  valuePerShare: '',
-}
 
 // =====================================================
 // Component
 // =====================================================
 
-export default function NewRegistrationPage() {
+function NewRegistrationContent() {
   const [step, setStep] = useState(0)
   const [selectedType, setSelectedType] = useState<string | null>(null)
   const [selectedAddOns, setSelectedAddOns] = useState<string[]>(['bank'])
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [savingDraft, setSavingDraft] = useState(false)
   const [resultTrackingId, setResultTrackingId] = useState('')
+  
+  const searchParams = useSearchParams()
+  const refCode = searchParams.get('ref') || ''
+
+
 
   // ---- Load business types from DB ----
-  const [dbBusinessTypes, setDbBusinessTypes] = useState<Array<{id: string; name: string; description: string; base_price: number}>>([]) 
+  const [dbBusinessTypes, setDbBusinessTypes] = useState<Array<{id: string; name: string; description: string; base_price: number; service_fee: number}>>([]) 
+  const [deliveryFee, setDeliveryFee] = useState(50)
+
   useEffect(() => {
     getBusinessTypes().then((types) => {
       if (types.length > 0) setDbBusinessTypes(types)
     })
+    getSystemFee('Courier Delivery').then((fee) => setDeliveryFee(fee))
   }, [])
 
   // ---- Common fields (both Form A & Form 3) ----
@@ -226,6 +108,101 @@ export default function NewRegistrationPage() {
     recipientName: '',
   })
 
+  const [isDraftLoaded, setIsDraftLoaded] = useState(false)
+
+  // Load from DB (prioritize) or LocalStorage (fallback)
+  useEffect(() => {
+    async function loadDraft() {
+      // 1. Try DB
+      const { draft } = await getLatestDraft()
+      if (draft && draft.form_data) {
+        const data = draft.form_data as any
+        if (data.currentStep !== undefined) setStep(data.currentStep)
+        if (data.businessType) setSelectedType(data.businessType)
+        if (data.selectedAddOns) setSelectedAddOns(data.selectedAddOns)
+        if (data.formData) setFormData(data.formData)
+        if (data.proprietor) setProprietor(data.proprietor)
+        if (data.directors) setDirectors(data.directors)
+        if (data.secretary) setSecretary(data.secretary)
+        if (data.shareholders) setShareholders(data.shareholders)
+        if (data.companyDetails) setCompanyDetails(data.companyDetails)
+        if (data.deliveryMethod) setDeliveryMethod(data.deliveryMethod)
+        if (data.deliveryAddress) setDeliveryAddress(data.deliveryAddress)
+        setIsDraftLoaded(true)
+        return
+      }
+
+      // 2. Fallback to LocalStorage
+      const saved = localStorage.getItem('graydocket_draft')
+      if (saved) {
+        try {
+          const data = JSON.parse(saved)
+          if(data.step !== undefined) setStep(data.step)
+          if(data.selectedType !== undefined) setSelectedType(data.selectedType)
+          if(data.selectedAddOns) setSelectedAddOns(data.selectedAddOns)
+          if(data.formData) setFormData(data.formData)
+          if(data.proprietor) setProprietor(data.proprietor)
+          if(data.directors) setDirectors(data.directors)
+          if(data.secretary) setSecretary(data.secretary)
+          if(data.shareholders) setShareholders(data.shareholders)
+          if(data.companyDetails) setCompanyDetails(data.companyDetails)
+          if(data.deliveryMethod) setDeliveryMethod(data.deliveryMethod)
+          if(data.deliveryAddress) setDeliveryAddress(data.deliveryAddress)
+        } catch (e) {
+          console.error("Draft load failed", e)
+        }
+      }
+      setIsDraftLoaded(true)
+    }
+    loadDraft()
+  }, [])
+
+  // Auto-save to LocalStorage
+  useEffect(() => {
+    if(!isDraftLoaded) return;
+    const appState = { step, selectedType, selectedAddOns, formData, proprietor, directors, secretary, shareholders, companyDetails, deliveryMethod, deliveryAddress }
+    localStorage.setItem('graydocket_draft', JSON.stringify(appState))
+  }, [step, selectedType, selectedAddOns, formData, proprietor, directors, secretary, shareholders, companyDetails, deliveryMethod, deliveryAddress, isDraftLoaded])
+
+  const handleSaveDraft = async () => {
+    if (!selectedType) return
+    const dbTypeId = getDbBusinessTypeId()
+    if (!dbTypeId) return
+
+    setSavingDraft(true)
+    const fullState = {
+      formData,
+      proprietor,
+      directors,
+      secretary,
+      shareholders,
+      companyDetails,
+      selectedAddOns,
+      businessType: selectedType
+    }
+
+    const res = await saveApplicationDraft({
+      businessTypeId: dbTypeId,
+      businessName: formData.businessName,
+      formData: fullState,
+      selectedAddOns,
+      totalAmount: totalPrice,
+      deliveryMethod,
+      deliveryAddress,
+      step
+    })
+
+    if (res.error) console.error("Draft save failed:", res.error)
+    setSavingDraft(false)
+  }
+
+  const handleClearDraft = () => {
+    if(confirm('Are you sure you want to clear your current progress?')) {
+      localStorage.removeItem('graydocket_draft')
+      window.location.reload()
+    }
+  }
+
   const [submitted, setSubmitted] = useState(false)
 
   const selectedBusiness = businessTypes.find((t) => t.id === selectedType)
@@ -244,9 +221,19 @@ export default function NewRegistrationPage() {
     return found?.id || null
   }
 
-  const totalPrice = (selectedBusiness?.price || 0) +
+  const nameMap: Record<string, string> = {
+    'sole_proprietorship': 'Sole Proprietorship',
+    'limited_by_shares': 'Company Limited by Shares',
+    'limited_by_guarantee': 'Company Limited by Guarantee',
+  }
+  const dbMatch = dbBusinessTypes.find(bt => bt.name === nameMap[selectedType || ''])
+  
+  const basePrice = dbMatch ? dbMatch.base_price : (selectedBusiness?.price || 0)
+  const serviceFee = dbMatch?.service_fee || 0
+
+  const totalPrice = basePrice + serviceFee +
     addOns.filter((a) => selectedAddOns.includes(a.id)).reduce((sum, a) => sum + a.price, 0) +
-    (deliveryMethod === 'courier' ? 50 : 0)
+    (deliveryMethod === 'courier' ? deliveryFee : 0)
 
   const progressSteps = isCompany
     ? [
@@ -361,7 +348,8 @@ export default function NewRegistrationPage() {
       selectedAddOns,
       deliveryMethod,
       deliveryAddress: deliveryMethod === 'courier' ? deliveryAddress : null,
-      totalAmount: totalPrice + (deliveryMethod === 'courier' ? 50 : 0),
+      totalAmount: totalPrice,
+      affiliateCode: refCode
     })
 
     if (result.error) {
@@ -386,109 +374,9 @@ export default function NewRegistrationPage() {
   const personFullName = (p: PersonEntry) =>
     [p.title, p.firstName, p.otherNames, p.surname].filter(Boolean).join(' ')
 
-  // =====================================================
-  // Reusable: Person Form Fields
-  // =====================================================
+  
+  // Removed renderPersonFields
 
-  const renderPersonFields = (
-    person: PersonEntry,
-    onChange: (field: string, value: string) => void,
-    prefix: string,
-    label: string,
-  ) => (
-    <>
-      <div className={styles.formSectionTitle}>{label} — Personal Information</div>
-      <div className={styles.formGrid}>
-        <div className="form-group">
-          <label className="form-label" htmlFor={`${prefix}-title`}>Title</label>
-          <select id={`${prefix}-title`} className="form-input" value={person.title} onChange={(e) => onChange('title', e.target.value)}>
-            <option value="">Select</option>
-            <option value="Mr">Mr</option>
-            <option value="Mrs">Mrs</option>
-            <option value="Ms">Ms</option>
-            <option value="Dr">Dr</option>
-            <option value="Prof">Prof</option>
-          </select>
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor={`${prefix}-surname`}>Surname *</label>
-          <input id={`${prefix}-surname`} type="text" className="form-input" placeholder="Family name" value={person.surname} onChange={(e) => onChange('surname', e.target.value)} required />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor={`${prefix}-firstName`}>First Name *</label>
-          <input id={`${prefix}-firstName`} type="text" className="form-input" placeholder="Given name" value={person.firstName} onChange={(e) => onChange('firstName', e.target.value)} required />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor={`${prefix}-otherNames`}>Other Names</label>
-          <input id={`${prefix}-otherNames`} type="text" className="form-input" placeholder="Middle name(s)" value={person.otherNames} onChange={(e) => onChange('otherNames', e.target.value)} />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor={`${prefix}-dob`}>Date of Birth *</label>
-          <input id={`${prefix}-dob`} type="date" className="form-input" value={person.dateOfBirth} onChange={(e) => onChange('dateOfBirth', e.target.value)} required />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor={`${prefix}-gender`}>Gender *</label>
-          <select id={`${prefix}-gender`} className="form-input" value={person.gender} onChange={(e) => onChange('gender', e.target.value)} required>
-            <option value="">Select</option>
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-          </select>
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor={`${prefix}-nationality`}>Nationality *</label>
-          <input id={`${prefix}-nationality`} type="text" className="form-input" placeholder="e.g., Ghanaian" value={person.nationality} onChange={(e) => onChange('nationality', e.target.value)} required />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor={`${prefix}-occupation`}>Occupation *</label>
-          <input id={`${prefix}-occupation`} type="text" className="form-input" placeholder="e.g., Software Engineer" value={person.occupation} onChange={(e) => onChange('occupation', e.target.value)} required />
-        </div>
-      </div>
-
-      <div className={styles.formSectionTitle}>{label} — Identification</div>
-      <div className={styles.formGrid}>
-        <div className="form-group">
-          <label className="form-label" htmlFor={`${prefix}-ghanaCard`}>Ghana Card Number *</label>
-          <input id={`${prefix}-ghanaCard`} type="text" className="form-input" placeholder="GHA-XXXXXXXXX-X" value={person.ghanaCardNumber} onChange={(e) => onChange('ghanaCardNumber', e.target.value)} required />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor={`${prefix}-tin`}>TIN *</label>
-          <input id={`${prefix}-tin`} type="text" className="form-input" placeholder="e.g., CXXXXXXXX" value={person.tinNumber} onChange={(e) => onChange('tinNumber', e.target.value)} required />
-          <span className="form-hint">Taxpayer Identification Number (mandatory)</span>
-        </div>
-      </div>
-
-      <div className={styles.formSectionTitle}>{label} — Residential Address</div>
-      <div className={styles.formGrid}>
-        <div className={`form-group ${styles.formFull}`}>
-          <label className="form-label" htmlFor={`${prefix}-address`}>Street / House Address *</label>
-          <input id={`${prefix}-address`} type="text" className="form-input" placeholder="House number, street name" value={person.residentialAddress} onChange={(e) => onChange('residentialAddress', e.target.value)} required />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor={`${prefix}-city`}>City / Town *</label>
-          <input id={`${prefix}-city`} type="text" className="form-input" placeholder="e.g., Accra" value={person.city} onChange={(e) => onChange('city', e.target.value)} required />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor={`${prefix}-region`}>Region *</label>
-          <select id={`${prefix}-region`} className="form-input" value={person.region} onChange={(e) => onChange('region', e.target.value)} required>
-            <option value="">Select region</option>
-            {ghanaRegions.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor={`${prefix}-digitalAddr`}>Digital Address</label>
-          <input id={`${prefix}-digitalAddr`} type="text" className="form-input" placeholder="e.g., GA-XXX-XXXX" value={person.digitalAddress} onChange={(e) => onChange('digitalAddress', e.target.value)} />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor={`${prefix}-phone`}>Phone *</label>
-          <input id={`${prefix}-phone`} type="tel" className="form-input" placeholder="+233 XXX XXX XXX" value={person.phone} onChange={(e) => onChange('phone', e.target.value)} required />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor={`${prefix}-email`}>Email *</label>
-          <input id={`${prefix}-email`} type="email" className="form-input" placeholder="email@example.com" value={person.email} onChange={(e) => onChange('email', e.target.value)} required />
-        </div>
-      </div>
-    </>
-  )
 
   // =====================================================
   // Reusable: Review person
@@ -570,7 +458,10 @@ export default function NewRegistrationPage() {
   return (
     <div className={styles.newReg}>
       <div className={styles.newRegHeader}>
-        <h1>Register Your Business</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1>Register Your Business</h1>
+          <button className="btn btn-ghost btn-sm" onClick={handleClearDraft} style={{ color: 'var(--color-neutral-400)' }}>Clear Draft</button>
+        </div>
         <p>
           {isCompany
             ? 'Complete the ORC Form 3 details below to incorporate your company in Ghana.'
@@ -601,14 +492,18 @@ export default function NewRegistrationPage() {
           <h2 className={styles.stepTitle}>Select Business Type</h2>
           <p className={styles.stepDesc}>Choose the type of entity you want to register with the ORC.</p>
           <div className={styles.typeGrid}>
-            {businessTypes.map((type) => (
+            {businessTypes.map((type: any) => (
               <button
                 key={type.id}
-                className={`${styles.typeCard} ${selectedType === type.id ? styles.selected : ''}`}
-                onClick={() => setSelectedType(type.id)}
+                className={`${styles.typeCard} ${selectedType === type.id ? styles.selected : ''} ${type.comingSoon ? styles.disabled : ''}`}
+                onClick={() => !type.comingSoon && setSelectedType(type.id)}
+                disabled={type.comingSoon}
                 id={`type-${type.id}`}
               >
-                <div className={styles.typeIcon}>{type.icon}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div className={styles.typeIcon}>{type.icon}</div>
+                  {type.comingSoon && <span className={styles.comingSoonBadge}>COMING SOON</span>}
+                </div>
                 <h3>{type.name}</h3>
                 <p>{type.desc}</p>
                 <div className={styles.typePrice}>GH₵ {type.price.toLocaleString()}</div>
@@ -618,9 +513,14 @@ export default function NewRegistrationPage() {
           </div>
           <div className={styles.stepNav}>
             <div />
-            <button className="btn btn-primary" disabled={!selectedType} onClick={() => setStep(1)} id="next-step-0">
-              Continue <ArrowRight size={16} />
-            </button>
+            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={!selectedType || savingDraft}>
+                {savingDraft ? 'Saving...' : 'Save Draft'}
+              </button>
+              <button className="btn btn-primary" disabled={!selectedType} onClick={() => setStep(1)} id="next-step-0">
+                Continue <ArrowRight size={16} />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -777,14 +677,19 @@ export default function NewRegistrationPage() {
             <button className="btn btn-ghost" onClick={() => setStep(0)}>
               <ArrowLeft size={16} /> Back
             </button>
-            <button
-              className="btn btn-primary"
-              onClick={() => setStep(2)}
-              disabled={!formData.businessName || !formData.businessSector || !formData.natureOfBusiness || !formData.city || !formData.region}
-              id="next-step-1"
-            >
-              Continue <ArrowRight size={16} />
-            </button>
+            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
+                {savingDraft ? 'Saving...' : 'Save Draft'}
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => setStep(2)}
+                disabled={!formData.businessName || !formData.businessSector || !formData.natureOfBusiness || !formData.city || !formData.region}
+                id="next-step-1"
+              >
+                Continue <ArrowRight size={16} />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -795,19 +700,24 @@ export default function NewRegistrationPage() {
         <div className={styles.stepCard}>
           <h2 className={styles.stepTitle}>Proprietor Details</h2>
           <p className={styles.stepDesc}>Personal information of the business owner as required on ORC Form A.</p>
-          {renderPersonFields(proprietor, handleProprietorChange, 'prop', 'Proprietor')}
+          <PersonForm person={proprietor} onChange={handleProprietorChange} prefix="prop" title="Proprietor" />
           <div className={styles.stepNav}>
             <button className="btn btn-ghost" onClick={() => setStep(1)}>
               <ArrowLeft size={16} /> Back
             </button>
-            <button
-              className="btn btn-primary"
-              onClick={() => setStep(3)}
-              disabled={!proprietor.surname || !proprietor.firstName || !proprietor.ghanaCardNumber || !proprietor.tinNumber || !proprietor.phone || !proprietor.email}
-              id="next-step-2"
-            >
-              Continue <ArrowRight size={16} />
-            </button>
+            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
+                {savingDraft ? 'Saving...' : 'Save Draft'}
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => setStep(3)}
+                disabled={!proprietor.surname || !proprietor.firstName || !proprietor.ghanaCardNumber || !proprietor.tinNumber || !proprietor.phone || !proprietor.email}
+                id="next-step-2"
+              >
+                Continue <ArrowRight size={16} />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -830,12 +740,7 @@ export default function NewRegistrationPage() {
                   </button>
                 )}
               </div>
-              {renderPersonFields(
-                director,
-                (field, value) => handleDirectorChange(index, field, value),
-                `dir-${index}`,
-                `Director ${index + 1}`,
-              )}
+              <PersonForm person={director} onChange={(f,v) => handleDirectorChange(index, f, v)} prefix={`dir-${index}`} title={`Director ${index + 1}`} />
             </div>
           ))}
 
@@ -847,14 +752,19 @@ export default function NewRegistrationPage() {
             <button className="btn btn-ghost" onClick={() => setStep(1)}>
               <ArrowLeft size={16} /> Back
             </button>
-            <button
-              className="btn btn-primary"
-              onClick={() => setStep(3)}
-              disabled={directors.some((d) => !d.surname || !d.firstName || !d.ghanaCardNumber || !d.tinNumber)}
-              id="next-step-2"
-            >
-              Continue <ArrowRight size={16} />
-            </button>
+            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
+                {savingDraft ? 'Saving...' : 'Save Draft'}
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => setStep(3)}
+                disabled={directors.some((d) => !d.surname || !d.firstName || !d.ghanaCardNumber || !d.tinNumber)}
+                id="next-step-2"
+              >
+                Continue <ArrowRight size={16} />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -872,7 +782,7 @@ export default function NewRegistrationPage() {
             <div className={styles.personBlockHeader}>
               <h3 className={styles.personBlockTitle}>Company Secretary</h3>
             </div>
-            {renderPersonFields(secretary, handleSecretaryChange, 'sec', 'Secretary')}
+            <PersonForm person={secretary} onChange={handleSecretaryChange} prefix="sec" title="Secretary" />
           </div>
 
           {/* Shareholders */}
@@ -998,14 +908,19 @@ export default function NewRegistrationPage() {
             <button className="btn btn-ghost" onClick={() => setStep(2)}>
               <ArrowLeft size={16} /> Back
             </button>
-            <button
-              className="btn btn-primary"
-              onClick={() => setStep(4)}
-              disabled={!secretary.surname || !secretary.firstName || shareholders.some((s) => !s.name || !s.tinNumber)}
-              id="next-step-3"
-            >
-              Continue <ArrowRight size={16} />
-            </button>
+            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
+                {savingDraft ? 'Saving...' : 'Save Draft'}
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => setStep(4)}
+                disabled={!secretary.surname || !secretary.firstName || shareholders.some((s) => !s.name || !s.tinNumber)}
+                id="next-step-3"
+              >
+                Continue <ArrowRight size={16} />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1045,9 +960,14 @@ export default function NewRegistrationPage() {
             <button className="btn btn-ghost" onClick={() => setStep(isCompany ? 3 : 2)}>
               <ArrowLeft size={16} /> Back
             </button>
-            <button className="btn btn-primary" onClick={() => setStep(step + 1)}>
-              Continue to Delivery <ArrowRight size={16} />
-            </button>
+            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
+                {savingDraft ? 'Saving...' : 'Save Draft'}
+              </button>
+              <button className="btn btn-primary" onClick={() => setStep(step + 1)}>
+                Continue to Delivery <ArrowRight size={16} />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1075,7 +995,7 @@ export default function NewRegistrationPage() {
               <div className={styles.typeIcon}>📦</div>
               <h3>Courier Delivery</h3>
               <p>Physical hard-copy docs delivered to your door via partner courier.</p>
-              <div className={styles.typePrice}>GH₵ 50.00</div>
+              <div className={styles.typePrice}>GH₵ {deliveryFee.toLocaleString()}</div>
             </button>
           </div>
 
@@ -1157,13 +1077,18 @@ export default function NewRegistrationPage() {
             <button className="btn btn-ghost" onClick={() => setStep(step - 1)}>
               <ArrowLeft size={16} /> Back
             </button>
-            <button 
-              className="btn btn-primary" 
-              onClick={() => setStep(step + 1)}
-              disabled={deliveryMethod === 'courier' && (!deliveryAddress.recipientName || !deliveryAddress.street || !deliveryAddress.city || !deliveryAddress.phone)}
-            >
-              Continue to Review <ArrowRight size={16} />
-            </button>
+            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
+                {savingDraft ? 'Saving...' : 'Save Draft'}
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={() => setStep(step + 1)}
+                disabled={deliveryMethod === 'courier' && (!deliveryAddress.recipientName || !deliveryAddress.street || !deliveryAddress.city || !deliveryAddress.phone)}
+              >
+                Continue to Review <ArrowRight size={16} />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1186,9 +1111,15 @@ export default function NewRegistrationPage() {
               <span className={styles.reviewValue}>{selectedBusiness?.formRef}</span>
             </div>
             <div className={styles.reviewRow}>
-              <span className={styles.reviewLabel}>Base Fee</span>
-              <span className={styles.reviewValue}>GH₵ {selectedBusiness?.price.toLocaleString()}</span>
+              <span className={styles.reviewLabel}>Base Fee (ORC)</span>
+              <span className={styles.reviewValue}>GH₵ {basePrice.toLocaleString()}</span>
             </div>
+            {serviceFee > 0 && (
+              <div className={styles.reviewRow}>
+                <span className={styles.reviewLabel}>GrayDocket Service Fee</span>
+                <span className={styles.reviewValue}>GH₵ {serviceFee.toLocaleString()}</span>
+              </div>
+            )}
           </div>
 
           {/* Business Info */}
@@ -1407,5 +1338,13 @@ export default function NewRegistrationPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function NewRegistrationPage() {
+  return (
+    <Suspense fallback={<div className={styles.newReg}>Loading...</div>}>
+      <NewRegistrationContent />
+    </Suspense>
   )
 }

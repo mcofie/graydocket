@@ -30,7 +30,11 @@ CREATE TABLE IF NOT EXISTS graydocket.profiles (
   full_name TEXT,
   email TEXT UNIQUE,
   phone TEXT,
-  role TEXT DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+  role TEXT DEFAULT 'user' CHECK (role IN ('user', 'admin', 'registrar', 'bank_manager', 'service_manager')),
+  affiliate_code TEXT UNIQUE,
+  is_affiliate BOOLEAN DEFAULT FALSE,
+  payout_method TEXT, -- e.g. 'momo', 'bank'
+  payout_address TEXT, -- e.g. '024XXXXXXX'
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -64,6 +68,7 @@ CREATE TABLE IF NOT EXISTS graydocket.business_types (
   description TEXT,
   required_fields JSONB DEFAULT '[]',
   base_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+  service_fee DECIMAL(10,2) NOT NULL DEFAULT 0,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -96,6 +101,7 @@ CREATE TABLE IF NOT EXISTS graydocket.applications (
   payment_status TEXT DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'refunded')),
   delivery_method TEXT DEFAULT 'digital', -- 'digital', 'courier'
   delivery_address JSONB, -- { street, city, region, digital_address, phone }
+  referred_by_id UUID REFERENCES graydocket.profiles(id),
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -180,6 +186,19 @@ CREATE TABLE IF NOT EXISTS graydocket.documents (
 );
 
 -- =====================================================
+-- Affiliate Commissions
+-- =====================================================
+CREATE TABLE IF NOT EXISTS graydocket.commissions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  affiliate_id UUID NOT NULL REFERENCES graydocket.profiles(id) ON DELETE CASCADE,
+  application_id UUID NOT NULL REFERENCES graydocket.applications(id) ON DELETE CASCADE,
+  amount DECIMAL(10,2) NOT NULL,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'paid', 'void')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
 -- Admin helper (SECURITY DEFINER bypasses RLS)
 -- This avoids infinite recursion when profiles policies
 -- need to check if the current user is an admin.
@@ -188,7 +207,7 @@ CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS BOOLEAN AS $$
   SELECT EXISTS (
     SELECT 1 FROM graydocket.profiles
-    WHERE id = auth.uid() AND role = 'admin'
+    WHERE id = auth.uid() AND role IN ('admin', 'registrar', 'bank_manager', 'service_manager')
   );
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
@@ -323,4 +342,17 @@ CREATE POLICY "Users can upload own documents"
 DROP POLICY IF EXISTS "Admins can manage all documents" ON graydocket.documents;
 CREATE POLICY "Admins can manage all documents"
   ON graydocket.documents FOR ALL
+  USING (public.is_admin());
+
+-- Commissions
+ALTER TABLE graydocket.commissions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Affiliates can view own commissions" ON graydocket.commissions;
+CREATE POLICY "Affiliates can view own commissions"
+  ON graydocket.commissions FOR SELECT
+  USING (affiliate_id = auth.uid());
+
+DROP POLICY IF EXISTS "Admins can manage all commissions" ON graydocket.commissions;
+CREATE POLICY "Admins can manage all commissions"
+  ON graydocket.commissions FOR ALL
   USING (public.is_admin());

@@ -2,8 +2,19 @@
 
 import { useState, useEffect } from 'react'
 import { getAdminStats } from '@/lib/actions'
-import styles from '../dashboard/overview.module.css'
+import styles from './admin.module.css'
 import Skeleton from '@/components/ui/Skeleton'
+import { 
+  Building2, 
+  Users, 
+  CheckCircle2, 
+  Banknote,
+  LockKeyhole,
+  Inbox,
+  ArrowRight,
+  TrendingUp,
+  FileText
+} from 'lucide-react'
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<any>(null)
@@ -20,27 +31,29 @@ export default function AdminDashboardPage() {
 
   if (loading) {
     return (
-      <div className={styles.overview}>
-        <div className={styles.sectionHeader}>
-          <Skeleton width="200px" height="32px" />
+      <div className={styles.adminContainer}>
+        <div className={styles.headerSection}>
+          <Skeleton width="300px" height="40px" />
+          <Skeleton width="450px" height="20px" />
         </div>
         <div className={styles.statsGrid}>
           {[1, 2, 3, 4].map(i => (
             <div key={i} className={styles.statCard}>
-              <Skeleton circle width="48px" height="48px" />
-              <div className={styles.statContent}>
-                <Skeleton width="60px" height="28px" style={{ marginBottom: '4px' }} />
-                <Skeleton width="100px" height="14px" />
+              <div className={styles.statHeader}>
+                <Skeleton width="100px" height="20px" />
+                <Skeleton circle width="44px" height="44px" />
               </div>
+              <Skeleton width="120px" height="40px" style={{ marginTop: 'var(--space-2)' }} />
             </div>
           ))}
         </div>
-        <div className={styles.sectionHeader} style={{ marginTop: 'var(--space-8)' }}>
-          <Skeleton width="180px" height="28px" />
-        </div>
-        <div className={styles.applicationsTable}>
+        
+        <div className={styles.tableContainer}>
+          <div className={styles.tableHeader}>
+            <Skeleton width="200px" height="24px" />
+          </div>
           <div style={{ padding: 'var(--space-6)' }}>
-            {[1, 2, 3].map(i => (
+             {[1, 2, 3].map(i => (
               <div key={i} style={{ display: 'flex', gap: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
                 <Skeleton width="100px" height="20px" />
                 <Skeleton width="200px" height="20px" />
@@ -56,90 +69,142 @@ export default function AdminDashboardPage() {
 
   if (!stats) {
     return (
-      <div className={styles.overview}>
+      <div className={styles.adminContainer}>
         <div className={styles.emptyState}>
-          <div className={styles.emptyIcon}>🔒</div>
-          <h3>Access Denied</h3>
-          <p>You do not have administrative permissions to view these statistics.</p>
+          <div className={styles.emptyIconWrapper}>
+            <LockKeyhole size={32} />
+          </div>
+          <h3 className={styles.emptyStateTitle}>Access Denied</h3>
+          <p className={styles.emptyStateDesc}>You do not have administrative permissions to view these statistics.</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className={styles.overview}>
-      <div className={styles.sectionHeader}>
-        <h2 className={styles.sectionTitle}>Platform Overview</h2>
+    <div className={styles.adminContainer}>
+      <div className={styles.headerSection}>
+        <h1 className={styles.title}>Admin Control Center</h1>
+        <p className={styles.subtitle}>
+          Monitor platform flow, system revenue, and corporate applications in real-time.
+        </p>
       </div>
 
-      <div className={styles.statsGrid}>
-        <div className={styles.statCard}>
-          <div className={`${styles.statIcon} ${styles.primary}`}>📋</div>
-          <div className={styles.statContent}>
-            <h3>{stats.appCount}</h3>
-            <p>Total Apps</p>
+      <div className={styles.statsSection}>
+        <div className={styles.statsGrid}>
+          {/* Total Apps Card */}
+          <div className={styles.statCard}>
+            <div className={styles.statHeader}>
+              <h3 className={styles.statTitle}>Total Applications</h3>
+              <div className={`${styles.statIconWrapper} ${styles.primary}`}>
+                <Building2 size={20} strokeWidth={2.5} />
+              </div>
+            </div>
+            <div className={styles.statValue}>
+              {stats.appCount}
+              <span className={`${styles.trendIndicator} ${styles.trendPositive}`}>
+                <TrendingUp size={12} strokeWidth={3} /> +12%
+              </span>
+            </div>
           </div>
-        </div>
-        <div className={styles.statCard}>
-          <div className={`${styles.statIcon} ${styles.info}`}>👥</div>
-          <div className={styles.statContent}>
-            <h3>{stats.userCount}</h3>
-            <p>Total Users</p>
+          
+          {/* Total Users Card */}
+          <div className={styles.statCard}>
+            <div className={styles.statHeader}>
+              <h3 className={styles.statTitle}>Total Users</h3>
+              <div className={`${styles.statIconWrapper} ${styles.info}`}>
+                <Users size={20} strokeWidth={2.5} />
+              </div>
+            </div>
+            <div className={styles.statValue}>
+              {stats.userCount}
+            </div>
           </div>
-        </div>
-        <div className={styles.statCard}>
-          <div className={`${styles.statIcon} ${styles.success}`}>✅</div>
-          <div className={styles.statContent}>
-            <h3>{stats.completedCount}</h3>
-            <p>Completed Apps</p>
+
+          {/* Completed Card */}
+          <div className={styles.statCard}>
+            <div className={styles.statHeader}>
+              <h3 className={styles.statTitle}>Completed Filings</h3>
+              <div className={`${styles.statIconWrapper} ${styles.success}`}>
+                <CheckCircle2 size={20} strokeWidth={2.5} />
+              </div>
+            </div>
+            <div className={styles.statValue}>
+              {stats.completedCount}
+            </div>
           </div>
-        </div>
-        <div className={styles.statCard}>
-          <div className={`${styles.statIcon} ${styles.accent}`}>💰</div>
-          <div className={styles.statContent}>
-            <h3>GH₵{stats.revenue.toLocaleString()}</h3>
-            <p>Platform Revenue</p>
+
+          {/* Revenue Card */}
+          <div className={styles.statCard}>
+            <div className={styles.statHeader}>
+              <h3 className={styles.statTitle}>Platform Revenue</h3>
+              <div className={`${styles.statIconWrapper} ${styles.accent}`}>
+                <Banknote size={20} strokeWidth={2.5} />
+              </div>
+            </div>
+            <div className={styles.statValue}>
+              <span style={{ fontSize: 'var(--text-xl)', color: 'var(--color-neutral-500)', transform: 'translateY(-2px)' }}>GH₵</span>
+              {stats.revenue.toLocaleString()}
+            </div>
           </div>
         </div>
       </div>
 
-      <div className={styles.sectionHeader}>
-        <h2 className={styles.sectionTitle}>Recent Submissions</h2>
-      </div>
+      <div className={styles.tableContainer}>
+        <div className={styles.tableHeader}>
+          <h2 className={styles.tableTitle}>
+            <span className={styles.entityIcon}><FileText size={18} strokeWidth={2.5} /></span>
+            Recent Submissions
+          </h2>
+          <button className={styles.viewAllBtn}>
+            View All <ArrowRight size={16} strokeWidth={2.5} />
+          </button>
+        </div>
 
-      <div className={styles.applicationsTable}>
-        {stats.recentApps.length === 0 ? (
-          <div className={styles.emptyState}>
-            <div className={styles.emptyIcon}>📂</div>
-            <h3>No recent activity</h3>
-            <p>New applications will appear here as they come in.</p>
-          </div>
-        ) : (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>TRK ID</th>
-                <th>Business Name</th>
-                <th>User</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stats.recentApps.map((app: any) => (
-                <tr key={app.id}>
-                  <td style={{ fontSize: '11px', fontFamily: 'var(--font-mono)' }}>{app.tracking_id}</td>
-                  <td style={{ fontWeight: 600 }}>{app.business_name}</td>
-                  <td>{app.profiles?.full_name}</td>
-                  <td>
-                    <span className={`badge badge-${app.status}`}>
-                      {app.status}
-                    </span>
-                  </td>
+        <div className={styles.tableWrapper}>
+          {stats.recentApps.length === 0 ? (
+            <div className={styles.emptyState}>
+              <div className={styles.emptyIconWrapper}>
+                <Inbox size={32} />
+              </div>
+              <h3 className={styles.emptyStateTitle}>No recent activity</h3>
+              <p className={styles.emptyStateDesc}>New applications will appear here as they come in.</p>
+            </div>
+          ) : (
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>TRK ID</th>
+                  <th>Business Name</th>
+                  <th>User</th>
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              </thead>
+              <tbody>
+                {stats.recentApps.map((app: any) => (
+                  <tr key={app.id}>
+                    <td>
+                      <span className={styles.tableRowId}>{app.tracking_id}</span>
+                    </td>
+                    <td>
+                      <div className={styles.tableRowEntity}>
+                        {app.business_name}
+                      </div>
+                    </td>
+                    <td>
+                      <span className={styles.tableRowUser}>{app.profiles?.full_name || 'N/A'}</span>
+                    </td>
+                    <td>
+                      <span className={`badge badge-${app.status}`}>
+                        {app.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </div>
   )

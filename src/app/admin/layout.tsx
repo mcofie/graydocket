@@ -20,12 +20,12 @@ import { createClient } from '@/lib/supabase/client'
 import dashStyles from '../dashboard/dashboard.module.css'
 
 const adminNavItems = [
-  { label: 'Overview', href: '/admin', icon: LayoutDashboard },
-  { label: 'Applications', href: '/admin/applications', icon: FileText },
-  { label: 'Users', href: '/admin/users', icon: Users },
-  { label: 'Services', href: '/admin/services', icon: Settings },
-  { label: 'Pricing', href: '/admin/pricing', icon: DollarSign },
-  { label: 'Banking Partners', href: '/admin/banking', icon: Building2 },
+  { label: 'Overview', href: '/admin', icon: LayoutDashboard, roles: ['admin', 'registrar', 'bank_manager', 'service_manager'] },
+  { label: 'Applications', href: '/admin/applications', icon: FileText, roles: ['admin', 'registrar'] },
+  { label: 'Users', href: '/admin/users', icon: Users, roles: ['admin'] },
+  { label: 'Services', href: '/admin/services', icon: Settings, roles: ['admin', 'service_manager'] },
+  { label: 'Pricing', href: '/admin/pricing', icon: DollarSign, roles: ['admin', 'service_manager'] },
+  { label: 'Banking Partners', href: '/admin/banking', icon: Building2, roles: ['admin', 'bank_manager'] },
 ]
 
 export default function AdminLayout({
@@ -36,13 +36,20 @@ export default function AdminLayout({
   const pathname = usePathname()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [user, setUser] = useState<{ email?: string; user_metadata?: { full_name?: string } } | null>(null)
+  const [user, setUser] = useState<{ email?: string; role?: string; user_metadata?: { full_name?: string } } | null>(null)
 
   useEffect(() => {
     const getUser = async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+        setUser({ ...user, role: profile?.role })
+      }
     }
     getUser()
   }, [])
@@ -81,23 +88,25 @@ export default function AdminLayout({
               Administration
             </span>
           </div>
-          {adminNavItems.map((item) => {
-            const Icon = item.icon
-            const isActive =
-              pathname === item.href ||
-              (item.href !== '/admin' && pathname.startsWith(item.href))
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`${dashStyles.sidebarLink} ${isActive ? dashStyles.active : ''}`}
-                onClick={() => setSidebarOpen(false)}
-              >
-                <Icon size={20} />
-                {item.label}
-              </Link>
-            )
-          })}
+          {adminNavItems
+            .filter((item) => !item.roles || item.roles.includes(user?.role || 'user'))
+            .map((item) => {
+              const Icon = item.icon
+              const isActive =
+                pathname === item.href ||
+                (item.href !== '/admin' && pathname.startsWith(item.href))
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`${dashStyles.sidebarLink} ${isActive ? dashStyles.active : ''}`}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <Icon size={20} />
+                  {item.label}
+                </Link>
+              )
+            })}
 
           <div className={dashStyles.sidebarSection}>
             <div className={dashStyles.sidebarSectionTitle}>Quick Links</div>

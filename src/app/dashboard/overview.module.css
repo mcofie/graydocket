@@ -263,6 +263,19 @@
   box-shadow: var(--shadow-lg);
 }
 
+.quickActionDisabled {
+  opacity: 0.6;
+  filter: grayscale(0.7);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.quickActionDisabled:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--color-neutral-200);
+}
+
 .quickActionIcon {
   font-size: 24px;
   margin-bottom: var(--space-3);

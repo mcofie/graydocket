@@ -8,6 +8,7 @@ import {
   FileText,
   PlusCircle,
   FolderOpen,
+  Users,
   Settings,
   Bell,
   LogOut,
@@ -22,6 +23,7 @@ const navItems = [
   { label: 'Applications', href: '/dashboard/applications', icon: FileText },
   { label: 'New Registration', href: '/dashboard/applications/new', icon: PlusCircle },
   { label: 'Documents', href: '/dashboard/documents', icon: FolderOpen },
+  { label: 'Partner Program', href: '/dashboard/affiliate', icon: Users },
   { label: 'Settings', href: '/dashboard/settings', icon: Settings },
 ]
 

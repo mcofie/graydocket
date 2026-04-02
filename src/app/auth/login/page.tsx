@@ -1,13 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import styles from '../auth.module.css'
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -27,14 +28,29 @@ export default function LoginPage() {
 
       if (signInError) {
         setError(signInError.message)
+        setLoading(false)
         return
       }
 
-      router.push('/dashboard')
+      // Check role and redirect
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', (await supabase.auth.getUser()).data.user?.id)
+        .single()
+
+      const isAdminRole = ['admin', 'registrar', 'bank_manager', 'service_manager'].includes(profile?.role || 'user')
+      
+      const redirectTo = searchParams.get('redirect')
+      if (redirectTo && (redirectTo.startsWith('/admin') ? isAdminRole : true)) {
+        router.push(redirectTo)
+      } else {
+        router.push(isAdminRole ? '/admin' : '/dashboard')
+      }
+      
       router.refresh()
     } catch {
       setError('An unexpected error occurred. Please try again.')
-    } finally {
       setLoading(false)
     }
   }
@@ -140,5 +156,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className={styles.authPage}>Loading...</div>}>
+      <LoginContent />
+    </Suspense>
   )
 }

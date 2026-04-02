@@ -17,6 +17,9 @@ export async function updateSession(request: NextRequest) {
     supabaseUrl,
     supabaseAnonKey,
     {
+      db: {
+        schema: 'graydocket',
+      },
       cookies: {
         getAll() {
           return request.cookies.getAll()
@@ -40,13 +43,40 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Protected routes
-  const protectedPaths = ['/dashboard', '/admin']
-  const isProtectedPath = protectedPaths.some((path) =>
-    request.nextUrl.pathname.startsWith(path)
-  )
+  // Determine role with fallback to user metadata if possible
+  let role = 'user'
+  let isAdminRole = false
 
-  if (isProtectedPath && !user) {
+  if (user) {
+    // Try to get role from profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    
+    role = profile?.role || user.app_metadata?.role || 'user'
+    isAdminRole = ['admin', 'registrar', 'bank_manager', 'service_manager'].includes(role)
+  }
+
+  const isScanningAdmin = request.nextUrl.pathname.startsWith('/admin')
+
+  // Protected paths logic: Only redirect AWAY from /admin if we are CERTAIN they are not an admin
+  if (isScanningAdmin && user && !isAdminRole && role === 'user') {
+    // We only redirect if we explicitly fetched 'user' and not an admin role
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
+    return NextResponse.redirect(url)
+  }
+
+  if (isScanningAdmin && !user) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/auth/login'
+    url.searchParams.set('redirect', request.nextUrl.pathname)
+    return NextResponse.redirect(url)
+  }
+
+  if (request.nextUrl.pathname.startsWith('/dashboard') && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth/login'
     url.searchParams.set('redirect', request.nextUrl.pathname)
@@ -61,7 +91,7 @@ export async function updateSession(request: NextRequest) {
 
   if (isAuthPath && user) {
     const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
+    url.pathname = isAdminRole ? '/admin' : '/dashboard'
     return NextResponse.redirect(url)
   }
 

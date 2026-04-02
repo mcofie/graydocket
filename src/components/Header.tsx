@@ -24,10 +24,19 @@ export default function Header() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+    return () => { document.body.style.overflow = 'unset' }
+  }, [mobileOpen])
+
   return (
     <>
       <header
-        className={`${styles.header} ${scrolled ? styles.scrolled : styles.transparent}`}
+        className={`${styles.header} ${(scrolled || mobileOpen) ? styles.scrolled : styles.transparent}`}
       >
         <div className={styles.headerInner}>
           <Link href="/" className={styles.logo}>

@@ -105,22 +105,31 @@ export default function AdminApplicationsPage() {
                   </td>
                   <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)' }}>{app.business_types?.name}</td>
                   <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-xs)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ 
-                        padding: '2px 6px', 
-                        borderRadius: '4px', 
-                        background: app.delivery_method === 'courier' ? '#fef3c7' : '#f3f4f6',
-                        color: app.delivery_method === 'courier' ? '#92400e' : '#4b5563',
-                        fontWeight: 600
-                      }}>
-                        {app.delivery_method === 'courier' ? '📦 COURIER' : '📧 DIGITAL'}
-                      </span>
-                    </div>
-                    {app.delivery_method === 'courier' && app.delivery_address && (
-                      <div style={{ marginTop: '4px', color: 'var(--color-neutral-500)', fontSize: '10px', maxWidth: '150px' }}>
-                        {app.delivery_address.recipientName} - {app.delivery_address.city} ({app.delivery_address.phone})
-                      </div>
-                    )}
+                    {(() => {
+                      const method = app.delivery_method || app.form_data?.delivery_method;
+                      const addr = app.delivery_address || app.form_data?.delivery_address;
+                      const isCourier = method === 'courier';
+                      return (
+                        <>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ 
+                              padding: '2px 6px', 
+                              borderRadius: '4px', 
+                              background: isCourier ? '#fef3c7' : '#f3f4f6',
+                              color: isCourier ? '#92400e' : '#4b5563',
+                              fontWeight: 600
+                            }}>
+                              {isCourier ? '📦 COURIER' : '📧 DIGITAL'}
+                            </span>
+                          </div>
+                          {isCourier && addr && (
+                            <div style={{ marginTop: '4px', color: 'var(--color-neutral-500)', fontSize: '10px', maxWidth: '150px' }}>
+                              {addr.recipientName || addr.street} - {addr.city} ({addr.phone || 'No phone'})
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </td>
                   <td style={{ padding: 'var(--space-4)' }}>
                     <select 

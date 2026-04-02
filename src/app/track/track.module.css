@@ -1,141 +1,340 @@
 .trackPage {
   min-height: 100vh;
-  background: linear-gradient(135deg, var(--color-neutral-50) 0%, #f5f5f5 50%, #fafafa 100%);
-  padding: calc(var(--header-height) + var(--space-12)) var(--space-6) var(--space-12);
+  background: var(--color-neutral-0);
+  padding: calc(var(--header-height) + var(--space-20)) 0 var(--space-24);
 }
 
-.trackContent {
-  max-width: 640px;
+.container {
+  max-width: var(--max-width);
   margin: 0 auto;
+  padding: 0 var(--space-6);
 }
 
 .trackHeader {
   text-align: center;
-  margin-bottom: var(--space-8);
+  max-width: 600px;
+  margin: 0 auto var(--space-16);
+}
+
+.badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-primary-600);
+  background: var(--color-primary-50);
+  padding: 4px 12px;
+  border-radius: 100px;
+  margin-bottom: var(--space-4);
 }
 
 .trackHeader h1 {
-  font-size: var(--text-3xl);
+  font-size: var(--text-4xl);
   font-weight: var(--font-weight-bold);
   color: var(--color-neutral-900);
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--space-4);
 }
 
-.trackHeader p {
+.subtitle {
+  font-size: var(--text-lg);
+  color: var(--color-neutral-500);
+  line-height: var(--line-height-relaxed);
+}
+
+.searchSection {
+  max-width: 640px;
+  margin: 0 auto var(--space-12);
+}
+
+.searchCard {
+  background: white;
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius-2xl);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-xl);
+}
+
+.form {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.inputWrapper {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.searchIcon {
+  position: absolute;
+  left: var(--space-4);
+  color: var(--color-neutral-400);
+}
+
+.input {
+  width: 100%;
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-12);
+  border: 1px solid transparent;
+  background: var(--color-neutral-50);
+  border-radius: var(--radius-xl);
   font-size: var(--text-base);
+  transition: all 0.3s;
+}
+
+.input:focus {
+  outline: none;
+  background: white;
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 4px var(--color-primary-50);
+}
+
+.searchHelper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: var(--space-4) var(--space-2) 0;
+  font-size: 12px;
+  color: var(--color-neutral-400);
+}
+
+.resultContainer {
+  max-width: var(--max-width);
+  margin: 0 auto;
+}
+
+.resultMain {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.summaryCard {
+  background: white;
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius-2xl);
+  padding: var(--space-10);
+  box-shadow: var(--shadow-sm);
+}
+
+.summaryHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-12);
+  padding-bottom: var(--space-10);
+  border-bottom: 1px solid var(--color-neutral-100);
+}
+
+.idLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-neutral-400);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.businessName {
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  color: var(--color-neutral-900);
+  margin: 4px 0 12px;
+}
+
+.metaRow {
+  display: flex;
+  gap: var(--space-6);
+}
+
+.metaRow span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
   color: var(--color-neutral-500);
 }
 
-.trackForm {
-  background: var(--color-neutral-0);
-  border-radius: var(--radius-2xl);
-  padding: var(--space-8);
-  box-shadow: var(--shadow-xl);
-  border: 1px solid var(--color-neutral-100);
-}
-
-.trackInputGroup {
+.statusBadge {
   display: flex;
-  gap: var(--space-3);
+  align-items: center;
+  gap: 10px;
+  background: #fff8e1;
+  color: #f57c00;
+  padding: 8px 16px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 700;
 }
 
-.trackInputGroup input {
-  flex: 1;
-}
-
-.trackResult {
-  margin-top: var(--space-6);
-  padding-top: var(--space-6);
-  border-top: 1px solid var(--color-neutral-100);
-}
-
-.trackResult h3 {
-  font-size: var(--text-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-neutral-900);
-  margin-bottom: var(--space-6);
-}
-
-.trackTimeline {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+.pulse {
+  width: 8px;
+  height: 8px;
+  background: #f57c00;
+  border-radius: 50%;
   position: relative;
-  padding-left: var(--space-8);
 }
 
-.trackTimeline::before {
+.pulse::after {
   content: '';
   position: absolute;
-  left: 15px;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--color-neutral-200);
+  inset: -4px;
+  border: 2px solid #f57c00;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(3); opacity: 0; }
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
 }
 
 .timelineItem {
+  display: flex;
+  gap: var(--space-8);
   position: relative;
-  padding-bottom: var(--space-6);
 }
 
-.timelineItem:last-child {
+.timelineVisual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 24px;
+}
+
+.dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid var(--color-neutral-200);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  color: white;
+  transition: all 0.3s;
+}
+
+.line {
+  flex: 1;
+  width: 2px;
+  background: var(--color-neutral-100);
+  margin: 4px 0;
+}
+
+.isCompleted .dot {
+  background: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.isCompleted .line {
+  background: var(--color-success);
+}
+
+.isActive .dot {
+  border-color: var(--color-primary-500);
+  border-width: 6px;
+}
+
+.itemContent {
+  padding-bottom: var(--space-10);
+  flex: 1;
+}
+
+.timelineItem:last-child .itemContent {
   padding-bottom: 0;
 }
 
-.timelineDot {
-  position: absolute;
-  left: calc(-1 * var(--space-8) + 7px);
-  top: 2px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 3px solid var(--color-neutral-300);
-  background: var(--color-neutral-0);
-  z-index: 1;
+.itemHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
 }
 
-.timelineDot.completed {
-  border-color: var(--color-primary-500);
-  background: var(--color-primary-500);
-}
-
-.timelineDot.active {
-  border-color: var(--color-accent-400);
-  background: var(--color-accent-400);
-  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.1);
-}
-
-.timelineItem h4 {
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-semibold);
+.itemHeader h4 {
+  font-size: var(--text-base);
+  font-weight: 700;
   color: var(--color-neutral-900);
-  margin-bottom: var(--space-1);
 }
 
-.timelineItem p {
-  font-size: var(--text-xs);
-  color: var(--color-neutral-500);
-}
-
-.timelineDate {
-  font-size: var(--text-xs);
+.date {
+  font-size: 12px;
   color: var(--color-neutral-400);
-  margin-top: var(--space-1);
+  font-weight: 500;
 }
 
-.trackNotFound {
-  text-align: center;
-  padding: var(--space-8) 0;
-}
-
-.trackNotFound p {
-  color: var(--color-neutral-500);
+.itemContent p {
   font-size: var(--text-sm);
+  color: var(--color-neutral-500);
+  line-height: var(--line-height-relaxed);
 }
 
-@media (max-width: 480px) {
-  .trackInputGroup {
+.isActive .itemHeader h4 {
+  color: var(--color-primary-600);
+}
+
+.actionCard {
+  background: var(--color-neutral-50);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius-2xl);
+  padding: var(--space-8);
+}
+
+.actionCard h3 {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  margin-bottom: var(--space-2);
+}
+
+.actionCard p {
+  font-size: var(--text-sm);
+  color: var(--color-neutral-500);
+  margin-bottom: var(--space-6);
+}
+
+.actionLink {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-primary-600);
+  text-decoration: none;
+}
+
+.notFound {
+  text-align: center;
+  padding: var(--space-20) 0;
+}
+
+.notFound h3 {
+  font-size: var(--text-xl);
+  margin-bottom: var(--space-2);
+}
+
+@media (max-width: 1024px) {
+  .resultMain {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .form {
     flex-direction: column;
+  }
+  .summaryHeader {
+    flex-direction: column;
+    gap: var(--space-6);
+  }
+  .statusBadge {
+    width: fit-content;
   }
 }
