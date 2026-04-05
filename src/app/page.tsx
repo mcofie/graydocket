@@ -4,56 +4,57 @@ import { useState } from 'react'
 import Link from 'next/link'
 import {
   Building,
-  Building2,
-  Landmark,
-  ShieldCheck,
-  Globe,
-  Rocket,
-  Lock,
-  Zap,
-  Scale,
-  Briefcase,
-  Users,
   Check,
-  ArrowRight
+  ArrowRight,
+  Clock,
+  AlertTriangle,
+  Zap,
+  ShieldCheck,
+  FileText,
+  UserCheck
 } from 'lucide-react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import styles from './page.module.css'
 
-const services = [
-  { icon: Building, title: 'Sole Proprietorship', desc: 'Register your sole proprietorship with the Office of the Registrar of Companies (ORC).', features: ['ORC name check', 'Business certificate', 'TIN registration'] },
-  { icon: Building2, title: 'Limited Company', desc: 'Incorporate a limited company in Ghana with full compliance and all required documentation.', features: ['Articles of incorporation', 'Secretary appointment', 'Share certificates'] },
-  { icon: Landmark, title: 'Business Bank Account', desc: 'Open a business bank account with our partner banks instantly.', features: ['Partner banks', 'Document preparation', 'Preferential terms'], status: 'coming-soon' },
-  { icon: ShieldCheck, title: 'Compliance Engine', desc: 'Automated reminders for annual returns and regulatory deadlines.', features: ['GRA Registration', 'Return Reminders', 'Deadline Tracking'], status: 'coming-soon' },
-  { icon: Globe, title: 'Domain & Email', desc: 'Establish your digital presence with a professional domain and email.', features: ['Domain purchase', 'Email setup', 'DNS configuration'], status: 'coming-soon' },
-  { icon: Rocket, title: 'Website Creation', desc: 'Get a professional website for your new business from day one.', features: ['Template design', 'Mobile responsive', 'SEO optimized'], status: 'coming-soon' },
+const problemPoints = [
+  { icon: FileText, title: 'Endless Paperwork', desc: 'Confusing government portals and overlapping forms.' },
+  { icon: Clock, title: 'Weeks of Waiting', desc: 'Sitting in the dark, not knowing your application status.' },
+  { icon: AlertTriangle, title: 'Unclear Requirements', desc: 'Constant back-and-forth and rejected applications.' }
+]
+
+const solutionPoints = [
+  { icon: Zap, title: 'Simpler', desc: 'No legal jargon or confusing forms. Tell us about your business in a plain-English form, and we do the rest.' },
+  { icon: Clock, title: 'Faster', desc: 'We know exactly what the ORC requires. We submit the right things the first time, preventing annoying delays.' },
+  { icon: ShieldCheck, title: 'Done-For-You', desc: 'From business name searches to TIN registration and tax compliance, we handle the entire process from start to finish.' }
 ]
 
 const steps = [
-  { num: '01', title: 'Choose Service', desc: 'Select the type of business registration you need.' },
-  { num: '02', title: 'Fill Details', desc: 'Complete the dynamic form with your business information.' },
-  { num: '03', title: 'Submit & Pay', desc: 'Review your information, make payment, and submit.' },
-  { num: '04', title: 'Get Registered', desc: 'Track progress and receive your documents digitally.' },
+  { num: '01', title: 'Tell us about your business', desc: 'Fill out our simple, 5-minute digital form with your business details and founder information.' },
+  { num: '02', title: 'We handle the bureaucracy', desc: "Our experts prepare your documents, file with the ORC, and process your tax IDs. You don't have to lift a finger or stand in a single queue." },
+  { num: '03', title: 'You’re ready to operate', desc: 'Receive your official registration documents digitally. Now you\'re ready to open a business bank account, sign contracts, and close deals.' },
 ]
 
 const pricingPlans = [
   {
-    name: 'Sole Proprietorship', desc: 'Perfect for local freelancers and individual shop owners.', currency: 'GH₵', price: '350', period: 'one-time', popular: false,
-    features: ['ORC Name Search & Reservation', 'Business Registration', 'TIN Registration', 'Digital Vault'],
+    name: 'Business Name (Entry)', desc: 'Perfect for freelancers, creators, and solo founders who want to go official fast.', currency: 'GH₵', price: '350', period: 'one-time', popular: false,
+    features: ['Business Name reservation', 'Basic TIN setup', 'Digital Document Vault'],
   },
   {
-    name: 'Limited Company', desc: 'Professional package for scaling startups and global teams.', currency: 'GH₵', price: '1,200', originalPrice: '4,500', period: 'one-time', popular: true,
-    features: ['Articles of Incorporation', 'Company Secretary', 'Ghana Card Verification', 'Document Review'],
+    name: 'Company Registration', desc: 'For growing startups that require a Limited Liability Company (LLC) structure.', currency: 'GH₵', price: '1,200', originalPrice: '4,500', period: 'one-time', popular: true,
+    features: ['Full ORC registration', 'Board of Directors setup', 'Standard tax compliance'],
   },
+  {
+    name: 'Premium / Fast-Track', desc: 'For founders who need to move yesterday.', currency: 'Custom', price: 'Price on request', period: 'one-time', popular: false,
+    features: ['Priority processing', 'Dedicated account manager', 'Complete compliance setup', 'Expedited document delivery'],
+  }
 ]
 
 
 const trustItems = [
-  { icon: Lock, title: 'Bank-Level Security', desc: 'End-to-end encryption for all your data' },
-  { icon: Zap, title: 'Priority Processing', desc: 'Direct pathway for faster ORC approval' },
-  { icon: Scale, title: 'Legal Support', desc: 'Assistance with constitution drafting' },
-  { icon: Briefcase, title: 'Fully Compliant', desc: 'Aligned with Companies Act 2019' },
+  { icon: UserCheck, title: 'Built by founders, for founders', desc: 'We felt the stress of the ORC process ourselves, so we built the solution you deserve.' },
+  { icon: ShieldCheck, title: 'Clear process, zero surprises', desc: 'Track exactly where your application is at all times. Never wonder what\'s happening behind the scenes.' },
+  { icon: Zap, title: 'No back-and-forth', desc: 'We verify your details on day one so you aren\'t bothered with endless corrections or rejected applications.' },
 ]
 
 const partners = [
@@ -66,19 +67,20 @@ export default function Home() {
     <div className={styles.main}>
       <Header />
 
+      {/* HERO SECTION */}
       <section className={styles.hero} id="hero">
         <div className={styles.heroLayout}>
           <div className={styles.heroContent}>
             <h1 className={styles.heroTitle}>
-              Business Infrastructure <br />
-              <span className={styles.gradientText}>for Founders.</span>
+              Launch Your Business in Days.<br />
+              <span className={styles.gradientText}>Zero Stress Included.</span>
             </h1>
             <p className={styles.heroSubtitle}>
-              The all-in-one "Business-in-a-Box" for Ghanaian founders. Automate incorporation, compliance, and corporate banking so you can focus on building, not bureaucracy.
+              We handle the paperwork, TINs, and government bureaucracy so you can focus on building your business. No queues, no confusion, just a registered company ready to operate.
             </p>
             <div className={styles.heroActions}>
-              <Link href="/auth/register" className="btn btn-primary btn-lg">Launch Platform</Link>
-              <Link href="#services" className="btn btn-secondary btn-lg">View Services</Link>
+              <Link href="/auth/register" className="btn btn-primary btn-lg">Start My Registration</Link>
+              <Link href="#how-it-works" className="btn btn-secondary btn-lg">See How It Works</Link>
             </div>
           </div>
 
@@ -139,6 +141,7 @@ export default function Home() {
         </div>
       </section>
 
+      {/* PARTNERS */}
       <section className={styles.partners}>
         <div className={styles.partnersInner}>
           <div className={styles.partnersList}>
@@ -151,27 +154,64 @@ export default function Home() {
         </div>
       </section>
 
-      <section className={styles.section} id="services">
+      {/* PROBLEM SECTION */}
+      <section className={styles.sectionAlt} id="problem">
         <div className={styles.container}>
           <div className={styles.sectionHeader}>
-            <h2 className={styles.sectionTitle}>Precision Services</h2>
-            <p className={styles.sectionSubtitle}>Everything you need to go from idea to operational business in days, not months.</p>
+            <span className={styles.sectionKicker}>THE PROBLEM</span>
+            <h2 className={styles.sectionTitle}>Starting a business shouldn't feel like a second job.</h2>
+            <p className={styles.sectionSubtitle}>
+              You have a great idea, or maybe you’re already making money. But the process of becoming a formal business stands in your way.
+            </p>
           </div>
-          <div className={styles.servicesGrid}>
-            {services.map((Service, i) => (
-              <div key={i} className={`${styles.serviceCard} ${Service.status === 'coming-soon' ? styles.comingSoon : ''}`}>
+          <div className={styles.grid3}>
+            {problemPoints.map((point, i) => (
+              <div key={i} className={styles.problemCard}>
+                <div className={styles.problemIcon}><point.icon size={24} strokeWidth={1.5} /></div>
+                <h3>{point.title}</h3>
+                <p>{point.desc}</p>
+              </div>
+            ))}
+          </div>
+          <p className={styles.problemClosingText}>You shouldn't have to be a legal expert just to start a legitimate business in Ghana.</p>
+        </div>
+      </section>
+
+      {/* SOLUTION SECTION */}
+      <section className={styles.section} id="solution">
+        <div className={styles.container}>
+          <div className={styles.sectionHeader}>
+             <span className={styles.sectionKicker} style={{color: 'var(--color-primary-600)'}}>GO OFFICIAL, EFFORTLESSLY</span>
+            <h2 className={styles.sectionTitle}>We make compliance the easiest part of your startup journey.</h2>
+            <p className={styles.sectionSubtitle}>GrayDocket is your done-for-you corporate compliance team. We've removed the friction from business setup.</p>
+          </div>
+          <div className={styles.grid3}>
+            {solutionPoints.map((Service, i) => (
+              <div key={i} className={styles.serviceCard}>
                 <div className={styles.serviceHeader}>
                   <div className={styles.serviceIcon}><Service.icon strokeWidth={1.5} size={28} /></div>
-                  {Service.status === 'coming-soon' && (
-                    <span className={styles.comingSoonBadge}>COMING SOON</span>
-                  )}
                 </div>
                 <h3>{Service.title}</h3>
                 <p>{Service.desc}</p>
-                <div className={styles.serviceFeatures}>
-                  {Service.features.map((feature, j) => (
-                    <div key={j} className={styles.serviceFeature}><Check size={14} style={{ color: 'var(--color-success)' }} /> {feature}</div>
-                  ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* HOW IT WORKS */}
+      <section className={styles.sectionAlt} id="how-it-works">
+        <div className={styles.container}>
+           <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionTitle}>From an idea to officially registered in 3 simple steps.</h2>
+          </div>
+          <div className={styles.stepsContainer}>
+            {steps.map((step, i) => (
+              <div key={i} className={styles.stepItem}>
+                <div className={styles.stepNumber}>{step.num}</div>
+                <div className={styles.stepContent}>
+                  <h3>{step.title}</h3>
+                  <p>{step.desc}</p>
                 </div>
               </div>
             ))}
@@ -179,66 +219,11 @@ export default function Home() {
         </div>
       </section>
 
-      <section className={styles.sectionAlt}>
-        <div className={styles.container}>
-          <div className={styles.focusLayout}>
-            <div className={styles.focusContent}>
-              <h2 className={styles.sectionTitle} style={{ textAlign: 'left' }}>We handle the foundation.<br />You handle the growth.</h2>
-              <p className={styles.sectionSubtitle} style={{ textAlign: 'left', marginLeft: '0', maxWidth: '100%' }}>
-                GrayDocket was built on a simple premise: founders shouldn't spend their best hours navigating bureaucratic maze. While you focus on building your product and finding customers, we operate in the background to ensure your business infrastructure is rock-solid, fully compliant, and ready to scale.
-              </p>
-              <div className={styles.focusList}>
-                <div className={styles.focusItem}>
-                  <div className={styles.focusIcon}><ShieldCheck size={20} /></div>
-                  <div>
-                    <strong>Total Compliance</strong>
-                    <p>From ORC filings to GRA tax registrations, we ensure every box is checked.</p>
-                  </div>
-                </div>
-                <div className={styles.focusItem}>
-                  <div className={styles.focusIcon}><Landmark size={20} /></div>
-                  <div>
-                    <strong>Financial Ready</strong>
-                    <p>Your business bank account is ready to receive payments before your first sale.</p>
-                  </div>
-                </div>
-                <div className={styles.focusItem}>
-                  <div className={styles.focusIcon}><Zap size={20} /></div>
-                  <div>
-                    <strong>Zero Friction</strong>
-                    <p>No queues, no physical forms, no hidden 'facilitation' fees. Just pure speed.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className={styles.focusVisual}>
-              <div className={styles.focusCardStack}>
-                <div className={styles.focusCard} style={{ transform: 'translateY(-20px) rotate(-2deg)' }}>
-                  <div className={styles.focusCardHeader}>Your Focus</div>
-                  <div className={styles.focusCardBody}>
-                    <div className={styles.focusActionItem}><Rocket size={16} /> Product Development</div>
-                    <div className={styles.focusActionItem}><Globe size={16} /> Customer Acquisition</div>
-                    <div className={styles.focusActionItem}><Users size={16} /> Team Scaling</div>
-                  </div>
-                </div>
-                <div className={styles.focusCard} style={{ transform: 'translateY(40px) rotate(2deg)', background: 'var(--color-primary-900)', color: 'white' }}>
-                  <div className={styles.focusCardHeader} style={{ color: 'rgba(255,255,255,0.6)' }}>Our Focus</div>
-                  <div className={styles.focusCardBody}>
-                    <div className={styles.focusActionItem}><Check size={16} /> Local Incorporation</div>
-                    <div className={styles.focusActionItem}><Check size={16} /> Tax ID Generation</div>
-                    <div className={styles.focusActionItem}><Check size={16} /> Bank Account Setup</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className={styles.sectionAlt} id="pricing">
+      {/* PRICING SECTION */}
+      <section className={styles.section} id="pricing">
         <div className={styles.container}>
           <div className={styles.sectionHeader}>
-            <h2 className={styles.sectionTitle}>Simple Economics</h2>
+            <h2 className={styles.sectionTitle}>Simple pricing for serious founders.</h2>
             <p className={styles.sectionSubtitle}>Professional-grade business registration with zero hidden fees.</p>
           </div>
           <div className={styles.pricingGrid}>
@@ -249,16 +234,16 @@ export default function Home() {
                   <p>{plan.desc}</p>
                 </div>
                 <div className={styles.pricingAmount}>
-                  <span className={styles.currency}>{plan.currency}</span>
+                  {plan.currency !== 'Custom' && <span className={styles.currency}>{plan.currency}</span>}
                   <span className={styles.price}>{plan.price}</span>
                 </div>
-                <div className={styles.pricingFeatures} style={{ borderTop: '1px solid var(--color-neutral-200)', marginTop: '24px', paddingTop: '24px' }}>
+                <div className={styles.pricingFeatures} style={{ borderTop: plan.popular ? '1px solid rgba(var(--color-primary-900-rgb), 0.2)' : '1px solid var(--color-neutral-200)', marginTop: '24px', paddingTop: '24px' }}>
                   {plan.features.map((feature, j) => (
-                    <div key={j} className={styles.pricingFeature}><Check size={16} /> {feature}</div>
+                    <div key={j} className={styles.pricingFeature}><Check size={16} style={{flexShrink: 0}} /> {feature}</div>
                   ))}
                 </div>
-                <div style={{ marginTop: '32px' }}>
-                  <Link href="/auth/register" className={`btn ${plan.popular ? 'btn-primary' : 'btn-secondary'} btn-lg`} style={{ width: '100%' }}>Get Started</Link>
+                <div style={{ marginTop: '32px', display: 'flex', flexGrow: 1, alignItems: 'flex-end' }}>
+                  <Link href="/auth/register" className={`btn ${plan.popular ? 'btn-primary' : 'btn-secondary'} btn-lg`} style={{ width: '100%' }}>{plan.popular ? 'Start My Registration' : 'Get Started'}</Link>
                 </div>
               </div>
             ))}
@@ -266,11 +251,47 @@ export default function Home() {
         </div>
       </section>
 
-      <section className={styles.sectionAlt} style={{ textAlign: 'center', borderTop: '1px solid var(--color-neutral-200)' }}>
+      {/* TRUST SECTION */}
+      <section className={styles.sectionAlt} id="trust">
+        <div className={styles.container}>
+           <div className={styles.focusLayout}>
+            <div className={styles.focusContent}>
+              <h2 className={styles.sectionTitle} style={{ textAlign: 'left' }}>Built for founders in Ghana who value their time.</h2>
+              <div className={styles.focusList}>
+                {trustItems.map((item, i) => (
+                  <div key={i} className={styles.focusItem}>
+                    <div className={styles.focusIcon}><item.icon size={20} /></div>
+                    <div>
+                      <strong>{item.title}</strong>
+                      <p>{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className={styles.focusVisual}>
+              <div className={styles.focusCardStack}>
+                 {/* Some visual representation of trust */}
+                 <div className={styles.focusCard} style={{ transform: 'none', background: 'var(--color-primary-900)', color: 'white', border: 'none' }}>
+                    <div className={styles.focusCardHeader} style={{ color: 'rgba(255,255,255,0.6)' }}>OUR GUARANTEE</div>
+                    <div className={styles.focusCardBody}>
+                      <div className={styles.focusActionItem}><Check size={16} /> Fast Processing</div>
+                      <div className={styles.focusActionItem}><Check size={16} /> Transparent Pricing</div>
+                      <div className={styles.focusActionItem}><Check size={16} /> 100% Compliant</div>
+                    </div>
+                  </div>
+              </div>
+            </div>
+           </div>
+        </div>
+      </section>
+
+      {/* FINAL CTA SECTION */}
+      <section className={styles.section} style={{ textAlign: 'center' }}>
         <div className={styles.containerSmall}>
-          <h2 className={styles.sectionTitle}>Deploy your business today.</h2>
-          <p className={styles.sectionSubtitle} style={{ marginBottom: '32px' }}>Join hundreds of founders building on GrayDocket infrastructure.</p>
-          <Link href="/auth/register" className="btn btn-primary btn-lg">Begin Incorporation <ArrowRight size={18} /></Link>
+          <h2 className={styles.sectionTitle}>Stop waiting. Start building.</h2>
+          <p className={styles.sectionSubtitle} style={{ marginBottom: '32px' }}>Join the founders who skipped the queue and registered their businesses the smart way.</p>
+          <Link href="/auth/register" className="btn btn-primary btn-lg">Get Started Now <ArrowRight size={18} /></Link>
         </div>
       </section>
 

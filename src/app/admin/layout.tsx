@@ -22,7 +22,9 @@ import dashStyles from '../dashboard/dashboard.module.css'
 const adminNavItems = [
   { label: 'Overview', href: '/admin', icon: LayoutDashboard, roles: ['admin', 'registrar', 'bank_manager', 'service_manager'] },
   { label: 'Applications', href: '/admin/applications', icon: FileText, roles: ['admin', 'registrar'] },
+  { label: 'Payments', href: '/admin/payments', icon: DollarSign, roles: ['admin', 'registrar'] },
   { label: 'Users', href: '/admin/users', icon: Users, roles: ['admin'] },
+  { label: 'Affiliate Brands', href: '/admin/affiliates', icon: Building2, roles: ['admin'] },
   { label: 'Services', href: '/admin/services', icon: Settings, roles: ['admin', 'service_manager'] },
   { label: 'Pricing', href: '/admin/pricing', icon: DollarSign, roles: ['admin', 'service_manager'] },
   { label: 'Banking Partners', href: '/admin/banking', icon: Building2, roles: ['admin', 'bank_manager'] },

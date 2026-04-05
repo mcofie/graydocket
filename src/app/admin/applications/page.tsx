@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { getAdminApplications, updateApplicationStatus } from '@/lib/actions'
 import Modal from '../components/Modal'
 import styles from '../../dashboard/overview.module.css'
@@ -98,8 +99,16 @@ export default function AdminApplicationsPage() {
             <tbody>
               {apps.map((app) => (
                 <tr key={app.id} style={{ borderBottom: '1px solid var(--color-neutral-100)' }}>
-                  <td style={{ padding: 'var(--space-4)', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-primary-600)' }}>{app.tracking_id}</td>
-                  <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)', fontWeight: 600 }}>{app.business_name}</td>
+                  <td style={{ padding: 'var(--space-4)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
+                    <Link href={`/admin/applications/${app.id}`} style={{ color: 'var(--color-primary-600)', textDecoration: 'none', fontWeight: 600 }}>
+                      {app.tracking_id}
+                    </Link>
+                  </td>
+                  <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)', fontWeight: 600 }}>
+                    <Link href={`/admin/applications/${app.id}`} style={{ color: 'var(--color-neutral-900)', textDecoration: 'none' }}>
+                      {app.business_name}
+                    </Link>
+                  </td>
                   <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)' }}>
                     <div>{app.profiles?.full_name || 'Anonymous'}</div>
                   </td>

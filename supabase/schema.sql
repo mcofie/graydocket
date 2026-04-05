@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS graydocket.applications (
   business_name TEXT NOT NULL,
   status TEXT DEFAULT 'submitted' CHECK (status IN (
     'draft', 'submitted', 'name_search', 'under_review', 
-    'approved', 'rejected', 'completed', 'cancelled'
+    'approved', 'rejected', 'dispatched', 'delivered', 'completed', 'cancelled', 'on_hold'
   )),
   form_data JSONB DEFAULT '{}',
   total_amount DECIMAL(10,2) DEFAULT 0,
@@ -356,3 +356,28 @@ DROP POLICY IF EXISTS "Admins can manage all commissions" ON graydocket.commissi
 CREATE POLICY "Admins can manage all commissions"
   ON graydocket.commissions FOR ALL
   USING (public.is_admin());
+
+-- =====================================================
+-- Database Performance Indexes
+-- =====================================================
+-- Optimizes Foreign Keys and Joins
+CREATE INDEX IF NOT EXISTS idx_applications_user_id ON graydocket.applications(user_id);
+CREATE INDEX IF NOT EXISTS idx_applications_referred_by_id ON graydocket.applications(referred_by_id);
+CREATE INDEX IF NOT EXISTS idx_applications_business_type_id ON graydocket.applications(business_type_id);
+
+CREATE INDEX IF NOT EXISTS idx_application_services_app_id ON graydocket.application_services(application_id);
+CREATE INDEX IF NOT EXISTS idx_application_history_app_id ON graydocket.application_status_history(application_id);
+CREATE INDEX IF NOT EXISTS idx_documents_application_id ON graydocket.documents(application_id);
+
+CREATE INDEX IF NOT EXISTS idx_commissions_affiliate_id ON graydocket.commissions(affiliate_id);
+CREATE INDEX IF NOT EXISTS idx_commissions_application_id ON graydocket.commissions(application_id);
+
+-- Optimizes Frequent Filtration & Sorting
+CREATE INDEX IF NOT EXISTS idx_applications_status ON graydocket.applications(status);
+CREATE INDEX IF NOT EXISTS idx_applications_payment_status ON graydocket.applications(payment_status);
+CREATE INDEX IF NOT EXISTS idx_applications_updated_at ON graydocket.applications(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_applications_created_at ON graydocket.applications(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_profiles_role ON graydocket.profiles(role);
+CREATE INDEX IF NOT EXISTS idx_profiles_is_affiliate ON graydocket.profiles(is_affiliate);
+CREATE INDEX IF NOT EXISTS idx_commissions_status ON graydocket.commissions(status);

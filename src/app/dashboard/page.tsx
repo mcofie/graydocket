@@ -86,11 +86,11 @@ export default function DashboardPage() {
 
   return (
     <div className={styles.overview}>
-      <header style={{ marginBottom: 'var(--space-2)' }}>
-        <h1 style={{ fontSize: 'var(--text-3xl)', fontWeight: 'var(--font-weight-bold)', letterSpacing: '-0.02em', color: 'var(--color-neutral-900)' }}>
+      <header className={styles.pageHeader}>
+        <h1>
           Welcome back, {firstName}.
         </h1>
-        <p style={{ color: 'var(--color-neutral-500)', fontSize: 'var(--text-base)', marginTop: 'var(--space-1)' }}>
+        <p>
           Here is your business infrastructure overview.
         </p>
       </header>

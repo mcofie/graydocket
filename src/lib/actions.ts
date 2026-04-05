@@ -20,6 +20,7 @@ export async function submitApplication(data: {
   deliveryMethod: string
   deliveryAddress: any
   affiliateCode?: string
+  paystackReference?: string
 }) {
   const supabase = await createClient()
 
@@ -40,6 +41,19 @@ export async function submitApplication(data: {
     return { error: 'You must be logged in to submit an application.' }
   }
 
+  // Debug: check if profile exists
+  const { data: profileCheck } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', user.id)
+    .single()
+
+  if (!profileCheck) {
+    console.error(`Profile missing for user ${user.id}. Expect FK error.`)
+    // If Admin client is needed, we'd do it here, but let's just surface the error cleanly
+    return { error: `Profile missing. Did you register? (ID: ${user.id})` }
+  }
+
   const trackingId = generateTrackingId()
 
   const applicationPayload: any = {
@@ -52,10 +66,11 @@ export async function submitApplication(data: {
       ...data.formData, 
       delivery_method: data.deliveryMethod,
       delivery_address: data.deliveryAddress,
-      total_amount: data.totalAmount
+      total_amount: data.totalAmount,
+      paystack_reference: data.paystackReference
     },
     total_amount: data.totalAmount,
-    payment_status: 'pending',
+    payment_status: data.paystackReference ? 'paid' : 'pending',
     referred_by_id: referredById,
     updated_at: new Date().toISOString()
   }
@@ -69,9 +84,10 @@ export async function submitApplication(data: {
   
   // For now, we'll try to include them but the primary data is now in form_data.
   // If the user hasn't run the migration, this might still error, so we'll 
+  // If the user hasn't run the migration, this might still error, so we'll 
   // actually remove them if we are certain they are missing.
-  // Let's remove 'delivery_address' since it's confirmed missing.
-  applicationPayload.delivery_method = data.deliveryMethod;
+  // Let's remove 'delivery_address' and 'delivery_method' since they are in form_data.
+  // applicationPayload.delivery_method = data.deliveryMethod;
   // applicationPayload.delivery_address = data.deliveryAddress; // confirmed missing
 
 
@@ -161,6 +177,32 @@ export async function submitApplication(data: {
     }
   }
 
+  // --- Send SMS Notification ---
+  if (data.paystackReference && process.env.ZEND_API_KEY) {
+    const phoneNumber = data.formData.mobilePhone as string
+    if (phoneNumber) {
+      const trackingLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://graydocket.com'}/track/${trackingId}`
+      const message = `Payment received! Your GrayDocket application for "${data.businessName}" is processing. Track your status here: ${trackingLink}`
+      
+      try {
+        await fetch('https://api.tryzend.com/messages', {
+          method: 'POST',
+          headers: {
+            'x-api-key': process.env.ZEND_API_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            phone_number: phoneNumber,
+            message: message,
+            sender_id: 'GrayDocket'
+          })
+        })
+      } catch (err) {
+        console.error('Failed to send SMS via Zend:', err)
+      }
+    }
+  }
+
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/applications')
 
@@ -182,6 +224,18 @@ export async function saveApplicationDraft(data: {
   const { data: { user }, error: userError } = await supabase.auth.getUser()
   if (userError || !user) {
     return { error: 'Not authenticated' }
+  }
+
+  // Debug: check if profile exists
+  const { data: profileCheck } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', user.id)
+    .single()
+
+  if (!profileCheck) {
+    console.error(`Profile missing for user ${user.id}. Expect FK error in draft.`)
+    return { error: `Profile missing. Did you register? (ID: ${user.id})` }
   }
 
   // Check for existing draft for this user and business type
@@ -209,7 +263,7 @@ export async function saveApplicationDraft(data: {
   }
 
   // Fallback for direct columns if they exist
-  payload.delivery_method = data.deliveryMethod;
+  // payload.delivery_method = data.deliveryMethod;
   // payload.delivery_address = data.deliveryAddress; // Confirmed missing in DB cache
 
 
@@ -438,6 +492,52 @@ export async function getAdminApplications() {
   return { applications: data || [], error: error?.message || null }
 }
 
+export async function getAdminPayments() {
+  const isAdmin = await checkIsAdmin(['admin'])
+  if (!isAdmin) return { payments: [], error: 'Unauthorized' }
+
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('applications')
+    .select('id, tracking_id, business_name, total_amount, payment_status, created_at, updated_at, profiles:user_id(full_name, email)')
+    .eq('payment_status', 'paid')
+    .order('updated_at', { ascending: false })
+
+  return { payments: data || [], error: error?.message || null }
+}
+
+export async function getAdminAffiliates() {
+  const isAdmin = await checkIsAdmin(['admin'])
+  if (!isAdmin) return { affiliates: [], error: 'Unauthorized' }
+
+  const supabase = await createClient()
+
+  // Use a direct edge-join. This avoids manual mapping and speeds up the response natively.
+  const { data: profiles, error } = await supabase
+    .from('profiles')
+    .select(`
+      id, 
+      full_name, 
+      email, 
+      phone, 
+      affiliate_code, 
+      created_at, 
+      payout_method, 
+      payout_address, 
+      commissions(id, amount, status, created_at)
+    `)
+    .eq('is_affiliate', true)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Affiliate fetch error:', error)
+    return { affiliates: [], error: error.message }
+  }
+
+  return { affiliates: profiles || [], error: null }
+}
+
 export async function getAdminUsers() {
   const isAdmin = await checkIsAdmin()
   if (!isAdmin) return { users: [], error: 'Unauthorized' }
@@ -446,10 +546,20 @@ export async function getAdminUsers() {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('*')
+    .select('*, applications(id)')
     .order('created_at', { ascending: false })
 
-  return { users: data || [], error: error?.message || null }
+  if (error) return { users: [], error: error.message }
+
+  // Supabase Auth stores all users across the project. 
+  // We filter to only show users who have actually interacted with GrayDocket.
+  const appUsers = data.filter((u: any) => 
+    (u.applications && u.applications.length > 0) || 
+    u.role !== 'user' || 
+    u.is_affiliate
+  )
+
+  return { users: appUsers, error: null }
 }
 
 export async function getBankingPartners() {
@@ -517,49 +627,79 @@ export async function updateApplicationStatus(id: string, status: string) {
 
   if (error) return { error: error.message }
 
+  // Fetch full application for history, commission, and SMS
+  const { data: application } = await supabase
+    .from('applications')
+    .select('*, business_types(*), profiles(phone)')
+    .eq('id', id)
+    .single()
+
+  // Fetch current user
+  const { data: { user } } = await supabase.auth.getUser()
+
   // Log to history
   await supabase
     .from('application_status_history')
     .insert({
       application_id: id,
-      previous_status: '...',
-      new_status: status,
-      notes: `Updated by Admin`
+      status: status,
+      notes: `Status changed to ${status.toUpperCase().replace('_', ' ')}`,
+      updated_by: user?.id
     })
 
-  // ---- NEW: Handle Commissions on completion ----
-  if (status === 'completed') {
-    const { data: application } = await supabase
-      .from('applications')
-      .select('*, business_types(*)')
-      .eq('id', id)
-      .single()
-
-    if (application && application.referred_by_id) {
-       // Logic: Commission = 20% of GrayDocket Service Fee (or flat rate)
-       const serviceFee = application.business_types?.service_fee || 0
-       const commissionAmount = serviceFee * 0.2 // Example 20% commission
-
-       if (commissionAmount > 0) {
-         // Check if commission already exists
-         const { data: existing } = await supabase
-           .from('commissions')
-           .select('id')
-           .eq('application_id', id)
-           .single()
-           
-         if (!existing) {
-           await supabase.from('commissions').insert({
-             affiliate_id: application.referred_by_id,
-             application_id: id,
-             amount: commissionAmount,
-             status: 'pending'
-           })
-         }
-       }
+  // ---- SMS Notification via Zend ----
+  if (application && process.env.ZEND_API_KEY) {
+    const phoneNumber = application.form_data?.mobilePhone || application.profiles?.phone
+    if (phoneNumber) {
+      const trackingLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://graydocket.com'}/track/${application.tracking_id}`
+      const statusFormatted = status.toUpperCase().replace('_', ' ')
+      const message = `GrayDocket: Your application "${application.business_name}" is now ${statusFormatted}. Track here: ${trackingLink}`
+      
+      try {
+        await fetch('https://api.tryzend.com/messages', {
+          method: 'POST',
+          headers: {
+            'x-api-key': process.env.ZEND_API_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            phone_number: phoneNumber,
+            message: message,
+            sender_id: 'GrayDocket'
+          })
+        }).catch(() => null)
+      } catch (err) {
+        console.error('Failed to send SMS via Zend:', err)
+      }
     }
   }
 
+  // ---- Handle Commissions on completion ----
+  if (status === 'completed' && application && application.referred_by_id) {
+     // Logic: Commission = 20% of GrayDocket Service Fee (or flat rate)
+     const serviceFee = application.business_types?.service_fee || 0
+     const commissionAmount = serviceFee * 0.2 // Example 20% commission
+
+     if (commissionAmount > 0) {
+       // Check if commission already exists
+       const { data: existing } = await supabase
+         .from('commissions')
+         .select('id')
+         .eq('application_id', id)
+         .single()
+         
+       if (!existing) {
+         await supabase.from('commissions').insert({
+           affiliate_id: application.referred_by_id,
+           application_id: id,
+           amount: commissionAmount,
+           status: 'pending'
+         })
+       }
+     }
+  }
+
+  revalidatePath(`/admin/applications/${id}`)
   revalidatePath('/admin/applications')
   revalidatePath('/dashboard')
   return { error: null }
@@ -769,4 +909,94 @@ export async function updatePayoutInfo(method: string, address: string) {
 
   revalidatePath('/dashboard/affiliate')
   return { error: error?.message || null }
+}
+
+export async function getApplicationDetails(id: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('applications')
+    .select(`
+      *,
+      profiles:user_id(full_name, email, phone),
+      business_types:business_type_id(name),
+      application_status_history(id, status, notes, created_at, updater:profiles!updated_by(full_name))
+    `)
+    .eq('id', id)
+    .single()
+    
+  // Sort history newest first
+  if (data && data.application_status_history) {
+    data.application_status_history.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  }
+    
+  return { application: data, error: error?.message || null }
+}
+
+export async function updateApplicationNotes(id: string, notes: string) {
+  const isAuthorized = await checkIsAdmin(['admin', 'registrar'])
+  if (!isAuthorized) return { error: 'Unauthorized' }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('applications')
+    .update({ notes })
+    .eq('id', id)
+
+  revalidatePath(`/admin/applications/${id}`)
+  return { error: error?.message || null }
+}
+
+export async function uploadApplicationDocument(id: string, formData: FormData) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !supabaseKey) return { error: 'Server misconfiguration' }
+
+  // We use service_role here to bypass any non-existent RLS policies for storage we haven't written yet
+  const { createClient: createJSClient } = await import('@supabase/supabase-js')
+  const adminSupabase = createJSClient(supabaseUrl, supabaseKey)
+
+  const file = formData.get('file') as File
+  const title = formData.get('title') as string
+  
+  if (!file || !title) return { error: 'Missing file or title' }
+
+  // Upload to 'documents' bucket
+  const fileExt = file.name.split('.').pop()
+  const safeTitle = title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()
+  const filePath = `app_${id}/${safeTitle}_${Date.now()}.${fileExt}`
+
+  const bytes = await file.arrayBuffer()
+  const buffer = Buffer.from(bytes)
+
+  const { error: uploadError } = await adminSupabase.storage
+    .from('documents')
+    .upload(filePath, buffer, {
+      contentType: file.type,
+      upsert: true
+    })
+
+  if (uploadError) return { error: uploadError.message }
+
+  const { data } = adminSupabase.storage.from('documents').getPublicUrl(filePath)
+  
+  // Append to form_data.documents
+  const { data: appData } = await adminSupabase.from('applications').select('form_data').eq('id', id).single()
+  const currentFormData = appData?.form_data || {}
+  const currentDocs = currentFormData.documents || []
+  
+  currentDocs.push({
+    title,
+    url: data.publicUrl,
+    uploadedAt: new Date().toISOString()
+  })
+
+  currentFormData.documents = currentDocs
+
+  const { error: updateError } = await adminSupabase
+    .from('applications')
+    .update({ form_data: currentFormData })
+    .eq('id', id)
+
+  revalidatePath(`/admin/applications/${id}`)
+  return { error: updateError?.message || null, url: data.publicUrl }
 }

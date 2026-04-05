@@ -4,9 +4,10 @@ import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Check, ArrowLeft, ArrowRight, Plus, Trash2 } from 'lucide-react'
+import { usePaystackPayment } from 'react-paystack'
 import { 
   submitApplication, getBusinessTypes, getSystemFee, 
-  saveApplicationDraft, getLatestDraft 
+  saveApplicationDraft, getLatestDraft, getServices
 } from '@/lib/actions'
 import styles from './new.module.css'
 import {
@@ -30,20 +31,54 @@ function NewRegistrationContent() {
   const [resultTrackingId, setResultTrackingId] = useState('')
   
   const searchParams = useSearchParams()
-  const refCode = searchParams.get('ref') || ''
+  // Hold affiliate code in state so user can edit it
+  const [affiliateCode, setAffiliateCode] = useState(searchParams.get('ref') || '')
 
-
-
-  // ---- Load business types from DB ----
+  // Ensure ref codes from URLs override local storage instantly on first load
+  useEffect(() => {
+    const urlRef = searchParams.get('ref')
+    if (urlRef) {
+      setAffiliateCode(urlRef)
+    }
+  }, [searchParams])
   const [dbBusinessTypes, setDbBusinessTypes] = useState<Array<{id: string; name: string; description: string; base_price: number; service_fee: number}>>([]) 
+  const [dbServices, setDbServices] = useState<any[]>([])
   const [deliveryFee, setDeliveryFee] = useState(50)
 
   useEffect(() => {
     getBusinessTypes().then((types) => {
       if (types.length > 0) setDbBusinessTypes(types)
     })
+    getServices().then((res) => {
+      if (res.services) setDbServices(res.services)
+    })
     getSystemFee('Courier Delivery').then((fee) => setDeliveryFee(fee))
   }, [])
+
+  // Dynamic overrides
+  const dynamicBusinessTypes = businessTypes.map(t => {
+    const dbMatch = dbBusinessTypes.find(bt => bt.name === t.name)
+    return {
+      ...t,
+      price: dbMatch ? dbMatch.base_price + dbMatch.service_fee : t.price
+    }
+  })
+
+  const addOnMapping: Record<string, string> = {
+    domain: 'domain_name_purchase',
+    email: 'business_email_setup',
+    website: 'business_website',
+    bank: 'bank_account_setup',
+  }
+
+  const dynamicAddOns = addOns.map(a => {
+    const key = addOnMapping[a.id]
+    const dbMatch = dbServices.find(s => s.name.toLowerCase().replace(/\s+/g, '_') === key)
+    return {
+      ...a,
+      price: dbMatch !== undefined ? dbMatch.price : a.price
+    }
+  })
 
   // ---- Common fields (both Form A & Form 3) ----
   const [formData, setFormData] = useState({
@@ -128,6 +163,7 @@ function NewRegistrationContent() {
         if (data.companyDetails) setCompanyDetails(data.companyDetails)
         if (data.deliveryMethod) setDeliveryMethod(data.deliveryMethod)
         if (data.deliveryAddress) setDeliveryAddress(data.deliveryAddress)
+        if (data.affiliateCode && !searchParams.get('ref')) setAffiliateCode(data.affiliateCode)
         setIsDraftLoaded(true)
         return
       }
@@ -148,6 +184,7 @@ function NewRegistrationContent() {
           if(data.companyDetails) setCompanyDetails(data.companyDetails)
           if(data.deliveryMethod) setDeliveryMethod(data.deliveryMethod)
           if(data.deliveryAddress) setDeliveryAddress(data.deliveryAddress)
+          if(data.affiliateCode && !searchParams.get('ref')) setAffiliateCode(data.affiliateCode)
         } catch (e) {
           console.error("Draft load failed", e)
         }
@@ -160,9 +197,9 @@ function NewRegistrationContent() {
   // Auto-save to LocalStorage
   useEffect(() => {
     if(!isDraftLoaded) return;
-    const appState = { step, selectedType, selectedAddOns, formData, proprietor, directors, secretary, shareholders, companyDetails, deliveryMethod, deliveryAddress }
+    const appState = { step, selectedType, selectedAddOns, formData, proprietor, directors, secretary, shareholders, companyDetails, deliveryMethod, deliveryAddress, affiliateCode }
     localStorage.setItem('graydocket_draft', JSON.stringify(appState))
-  }, [step, selectedType, selectedAddOns, formData, proprietor, directors, secretary, shareholders, companyDetails, deliveryMethod, deliveryAddress, isDraftLoaded])
+  }, [step, selectedType, selectedAddOns, formData, proprietor, directors, secretary, shareholders, companyDetails, deliveryMethod, deliveryAddress, affiliateCode, isDraftLoaded])
 
   const handleSaveDraft = async () => {
     if (!selectedType) return
@@ -178,7 +215,8 @@ function NewRegistrationContent() {
       shareholders,
       companyDetails,
       selectedAddOns,
-      businessType: selectedType
+      businessType: selectedType,
+      affiliateCode: affiliateCode
     }
 
     const res = await saveApplicationDraft({
@@ -232,7 +270,7 @@ function NewRegistrationContent() {
   const serviceFee = dbMatch?.service_fee || 0
 
   const totalPrice = basePrice + serviceFee +
-    addOns.filter((a) => selectedAddOns.includes(a.id)).reduce((sum, a) => sum + a.price, 0) +
+    dynamicAddOns.filter((a) => selectedAddOns.includes(a.id)).reduce((sum, a) => sum + a.price, 0) +
     (deliveryMethod === 'courier' ? deliveryFee : 0)
 
   const progressSteps = isCompany
@@ -314,7 +352,7 @@ function NewRegistrationContent() {
     setCompanyDetails((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (paymentRef?: string) => {
     setSubmitting(true)
     setSubmitError('')
 
@@ -328,6 +366,7 @@ function NewRegistrationContent() {
     const fullFormData = {
       ...formData,
       businessType: selectedType,
+      paystackReference: paymentRef,
       ...(isCompany
         ? {
             directors,
@@ -349,7 +388,7 @@ function NewRegistrationContent() {
       deliveryMethod,
       deliveryAddress: deliveryMethod === 'courier' ? deliveryAddress : null,
       totalAmount: totalPrice,
-      affiliateCode: refCode
+      affiliateCode: affiliateCode
     })
 
     if (result.error) {
@@ -361,6 +400,36 @@ function NewRegistrationContent() {
     setResultTrackingId(result.trackingId || '')
     setSubmitted(true)
     setSubmitting(false)
+  }
+
+  // --- Paystack Setup ---
+  const paystackConfig = {
+    reference: `GD-${new Date().getTime()}`,
+    email: formData.email || 'customer@graydocket.com',
+    amount: totalPrice * 100, // Paystack requires amount in pesewas/kobo
+    publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+    currency: 'GHS',
+  }
+
+  // @ts-ignore
+  const initializePayment = usePaystackPayment(paystackConfig)
+
+  const handlePayAndSubmit = () => {
+    if (!process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY) {
+      setSubmitError('Payment gateway not configured (missing Paystack Key).')
+      return;
+    }
+    
+    setSubmitting(true)
+    initializePayment({
+      onSuccess: (reference: any) => {
+        handleSubmit(reference.reference)
+      },
+      onClose: () => {
+        setSubmitting(false)
+        setSubmitError('Payment was cancelled.')
+      }
+    })
   }
 
   const businessFullAddress = [
@@ -492,7 +561,7 @@ function NewRegistrationContent() {
           <h2 className={styles.stepTitle}>Select Business Type</h2>
           <p className={styles.stepDesc}>Choose the type of entity you want to register with the ORC.</p>
           <div className={styles.typeGrid}>
-            {businessTypes.map((type: any) => (
+            {dynamicBusinessTypes.map((type: any) => (
               <button
                 key={type.id}
                 className={`${styles.typeCard} ${selectedType === type.id ? styles.selected : ''} ${type.comingSoon ? styles.disabled : ''}`}
@@ -932,7 +1001,7 @@ function NewRegistrationContent() {
           <p className={styles.stepDesc}>Enhance your business with these optional services.</p>
 
           <div className={styles.addOnGrid}>
-            {addOns.map((addon) => (
+            {dynamicAddOns.map((addon) => (
               <button
                 key={addon.id}
                 className={`${styles.addOnCard} ${selectedAddOns.includes(addon.id) ? styles.selected : ''}`}
@@ -1289,7 +1358,7 @@ function NewRegistrationContent() {
           {selectedAddOns.length > 0 && (
             <div className={styles.reviewSection}>
               <h3>Add-On Services</h3>
-              {addOns
+              {dynamicAddOns
                 .filter((a) => selectedAddOns.includes(a.id))
                 .map((addon) => (
                   <div key={addon.id} className={styles.reviewRow}>
@@ -1321,6 +1390,23 @@ function NewRegistrationContent() {
             )}
           </div>
 
+          <div className={styles.reviewSection} style={{ backgroundColor: 'var(--color-primary-50)', borderColor: 'var(--color-primary-100)' }}>
+            <h3>Affiliate / Referral Code</h3>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)', marginBottom: 'var(--space-3)' }}>
+              Did someone refer you? Enter their code here so they get credit for this registration.
+            </p>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <input 
+                type="text" 
+                className="form-input" 
+                placeholder="e.g. OTH74D" 
+                value={affiliateCode} 
+                onChange={(e) => setAffiliateCode(e.target.value.toUpperCase())}
+                style={{ maxWidth: '200px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}
+              />
+            </div>
+          </div>
+
           <div className={styles.totalBar}>
             <span className={styles.totalLabel}>Total Amount</span>
             <span className={styles.totalAmount}>GH₵ {totalPrice.toLocaleString()}</span>
@@ -1331,8 +1417,8 @@ function NewRegistrationContent() {
               <ArrowLeft size={16} /> Back
             </button>
             {submitError && <div className="form-error" style={{ color: 'red', marginBottom: 'var(--space-4)' }}>{submitError}</div>}
-            <button className="btn btn-primary btn-lg" onClick={handleSubmit} disabled={submitting} id="submit-application">
-              {submitting ? 'Submitting...' : 'Submit Application'}
+            <button className="btn btn-primary btn-lg" onClick={handlePayAndSubmit} disabled={submitting} id="submit-application">
+              {submitting ? 'Processing Payment...' : `Pay GH₵ ${totalPrice.toLocaleString()} & Submit`}
             </button>
           </div>
         </div>
