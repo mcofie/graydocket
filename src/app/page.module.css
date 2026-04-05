@@ -391,17 +391,6 @@
   font-weight: 600;
 }
 
-/* SECTIONS */
-@media (max-width: 1024px) {
-  .focusLayout {
-    grid-template-columns: 1fr;
-    text-align: center;
-    gap: var(--space-12);
-  }
-  .focusContent h2, .focusContent p { text-align: center !important; }
-  .focusItem { text-align: left; }
-  .focusVisual { height: auto; padding: var(--space-12) 0; }
-}
 .section { padding: var(--space-20) 0; }
 .sectionAlt { padding: var(--space-20) 0; background: var(--color-neutral-50); }
 
@@ -501,32 +490,6 @@
 .partners { padding: var(--space-12) 0; border-top: 1px solid var(--color-neutral-100); }
 .partnersInner { max-width: var(--max-width); margin: 0 auto; padding: 0 var(--space-6); text-align: center; }
 .partnersList { display: flex; justify-content: center; align-items: center; gap: var(--space-12); flex-wrap: wrap; opacity: 0.5; }
-
-/* RESPONSIVE */
-@media (max-width: 1024px) {
-  .heroLayout { grid-template-columns: 1fr; gap: var(--space-12); }
-  .heroContent { text-align: center; }
-  .heroSubtitle { margin-left: auto; margin-right: auto; }
-  .heroActions { justify-content: center; }
-  .heroVisual { max-width: 600px; margin: 0 auto; }
-  .servicesGrid { grid-template-columns: 1fr 1fr; }
-  .grid3 { grid-template-columns: 1fr 1fr; }
-}
-
-@media (max-width: 768px) {
-  .hero { min-height: auto; padding-top: calc(var(--header-height) + var(--space-8)); }
-  .heroTitle { font-size: 3rem; }
-  .servicesGrid, .pricingGrid, .grid3 { grid-template-columns: 1fr; }
-  .heroVisual { display: none; }
-  .section { padding: var(--space-12) 0; }
-  .stepItem { flex-direction: column; }
-}
-
-@media (max-width: 480px) {
-  .heroTitle { font-size: 2.5rem; }
-  .heroActions { flex-direction: column; width: 100%; }
-  .heroActions > * { width: 100%; }
-}
 
 /* NEW CLASSES */
 .sectionKicker {
@@ -633,4 +596,51 @@
   font-weight: 500;
   color: var(--color-neutral-600);
   margin-bottom: var(--space-4);
+}
+
+/* =====================================================
+   RESPONSIVE OVERRIDES (Must be at bottom)
+   ===================================================== */
+
+@media (max-width: 1024px) {
+  .heroLayout { grid-template-columns: 1fr; gap: var(--space-8); }
+  .heroContent { text-align: center; }
+  .heroSubtitle { margin-left: auto; margin-right: auto; max-width: 100%; }
+  .heroActions { justify-content: center; }
+  .heroVisual { max-width: 100%; margin: 0 auto; order: -1; }
+  .certificateMockup { transform: none; max-width: 400px; margin: 0 auto; }
+  .servicesGrid { grid-template-columns: 1fr 1fr; }
+  .grid3 { grid-template-columns: 1fr 1fr; }
+  .focusLayout { grid-template-columns: 1fr; text-align: center; gap: var(--space-12); }
+  .focusContent h2, .focusContent p { text-align: center !important; }
+  .focusItem { text-align: left; }
+  .focusVisual { height: auto; padding: var(--space-12) 0; }
+}
+
+@media (max-width: 768px) {
+  .hero { min-height: auto; padding-top: calc(var(--header-height) + var(--space-12)); padding-bottom: var(--space-12); }
+  .heroTitle { font-size: clamp(1.8rem, 8vw, 2.5rem); line-height: 1.1; }
+  .heroSubtitle { font-size: 1rem; margin-bottom: var(--space-8); }
+  .servicesGrid, .pricingGrid, .grid3 { grid-template-columns: 1fr; gap: var(--space-6); }
+  .heroVisual { display: none; }
+  .section, .sectionAlt { padding: var(--space-12) 0; }
+  .sectionHeader { margin-bottom: var(--space-8); }
+  .sectionTitle { font-size: clamp(1.6rem, 7vw, 2rem); margin-bottom: var(--space-3); }
+  .stepItem { flex-direction: column; text-align: center; gap: var(--space-4); padding: var(--space-6); border-radius: var(--radius-xl); }
+  .stepNumber { font-size: 2rem; margin: 0 auto; }
+  .pricingCard { padding: var(--space-6); border-radius: var(--radius-2xl); }
+  .price { font-size: 2.5rem; }
+  .pricingFeatures { margin-top: var(--space-4); padding-top: var(--space-4); }
+  .focusLayout { grid-template-columns: 1fr; gap: var(--space-8); }
+  .focusVisual { height: auto; }
+}
+
+@media (max-width: 480px) {
+  .heroTitle { font-size: 2rem; }
+  .heroActions { flex-direction: column; width: 100%; gap: var(--space-3); }
+  .heroActions > * { width: 100%; }
+  .sectionTitle { font-size: 1.6rem; }
+  .container { padding: 0 var(--space-4); }
+  .pricingCard { padding: var(--space-5); }
+  .serviceCard { padding: var(--space-6); }
 }
