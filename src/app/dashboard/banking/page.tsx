@@ -13,9 +13,10 @@ export default function BankingPage() {
 
   useEffect(() => {
     getBankingPartners().then((res) => {
-      // Deduplicate by name just in case the DB has clones
+      // Deduplicate by name and ensure valid data exists to prevent empty cards
       const raw = res.partners || []
-      const unique = Array.from(new Map(raw.map(p => [p.name, p])).values())
+      const valid = raw.filter(p => p.is_active && p.name && p.name.trim() !== '')
+      const unique = Array.from(new Map(valid.map(p => [p.name.trim(), p])).values())
       setPartners(unique)
       setLoading(false)
     })
