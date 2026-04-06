@@ -1,83 +1,87 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
-import { Search, MapPin, Clock, CheckCircle2, ShieldQuestion, ArrowRight, Activity, Calendar } from 'lucide-react'
+import { Search, MapPin, Clock, CheckCircle2, ShieldQuestion, ArrowRight, Activity, Calendar, ArrowLeft } from 'lucide-react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { getTrackingStatus } from '@/lib/actions'
-import styles from './track.module.css'
+import styles from '../track.module.css'
 
-export default function TrackPage() {
-  const [trackingId, setTrackingId] = useState('')
+export default function DynamicTrackPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params)
+  const idFromUrl = resolvedParams.id
+  
   const [data, setData] = useState<any>(null)
-  const [searched, setSearched] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!trackingId.trim()) return
-    
-    // Instead of local state fetching, we navigate 
-    // This makes the result shareable via URL
-    window.location.href = `/track/${trackingId.trim().toUpperCase()}`
+  useEffect(() => {
+    if (idFromUrl) {
+      fetchStatus(idFromUrl)
+    }
+  }, [idFromUrl])
+
+  const fetchStatus = async (id: string) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await getTrackingStatus(id.toUpperCase())
+      if (res.error) {
+        setError(res.error)
+        setData(null)
+      } else {
+        setData(res)
+      }
+    } catch (err) {
+      setError('A connection error occurred while querying the registry.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const formatStatus = (s: string) => s.replace('_', ' ').toUpperCase()
+  const formatStatus = (s: string) => s.replace(/_/g, ' ').toUpperCase()
 
   return (
     <div className={styles.wrapper}>
       <Header />
       <main className={styles.trackPage}>
         <div className={styles.container}>
-          <div className={styles.trackHeader}>
-            <div className={styles.badge}>Institutional Node</div>
-            <h1>Track Application</h1>
-            <p className={styles.subtitle}>
-              Monitor your business registration status via our unified gateway.
-            </p>
+          <div style={{ marginBottom: '32px' }}>
+             <Link href="/track" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'var(--color-neutral-500)', fontSize: '14px', fontWeight: 600 }}>
+                <ArrowLeft size={16} /> New Search
+             </Link>
           </div>
 
-          <div className={styles.searchSection}>
-            <div className={styles.searchCard}>
-              <form onSubmit={handleSearch} className={styles.form}>
-                <div className={styles.inputWrapper}>
-                  <Search className={styles.searchIcon} size={20} />
-                  <input
-                    type="text"
-                    placeholder="Enter Tracking ID (e.g. GD-192-X)"
-                    value={trackingId}
-                    onChange={(e) => setTrackingId(e.target.value)}
-                    className={styles.input}
-                    required
-                  />
-                </div>
-                <button 
-                  type="submit" 
-                  className={styles.fetchBtn}
-                  disabled={loading}
-                >
-                  {loading ? 'Decrypting...' : 'View Status'}
-                </button>
-              </form>
+          {loading ? (
+             <div style={{ textAlign: 'center', padding: '100px 0' }}>
+                <div style={{ width: '48px', height: '48px', border: '3px solid var(--color-primary-100)', borderTopColor: 'var(--color-primary-600)', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 24px' }} />
+                <h2 style={{ fontWeight: 800 }}>Decrypting Registry Data...</h2>
+                <p style={{ color: 'var(--color-neutral-400)', marginTop: '8px' }}>Authenticating tracking ID: {idFromUrl.toUpperCase()}</p>
+             </div>
+          ) : error ? (
+            <div className={styles.notFound}>
+                 <div className={styles.errorState}>
+                    <Search size={32} style={{ marginBottom: '16px' }} />
+                    <h3>Security Check Failed</h3>
+                    <p>
+                       We could not find an application linked to "<strong>{idFromUrl.toUpperCase()}</strong>". 
+                       Please verify the ID and ensure there are no trailing spaces.
+                    </p>
+                    <Link href="/track" className={styles.retryBtn} style={{ textDecoration: 'none', display: 'inline-block' }}>
+                       Try New Search
+                    </Link>
+                 </div>
             </div>
-            {!searched && (
-              <div className={styles.subtleTip}>
-                <ShieldQuestion size={14} />
-                <span>Found in your confirmation email or dashboard.</span>
-              </div>
-            )}
-          </div>
-
-          {searched && data && (
+          ) : data && (
             <div className={styles.resultContainer}>
               <div className={styles.summaryCard}>
                 <div className={styles.summaryHeader}>
                   <div>
-                    <span className={styles.idLabel}>ID: {trackingId.toUpperCase()}</span>
+                    <span className={styles.idLabel}>ID: {idFromUrl.toUpperCase()}</span>
                     <h2 className={styles.businessName}>{data.application.business_name}</h2>
                     <div className={styles.metaRow}>
-                      <span><Activity size={14} /> {data.application.business_types?.name}</span>
+                      <span><Activity size={14} /> {data.application.business_types?.name || 'Standard'}</span>
                       <span><Calendar size={14} /> Submitted {new Date(data.application.created_at).toLocaleDateString()}</span>
                     </div>
                   </div>
@@ -88,8 +92,7 @@ export default function TrackPage() {
                 </div>
 
                 <div className={styles.timeline}>
-                   {/* If there is history, show it. Otherwise show default "Submitted" */}
-                   {data.history.length > 0 ? (
+                   {data.history && data.history.length > 0 ? (
                       data.history.map((step: any, i: number) => (
                         <div key={i} className={`${styles.timelineItem} ${i === 0 ? styles.isActive : styles.isCompleted}`}>
                           <div className={styles.timelineVisual}>
@@ -103,7 +106,7 @@ export default function TrackPage() {
                               <h4>{formatStatus(step.status)}</h4>
                               <span className={styles.date}>{new Date(step.created_at).toLocaleString()}</span>
                             </div>
-                            <p>{step.notes || 'No additional details provided.'}</p>
+                            <p>{step.notes || `Institutional state transitioned to ${formatStatus(step.status)}.`}</p>
                           </div>
                         </div>
                       ))
@@ -128,7 +131,7 @@ export default function TrackPage() {
                 <div className={styles.actionCard}>
                   <h3>Official Support</h3>
                   <p>Speak to the registrar overseeing your business registration process.</p>
-                  <Link href="/contact" className={styles.actionLink}>
+                  <Link href="/support" className={styles.actionLink}>
                     Open Support Ticket <ArrowRight size={14} />
                   </Link>
                 </div>
@@ -142,25 +145,14 @@ export default function TrackPage() {
               </div>
             </div>
           )}
-
-          {searched && !data && (
-            <div className={styles.notFound}>
-                 <div className={styles.errorState}>
-                    <Search size={32} style={{ marginBottom: '16px' }} />
-                    <h3>Security Check Failed</h3>
-                    <p>
-                       We could not find an application linked to "<strong>{trackingId.toUpperCase()}</strong>". 
-                       Please verify the ID and ensure there are no trailing spaces.
-                    </p>
-                    <button onClick={() => setSearched(false)} className={styles.retryBtn}>
-                       Try Again
-                    </button>
-                 </div>
-            </div>
-          )}
         </div>
       </main>
       <Footer />
+      <style jsx global>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   )
 }

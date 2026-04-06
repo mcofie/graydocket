@@ -1,21 +1,94 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getAdminUsers, updateUserRole, markUserAsAffiliate } from '@/lib/actions'
+import { getAdminUsers, updateUserRole, markUserAsAffiliate, createAdminUser, deleteAdminUser, updateAdminUserProfile } from '@/lib/actions'
 import styles from '../../dashboard/overview.module.css'
+import { Plus, X, UserPlus, Shield, Mail, RefreshCw, AlertCircle, Smartphone, Edit2, Trash2, MoreVertical } from 'lucide-react'
+import Modal from '../components/Modal'
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [editingUser, setEditingUser] = useState<any>(null)
+  const [newUser, setNewUser] = useState({
+    email: '',
+    full_name: '',
+    phone: '',
+    role: 'registrar' as any
+  })
 
   useEffect(() => {
     fetchUsers()
   }, [])
 
   const fetchUsers = async () => {
+    setLoading(true)
+    setErrorMsg(null)
     const res = await getAdminUsers()
-    setUsers(res.users)
+    if (res.error) {
+      setErrorMsg(res.error)
+      setUsers([])
+    } else {
+      setUsers(res.users)
+    }
     setLoading(false)
+  }
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setCreating(true)
+    
+    if (editingUser) {
+      // HANDLE EDITING
+      const { error } = await updateAdminUserProfile(editingUser.id, {
+        full_name: newUser.full_name,
+        phone: newUser.phone,
+        role: newUser.role
+      })
+      if (error) {
+        alert(error)
+      } else {
+        alert(`User profile updated correctly.`)
+        setIsModalOpen(false)
+        setEditingUser(null)
+        setNewUser({ email: '', full_name: '', phone: '', role: 'registrar' })
+        fetchUsers()
+      }
+    } else {
+      // HANDLE CREATION
+      const { error } = await createAdminUser(newUser)
+      if (error) {
+        alert(error)
+      } else {
+        alert(`User created successfully! Default password: GrayDocketPartner@2026`)
+        setIsModalOpen(false)
+        setNewUser({ email: '', full_name: '', phone: '', role: 'registrar' })
+        fetchUsers()
+      }
+    }
+    setCreating(false)
+  }
+
+  const handleDeleteUser = async (id: string, email: string) => {
+    if (!confirm(`CAUTION: Delete account for ${email}? This action is permanent and will remove all auth records.`)) return
+    
+    const { error } = await deleteAdminUser(id)
+    if (error) alert(error)
+    else fetchUsers()
+  }
+
+  const openEditModal = (user: any) => {
+    setEditingUser(user)
+    setNewUser({
+      email: user.email || '',
+      full_name: user.full_name || '',
+      phone: user.phone || '',
+      role: user.role || 'registrar'
+    })
+    setIsModalOpen(true)
   }
 
   const handleRoleChange = async (id: string, newRole: any) => {
@@ -47,9 +120,39 @@ export default function AdminUsersPage() {
 
   return (
     <div className={styles.overview}>
-      <div className={styles.sectionHeader}>
-        <h2 className={styles.sectionTitle}>User Management</h2>
+      <div className={styles.sectionHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h2 className={styles.sectionTitle} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+            User Management
+            <button 
+              onClick={fetchUsers} 
+              disabled={loading}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: loading ? 0.3 : 0.6 }}
+              title="Refresh List"
+            >
+              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+            </button>
+          </h2>
+          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-neutral-500)', marginTop: '2px' }}>
+            Manage platform access for partners, agents, and administrators.
+          </p>
+        </div>
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="btn btn-primary"
+          style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
+        >
+          <Plus size={18} />
+          Add Partner
+        </button>
       </div>
+
+      {errorMsg && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: '8px', padding: 'var(--space-4)', marginBottom: 'var(--space-6)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)', color: '#991b1b' }}>
+          <AlertCircle size={20} />
+          <span style={{ fontSize: '14px', fontWeight: 500 }}>{errorMsg}</span>
+        </div>
+      )}
 
       {users.length === 0 ? (
         <div className={styles.emptyState}>
@@ -68,6 +171,7 @@ export default function AdminUsersPage() {
                 <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>PARTNER</th>
                 <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>PHONE</th>
                 <th style={{ padding: 'var(--space-4)', textAlign: 'right', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>JOINED</th>
+                <th style={{ padding: 'var(--space-4)', textAlign: 'right', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>OPERATIONS</th>
               </tr>
             </thead>
             <tbody>
@@ -76,26 +180,7 @@ export default function AdminUsersPage() {
                   <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)', fontWeight: 600 }}>{user.full_name || 'Anonymous'}</td>
                   <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)', color: 'var(--color-neutral-500)' }}>{user.email || '—'}</td>
                   <td style={{ padding: 'var(--space-4)' }}>
-                    <select 
-                      value={user.role || 'user'}
-                      onChange={(e) => handleRoleChange(user.id, e.target.value)}
-                      style={{ 
-                        padding: '4px 8px', 
-                        borderRadius: '6px', 
-                        fontSize: '11px', 
-                        fontWeight: 600, 
-                        background: user.role !== 'user' ? '#3b82f615' : '#6b728015', 
-                        color: user.role !== 'user' ? '#3b82f6' : '#6b7280',
-                        border: 'none',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <option value="user">DEFAULT USER</option>
-                      <option value="admin">SUPER ADMIN</option>
-                      <option value="registrar">REGISTRAR (Apps)</option>
-                      <option value="bank_manager">BANK MANAGER</option>
-                      <option value="service_manager">SERVICE MANAGER</option>
-                    </select>
+                    <div className="badge badge-ghost" style={{ fontSize: '10px', textTransform: 'uppercase' }}>{user.role}</div>
                   </td>
                   <td style={{ padding: 'var(--space-4)' }}>
                     <button 
@@ -110,12 +195,133 @@ export default function AdminUsersPage() {
                   <td style={{ padding: 'var(--space-4)', textAlign: 'right', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>
                     {new Date(user.created_at).toLocaleDateString()}
                   </td>
+                  <td style={{ padding: 'var(--space-4)', textAlign: 'right' }}>
+                    <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
+                      <button 
+                        onClick={() => openEditModal(user)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-neutral-400)' }}
+                        title="Edit Profile"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteUser(user.id, user.email)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}
+                        title="Delete User"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      {/* CREATE USER MODAL */}
+      <Modal 
+        isOpen={isModalOpen} 
+        onClose={() => {
+          if (!creating) {
+            setIsModalOpen(false)
+            setEditingUser(null)
+          }
+        }} 
+        title={editingUser ? "Configure Partner Access" : "Add Project Partner"}
+      >
+        <form onSubmit={handleCreateUser} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)', padding: 'var(--space-2) 0' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-neutral-500)', textTransform: 'uppercase' }}>Full Name</label>
+            <div style={{ position: 'relative' }}>
+              <UserPlus size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-neutral-400)' }} />
+              <input 
+                required
+                type="text" 
+                placeholder="John Doe"
+                value={newUser.full_name}
+                onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })}
+                style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '10px', border: '1px solid var(--color-neutral-200)', fontSize: '14px' }}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-neutral-500)', textTransform: 'uppercase' }}>Email Address</label>
+            <div style={{ position: 'relative' }}>
+              <Mail size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-neutral-400)' }} />
+              <input 
+                required
+                type="email" 
+                placeholder="partner@example.com"
+                value={newUser.email}
+                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '10px', border: '1px solid var(--color-neutral-200)', fontSize: '14px' }}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-neutral-500)', textTransform: 'uppercase' }}>Contact Number</label>
+            <div style={{ position: 'relative' }}>
+              <Smartphone size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-neutral-400)' }} />
+              <input 
+                required
+                type="tel" 
+                placeholder="+233..."
+                value={newUser.phone}
+                onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
+                style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '10px', border: '1px solid var(--color-neutral-200)', fontSize: '14px' }}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-neutral-500)', textTransform: 'uppercase' }}>Assign Role</label>
+            <div style={{ position: 'relative' }}>
+              <Shield size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-neutral-400)' }} />
+              <select 
+                value={newUser.role}
+                onChange={(e) => setNewUser({ ...newUser, role: e.target.value as any })}
+                style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '10px', border: '1px solid var(--color-neutral-200)', fontSize: '14px', appearance: 'none', background: 'white' }}
+              >
+                <option value="registrar">REGISTRAR (Agent)</option>
+                <option value="bank_manager">BANK MANAGER</option>
+                <option value="service_manager">SERVICE MANAGER</option>
+                <option value="admin">CO-ADMINISTRATOR</option>
+                <option value="user">DEFAULT USER</option>
+              </select>
+            </div>
+            <p style={{ fontSize: '11px', color: 'var(--color-neutral-400)', fontStyle: 'italic' }}>
+              * Role determines which dashboard sections the user can access.
+            </p>
+          </div>
+
+          <div style={{ marginTop: 'var(--space-4)', display: 'flex', gap: 'var(--space-3)' }}>
+            <button 
+              type="button"
+              onClick={() => {
+                setIsModalOpen(false)
+                setEditingUser(null)
+              }}
+              className="btn btn-ghost"
+              style={{ flex: 1 }}
+              disabled={creating}
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit"
+              className="btn btn-primary"
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)' }}
+              disabled={creating}
+            >
+              {creating ? 'Synchronizing...' : (editingUser ? 'Save Updates' : 'Activate Account')}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

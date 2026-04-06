@@ -2,8 +2,9 @@
 
 import { useState, useEffect, use, useRef } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, FileText, UploadCloud, ExternalLink, Copy, Printer, Clock, Save } from 'lucide-react'
-import { getApplicationDetails, updateApplicationStatus, uploadApplicationDocument, updateApplicationNotes } from '@/lib/actions'
+import { ArrowLeft, FileText, UploadCloud, ExternalLink, Copy, Printer, Clock, Save, User, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { getApplicationDetails, updateApplicationStatus, uploadApplicationDocument, updateApplicationNotes, assignApplication, getRegistrarsForAssignment, verifyDocument } from '@/lib/actions'
+import { createClient } from '@/lib/supabase/client'
 import styles from '../../../dashboard/overview.module.css'
 
 const statusOptions = [
@@ -17,6 +18,13 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
   
   const [app, setApp] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  
+  // Auth & Assignment State
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  const [registrars, setRegistrars] = useState<{id: string, full_name: string}[]>([])
+  const [assigning, setAssigning] = useState(false)
   
   // Doc Upload State
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -33,10 +41,57 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
   }, [appId])
 
   const fetchData = async () => {
+    console.log('Fetching App Data for:', appId)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    let adminFlag = false
+    if (user) {
+      setCurrentUser(user)
+      const email = user.email?.toLowerCase()
+      if (email === 'maxcofie@gmail.com' || user.app_metadata?.role === 'admin') {
+        adminFlag = true
+        setIsSuperAdmin(true)
+      } else {
+        const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+        if (prof?.role === 'admin') {
+          adminFlag = true
+          setIsSuperAdmin(true)
+        }
+      }
+    }
+
+    if (adminFlag) {
+      const regs = await getRegistrarsForAssignment()
+      setRegistrars(regs)
+    }
+
     const res = await getApplicationDetails(appId)
+    if (res.error) setError(res.error)
     setApp(res.application)
     setNotes(res.application?.notes || '')
     setLoading(false)
+  }
+
+  const handleAssignAction = async (targetUserId: string) => {
+    if (!targetUserId) return
+    setAssigning(true)
+    const res = await assignApplication(appId, targetUserId)
+    if (res.error) alert(res.error)
+    else await fetchData()
+    setAssigning(false)
+  }
+
+  const handleVerify = async (docUrl: string, status: 'approved' | 'rejected') => {
+    let notes = ''
+    if (status === 'rejected') {
+      notes = window.prompt('Why are you rejecting this document?') || ''
+      if (!notes) return // Don't reject without a reason
+    }
+
+    const res = await verifyDocument(appId, docUrl, status, notes)
+    if (res.error) alert(res.error)
+    else await fetchData()
   }
 
   const handleSaveNotes = async () => {
@@ -49,9 +104,16 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
 
   const handleStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newStatus = e.target.value
-    const { error } = await updateApplicationStatus(appId, newStatus)
-    if (error) alert(error)
-    else setApp({ ...app, status: newStatus })
+    const customNote = window.prompt(`Add a note for this status change (sent to customer):`) || undefined
+    
+    setApp({ ...app, status: newStatus }) // Optimistic UI
+    const { error } = await updateApplicationStatus(appId, newStatus, customNote)
+    if (error) {
+      alert(error)
+      await fetchData() // Rollback
+    } else {
+      await fetchData()
+    }
   }
 
   const handleUpload = async (e: React.FormEvent) => {
@@ -244,7 +306,19 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
   }
 
   if (!app) {
-    return <div className={styles.overview} style={{ padding: 'var(--space-8)' }}>Application not found.</div>
+    return (
+      <div className={styles.overview} style={{ padding: 'var(--space-8)' }}>
+        <h2 style={{ color: 'var(--color-error)' }}>Application not found.</h2>
+        {error && (
+          <div style={{ marginTop: '12px', padding: '12px', background: 'var(--color-error-light)', border: '1px solid var(--color-error)', borderRadius: '8px', fontSize: '14px' }}>
+            <strong>System Error:</strong> {error}
+          </div>
+        )}
+        <p style={{ marginTop: '20px', color: 'var(--color-neutral-500)', fontSize: '14px' }}>
+          Verify the ID in your URL bar is correct. If you are a Super Admin, double-check your browser session.
+        </p>
+      </div>
+    )
   }
 
   const fd = app.form_data || {}
@@ -278,6 +352,46 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
             ))}
           </select>
         </div>
+      </div>
+
+      <div style={{ background: app.assigned_to ? 'var(--color-neutral-50)' : '#fffbeb30', border: app.assigned_to ? '1px solid var(--color-neutral-200)' : '1px solid #f59e0b50', borderLeft: app.assigned_to ? '4px solid var(--color-neutral-300)' : '4px solid #f59e0b', padding: '16px 20px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px' }}>
+         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <User size={20} style={{ color: app.assigned_to ? 'var(--color-neutral-500)' : '#f59e0b' }} />
+            <div>
+               <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-neutral-500)', letterSpacing: '0.05em' }}>Working Ownership</div>
+               <div style={{ fontSize: '15px', fontWeight: 600, color: app.assigned_to ? 'var(--color-neutral-900)' : '#f59e0b', marginTop: '2px' }}>
+                  {app.assigned_registrar?.full_name ? `Assigned to ${app.assigned_registrar.full_name}` : 'UNASSIGNED (Awaiting Pickup)'}
+               </div>
+            </div>
+         </div>
+
+         {isSuperAdmin ? (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+               <select 
+                  className="form-input" 
+                  style={{ width: '200px', padding: '8px 12px', fontSize: '13px' }}
+                  value={app.assigned_to || ''}
+                  onChange={(e) => handleAssignAction(e.target.value)}
+                  disabled={assigning}
+               >
+                  <option value="">-- Unassigned --</option>
+                  {registrars.map(r => (
+                     <option key={r.id} value={r.id}>{r.full_name}</option>
+                  ))}
+               </select>
+            </div>
+         ) : !app.assigned_to ? (
+            <button 
+               className="btn btn-primary" 
+               style={{ background: '#f59e0b', borderColor: '#f59e0b' }}
+               onClick={() => handleAssignAction(currentUser?.id)}
+               disabled={assigning || !currentUser}
+            >
+               {assigning ? 'Claiming...' : 'Pick Up Application'}
+            </button>
+         ) : app.assigned_to === currentUser?.id ? (
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-success)', background: 'var(--color-success-light)', padding: '4px 12px', borderRadius: '20px' }}>Your Case</span>
+         ) : null}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 'var(--space-6)', marginTop: 'var(--space-6)', alignItems: 'start' }}>
@@ -358,13 +472,56 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
                 </div>
               ) : (
                 docs.map((d: any, idx: number) => (
-                  <a key={idx} href={d.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'white', border: '1px solid var(--color-neutral-200)', borderRadius: '8px', textDecoration: 'none', color: 'inherit' }}>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '13px' }}>{d.title}</div>
-                      <div style={{ fontSize: '10px', color: 'var(--color-neutral-400)' }}>{new Date(d.uploadedAt).toLocaleString()}</div>
+                  <div key={idx} style={{ padding: '12px', background: 'white', border: '1px solid var(--color-neutral-200)', borderRadius: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                         <div style={{ background: 'var(--color-neutral-50)', padding: '8px', borderRadius: '8px' }}>
+                            <FileText size={16} style={{ color: 'var(--color-primary-600)' }} />
+                         </div>
+                         <div>
+                            <div style={{ fontWeight: 600, fontSize: '13px' }}>{d.title}</div>
+                            <div style={{ fontSize: '10px', color: 'var(--color-neutral-400)' }}>{new Date(d.uploadedAt).toLocaleString()}</div>
+                         </div>
+                      </div>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {d.verification_status === 'approved' ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#10b981', fontSize: '11px', fontWeight: 600, background: '#10b98115', padding: '4px 8px', borderRadius: '6px' }}>
+                            <CheckCircle size={14} /> VERIFIED
+                          </div>
+                        ) : d.verification_status === 'rejected' ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#ef4444', fontSize: '11px', fontWeight: 600, background: '#ef444415', padding: '4px 8px', borderRadius: '6px' }}>
+                            <XCircle size={14} /> REJECTED
+                          </div>
+                        ) : (
+                          <>
+                             <button 
+                               onClick={() => handleVerify(d.url, 'approved')}
+                               style={{ border: 'none', background: '#10b98115', color: '#10b981', padding: '6px', borderRadius: '6px', cursor: 'pointer' }}
+                               title="Approve"
+                             >
+                                <CheckCircle size={16} />
+                             </button>
+                             <button 
+                               onClick={() => handleVerify(d.url, 'rejected')}
+                               style={{ border: 'none', background: '#ef444415', color: '#ef4444', padding: '6px', borderRadius: '6px', cursor: 'pointer' }}
+                               title="Reject"
+                             >
+                                <XCircle size={16} />
+                             </button>
+                          </>
+                        )}
+                        <a href={d.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', padding: '6px', borderRadius: '6px', background: 'var(--color-neutral-100)', color: 'var(--color-neutral-600)' }}>
+                          <ExternalLink size={16} />
+                        </a>
+                      </div>
                     </div>
-                    <ExternalLink size={14} style={{ color: 'var(--color-primary-600)' }} />
-                  </a>
+                    {d.verification_status === 'rejected' && d.admin_notes && (
+                      <div style={{ fontSize: '12px', color: '#ef4444', background: '#fef2f2', padding: '8px 12px', borderRadius: '6px', marginTop: '8px', borderLeft: '3px solid #ef4444' }}>
+                         <strong>Reason:</strong> {d.admin_notes}
+                      </div>
+                    )}
+                  </div>
                 ))
               )}
             </div>

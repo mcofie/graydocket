@@ -38,7 +38,7 @@ const statusColorMap: Record<string, { bg: string, text: string, label: string }
 const quickActions = [
   { icon: <PlusCircle size={20} />, title: 'New Registration', desc: 'Launch a new entity.', href: '/dashboard/applications/new' },
   { icon: <FileText size={20} />, title: 'Application Tracker', desc: 'Real-time ORC sync.', href: '/dashboard/applications' },
-  { icon: <Building2 size={20} />, title: 'Partner Banking', desc: 'Corporate accounts.', href: '#', comingSoon: true },
+  { icon: <Building2 size={20} />, title: 'Partner Banking', desc: 'Corporate accounts.', href: '/dashboard/banking' },
 ]
 
 export default function DashboardPage() {

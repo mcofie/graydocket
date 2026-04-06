@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { forceFetchProfile } from '@/lib/actions'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -15,6 +16,9 @@ import {
   Menu,
   X,
   Shield,
+  Briefcase,
+  Cog,
+  User,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import dashStyles from '../dashboard/dashboard.module.css'
@@ -22,12 +26,13 @@ import dashStyles from '../dashboard/dashboard.module.css'
 const adminNavItems = [
   { label: 'Overview', href: '/admin', icon: LayoutDashboard, roles: ['admin', 'registrar', 'bank_manager', 'service_manager'] },
   { label: 'Applications', href: '/admin/applications', icon: FileText, roles: ['admin', 'registrar'] },
-  { label: 'Payments', href: '/admin/payments', icon: DollarSign, roles: ['admin', 'registrar'] },
+  { label: 'Payments', href: '/admin/payments', icon: DollarSign, roles: ['admin', 'bank_manager'] },
   { label: 'Users', href: '/admin/users', icon: Users, roles: ['admin'] },
-  { label: 'Affiliate Brands', href: '/admin/affiliates', icon: Building2, roles: ['admin'] },
-  { label: 'Services', href: '/admin/services', icon: Settings, roles: ['admin', 'service_manager'] },
-  { label: 'Pricing', href: '/admin/pricing', icon: DollarSign, roles: ['admin', 'service_manager'] },
+  { label: 'Affiliate Brands', href: '/admin/affiliates', icon: Building2, roles: ['admin', 'registrar'] },
+  { label: 'Services', href: '/admin/services', icon: Briefcase, roles: ['admin', 'service_manager'] },
+  { label: 'Pricing (Zones)', href: '/admin/pricing', icon: DollarSign, roles: ['admin', 'service_manager'] },
   { label: 'Banking Partners', href: '/admin/banking', icon: Building2, roles: ['admin', 'bank_manager'] },
+  { label: 'Settings', href: '/admin/settings', icon: Cog, roles: ['admin', 'registrar', 'bank_manager', 'service_manager'] },
 ]
 
 export default function AdminLayout({
@@ -38,20 +43,32 @@ export default function AdminLayout({
   const pathname = usePathname()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [user, setUser] = useState<{ email?: string; role?: string; user_metadata?: { full_name?: string } } | null>(null)
+  const [user, setUser] = useState<{ email?: string; role?: string; full_name?: string; avatar_url?: string; user_metadata?: { full_name?: string } } | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const getUser = async () => {
+      setLoading(true)
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single()
-        setUser({ ...user, role: profile?.role })
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      
+      if (authUser) {
+        let profile = null;
+        try {
+          profile = await forceFetchProfile(authUser.id, authUser.email || '')
+        } catch (err) {
+          console.error("Profile fetch strictly failed:", err)
+        }
+        
+        setUser({ 
+          email: authUser.email, 
+          role: profile?.role || authUser.app_metadata?.role || authUser.user_metadata?.role, 
+          full_name: profile?.full_name || authUser.user_metadata?.full_name, 
+          avatar_url: profile?.avatar_url,
+          user_metadata: authUser.user_metadata
+        })
       }
+      setLoading(false)
     }
     getUser()
   }, [])
@@ -68,6 +85,16 @@ export default function AdminLayout({
     return item ? `Admin — ${item.label}` : 'Admin Panel'
   }
 
+  if (loading) {
+    return (
+      <div className={dashStyles.dashboardLayout}>
+         <div style={{ padding: 'var(--space-12)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+            Synchronizing Security Context...
+         </div>
+      </div>
+    )
+  }
+
   return (
     <div className={dashStyles.dashboardLayout}>
       <div
@@ -78,8 +105,10 @@ export default function AdminLayout({
       <aside className={`${dashStyles.sidebar} ${sidebarOpen ? dashStyles.open : ''}`}>
         <div className={dashStyles.sidebarHeader}>
           <Link href="/admin" className={dashStyles.sidebarLogo}>
-            <span className={dashStyles.sidebarLogoIcon} style={{ background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' }}>A</span>
-            <span>Admin Panel</span>
+            <span className={dashStyles.sidebarLogoIcon} style={{ background: user?.role === 'registrar' ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)' : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' }}>
+              {user?.role === 'registrar' ? 'R' : 'A'}
+            </span>
+            <span>{user?.role === 'registrar' ? 'Registry Control' : 'Admin Panel'}</span>
           </Link>
         </div>
 
@@ -125,12 +154,22 @@ export default function AdminLayout({
 
         <div className={dashStyles.sidebarFooter}>
           <div className={dashStyles.sidebarUser}>
-            <div className={dashStyles.sidebarAvatar} style={{ background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' }}>
-              A
+            <div 
+              className={dashStyles.sidebarAvatar} 
+              style={{ 
+                background: !user?.avatar_url ? (user?.role === 'registrar' ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)' : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)') : 'none',
+                overflow: 'hidden'
+              }}
+            >
+              {user?.avatar_url ? (
+                <img src={user.avatar_url} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                user?.role === 'registrar' ? 'R' : 'A'
+              )}
             </div>
             <div className={dashStyles.sidebarUserInfo}>
               <div className={dashStyles.sidebarUserName}>
-                {user?.user_metadata?.full_name || 'Admin'}
+                {user?.full_name || user?.user_metadata?.full_name || 'Admin'}
               </div>
               <div className={dashStyles.sidebarUserEmail}>
                 {user?.email || ''}

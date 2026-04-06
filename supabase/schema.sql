@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS graydocket.applications (
   delivery_method TEXT DEFAULT 'digital', -- 'digital', 'courier'
   delivery_address JSONB, -- { street, city, region, digital_address, phone }
   referred_by_id UUID REFERENCES graydocket.profiles(id),
+  assigned_to UUID REFERENCES graydocket.profiles(id),
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()

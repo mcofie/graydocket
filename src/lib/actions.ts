@@ -188,18 +188,55 @@ export async function submitApplication(data: {
         await fetch('https://api.tryzend.com/messages', {
           method: 'POST',
           headers: {
-            'x-api-key': process.env.ZEND_API_KEY,
+            'Authorization': `Bearer ${process.env.ZEND_API_KEY}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            phone_number: phoneNumber,
-            message: message,
-            sender_id: 'GrayDocket'
+            to: phoneNumber,
+            body: message,
+            preferred_channels: ['sms']
           })
         })
       } catch (err) {
         console.error('Failed to send SMS via Zend:', err)
       }
+    }
+  }
+
+  // --- Alert All Registrars via SMS ---
+  if (data.paystackReference && process.env.ZEND_API_KEY) {
+    try {
+      const { createAdminClient } = await import('@/lib/supabase/server')
+      const adminClient = await createAdminClient()
+      
+      // Fetch registrars from public schema first, then graydocket if needed
+      let { data: registrars } = await adminClient.schema('graydocket').from('profiles').select('phone').eq('role', 'registrar')
+      if (!registrars || registrars.length === 0) {
+        const { data: pubRegistrars } = await adminClient.schema('public').from('profiles').select('phone').eq('role', 'registrar')
+        registrars = pubRegistrars || []
+      }
+
+      if (registrars && registrars.length > 0) {
+        const adminMsg = `New Case: ${data.businessName} has submitted an application. Log in to the dashboard to claim it.`
+        const uniquePhones = [...new Set(registrars.map((r: any) => r.phone).filter(Boolean))]
+
+        await Promise.all(uniquePhones.map(async (phone) => {
+          await fetch('https://api.tryzend.com/messages', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${process.env.ZEND_API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              to: phone,
+              body: adminMsg,
+              preferred_channels: ['sms']
+            })
+          })
+        }))
+      }
+    } catch (e) {
+      console.error('Failed to notify registrars:', e)
     }
   }
 
@@ -412,65 +449,121 @@ export async function getServices() {
 
 
 async function checkIsAdmin(requiredRoles: string[] = ['admin', 'registrar', 'bank_manager', 'service_manager']) {
+  const { createClient } = await import('@/lib/supabase/server')
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return false
 
-  const { data: profile } = await supabase
+  // Impenetrable Founder Override
+  if (user.email === 'maxcofie@gmail.com') return true
+
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+
+  // 1. Check Graydocket Schema
+  let { data: profile } = await adminClient
+    .schema('graydocket')
     .from('profiles')
     .select('role')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
-  return profile && requiredRoles.includes(profile.role)
+  if (!profile) {
+    // 2. Fallback to public
+    const { data: pubProf } = await adminClient
+      .schema('public')
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
+    profile = pubProf
+  }
+
+  const role = profile?.role || user.app_metadata?.role || user.user_metadata?.role
+  return role && requiredRoles.includes(role)
 }
 
 export async function getAdminStats() {
-  const isAdmin = await checkIsAdmin()
-  if (!isAdmin) return null
+  const isAuthorized = await checkIsAdmin()
+  if (!isAuthorized) return null
 
-  const supabase = await createClient()
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const client = await createAdminClient()
+  const { data: { user } } = await client.auth.getUser()
+  if (!user) return null
 
-  // Get total applications
-  const { count: appCount } = await supabase
+  // Resolve role
+  const { data: profile } = await client.schema('graydocket').from('profiles').select('role').eq('id', user.id).maybeSingle()
+  const role = profile?.role || 'registrar'
+
+  // Standard filters
+  const registrarFilter = role === 'registrar' ? `assigned_to.eq.${user.id}` : null
+  const unassignedFilter = role === 'registrar' ? `assigned_to.is.null` : null
+
+  // 1. Core Counts (Role-aware)
+  let appQuery = client.from('applications').select('id', { count: 'exact', head: true })
+  let completedQuery = client.from('applications').select('id', { count: 'exact', head: true }).eq('status', 'completed')
+  
+  if (role === 'registrar') {
+    appQuery = appQuery.or(`assigned_to.eq.${user.id},assigned_to.is.null`)
+    completedQuery = completedQuery.eq('assigned_to', user.id)
+  }
+
+  const { count: appCount } = await appQuery
+  const { count: completedCount } = await completedQuery
+
+  // 2. Pulse: Stale/Urgent (Unassigned > 6 hours) - Registrars only see unassigned urgent
+  const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
+  const { count: urgentCount } = await client
     .from('applications')
     .select('id', { count: 'exact', head: true })
+    .is('assigned_to', null)
+    .gt('created_at', sixHoursAgo)
 
-  // Get total users
-  const { count: userCount } = await supabase
-    .from('profiles')
-    .select('id', { count: 'exact', head: true })
+  // 3. Pulse: Revenue This Month (Admins only see global revenue)
+  let monthlyRevenue = 0
+  if (role === 'admin') {
+     const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+     const { data: revenueData } = await client.from('applications').select('total_amount').eq('payment_status', 'paid').gt('created_at', firstOfMonth)
+     monthlyRevenue = revenueData?.reduce((acc: any, curr: any) => acc + (Number(curr.total_amount) || 0), 0) || 0
+  }
 
-  // Get completed applications
-  const { count: completedCount } = await supabase
+  // 4. Pulse: Registrar Performance (Admins see global, Registrars only see themselves?)
+  // Actually, keeping the "Radar" might be good for transparency, but let's make it admin-only info
+  const { data: performance } = await client.schema('graydocket').from('profiles').select('id, full_name, applications!assigned_to(id)').eq('role', 'registrar')
+  const registrarStats = role === 'admin' ? performance?.map(r => ({
+    name: r.full_name,
+    activeCases: (r as any).applications?.length || 0
+  })) || [] : []
+
+  // 5. User Data
+  let totalUsers: any = { data: null, count: 0 }
+  if (role === 'admin') {
+     totalUsers = await client.from('profiles').select('id', { count: 'exact', head: true }).or('role.neq.user,is_affiliate.eq.true')
+  }
+
+  // 6. Recent Apps (Filtered for Registrars)
+  let recentQuery = client
     .from('applications')
-    .select('id', { count: 'exact', head: true })
-    .eq('status', 'completed')
-
-  // Get recent applications
-  const { data: recentApps } = await supabase
-    .from('applications')
-    .select(`
-      *,
-      profiles:user_id (full_name)
-    `)
+    .select('*, profiles:user_id(full_name)')
     .order('created_at', { ascending: false })
-    .limit(5)
+    .limit(8)
+  
+  if (role === 'registrar') {
+     recentQuery = recentQuery.or(`assigned_to.eq.${user.id},assigned_to.is.null`)
+  }
 
-  // Calculate revenue from completed applications
-  const { data: apps } = await supabase
-    .from('applications')
-    .select('total_amount')
-    .eq('status', 'completed')
-
-  const revenue = apps?.reduce((sum, a) => sum + (Number(a.total_amount) || 0), 0) || 0
+  const { data: recentApps } = await recentQuery
 
   return {
-    appCount: appCount || 0,
-    userCount: userCount || 0,
-    completedCount: completedCount || 0,
-    recentApps: recentApps || [],
-    revenue,
+    role,
+    totalApplications: appCount || 0,
+    totalUsers: (totalUsers as any)?.count || 0,
+    completedApplications: completedCount || 0,
+    urgentCount: urgentCount || 0,
+    monthlyRevenue,
+    registrarStats,
+    recentApplications: recentApps || []
   }
 }
 
@@ -479,8 +572,25 @@ export async function getAdminApplications() {
   if (!isAdmin) return { applications: [], error: 'Unauthorized' }
 
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) return { applications: [], error: 'Session expired' }
 
-  const { data, error } = await supabase
+  // Check the precise role of the logged in admin staff to apply filtering logic
+  const { data: profile } = await supabase.schema('graydocket').from('profiles').select('role').eq('id', user.id).maybeSingle()
+  let role = profile?.role || user.app_metadata?.role;
+  
+  // Apply fallback dual fetch just in case
+  if (!role) {
+    const { data: pubProf } = await supabase.schema('public').from('profiles').select('role').eq('id', user.id).maybeSingle()
+    role = pubProf?.role || 'registrar' // Default to least privilege if they made it here
+  }
+  
+  // Always grant root founder pure admin role dynamically
+  if (user.email === 'maxcofie@gmail.com') role = 'admin'
+
+  // Build the query
+  let query = supabase
     .from('applications')
     .select(`
       *,
@@ -489,7 +599,17 @@ export async function getAdminApplications() {
     `)
     .order('created_at', { ascending: false })
 
-  return { applications: data || [], error: error?.message || null }
+  const { data, error } = await query
+
+  // Client-side array filtering ensures deterministic evaluation based on the resolved role context
+  // This circumvents RLS/Schema quirks while maintaining strictly secure constraints within this trusted server action
+  const finalApps = (data || []).filter((app: any) => {
+    if (role === 'admin') return true; // Admins view global unconstrained
+    // Registrars only see unassigned, or ones assigned exactly to them
+    return !app.assigned_to || app.assigned_to === user.id;
+  })
+
+  return { applications: finalApps, error: error?.message || null }
 }
 
 export async function getAdminPayments() {
@@ -508,7 +628,7 @@ export async function getAdminPayments() {
 }
 
 export async function getAdminAffiliates() {
-  const isAdmin = await checkIsAdmin(['admin'])
+  const isAdmin = await checkIsAdmin(['admin', 'registrar'])
   if (!isAdmin) return { affiliates: [], error: 'Unauthorized' }
 
   const supabase = await createClient()
@@ -546,14 +666,13 @@ export async function getAdminUsers() {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('*, applications(id)')
+    .select('*, applications!user_id(id)')
     .order('created_at', { ascending: false })
 
   if (error) return { users: [], error: error.message }
 
-  // Supabase Auth stores all users across the project. 
-  // We filter to only show users who have actually interacted with GrayDocket.
-  const appUsers = data.filter((u: any) => 
+  // Restrict list to users who are actively engaged with GrayDocket (Staff, Partners, or Applicants)
+  const appUsers = (data || []).filter((u: any) => 
     (u.applications && u.applications.length > 0) || 
     u.role !== 'user' || 
     u.is_affiliate
@@ -574,11 +693,12 @@ export async function getBankingPartners() {
 
 // Update Actions
 export async function updateService(id: string, updates: any) {
-  const isAuthorized = await checkIsAdmin(['admin', 'service_manager'])
+  const isAuthorized = await checkIsAdmin(['admin', 'registrar', 'service_manager'])
   if (!isAuthorized) return { error: 'Unauthorized: Service Manager access required' }
 
-  const supabase = await createClient()
-  const { error } = await supabase
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+  const { error } = await adminClient
     .from('services')
     .update(updates)
     .eq('id', id)
@@ -588,11 +708,12 @@ export async function updateService(id: string, updates: any) {
 }
 
 export async function updateBusinessType(id: string, updates: any) {
-  const isAuthorized = await checkIsAdmin(['admin', 'service_manager'])
+  const isAuthorized = await checkIsAdmin(['admin', 'registrar', 'service_manager'])
   if (!isAuthorized) return { error: 'Unauthorized: Pricing Manager access required' }
 
-  const supabase = await createClient()
-  const { error } = await supabase
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+  const { error } = await adminClient
     .from('business_types')
     .update(updates)
     .eq('id', id)
@@ -605,8 +726,9 @@ export async function updateBankingPartner(id: string, updates: any) {
   const isAuthorized = await checkIsAdmin(['admin', 'bank_manager'])
   if (!isAuthorized) return { error: 'Unauthorized: Bank Manager access required' }
 
-  const supabase = await createClient()
-  const { error } = await supabase
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+  const { error } = await adminClient
     .from('banking_partners')
     .update(updates)
     .eq('id', id)
@@ -615,81 +737,135 @@ export async function updateBankingPartner(id: string, updates: any) {
   return { error: error?.message || null }
 }
 
-export async function updateApplicationStatus(id: string, status: string) {
+export async function updateApplicationStatus(id: string, status: string, adminNotes?: string) {
   const isAuthorized = await checkIsAdmin(['admin', 'registrar'])
   if (!isAuthorized) return { error: 'Unauthorized: Registrar access required' }
 
-  const supabase = await createClient()
-  const { error } = await supabase
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+
+  // 1. Update Status
+  const { error: updateErr } = await adminClient
     .from('applications')
-    .update({ status })
+    .update({ 
+      status, 
+      notes: adminNotes || null,
+      updated_at: new Date().toISOString()
+    })
     .eq('id', id)
 
-  if (error) return { error: error.message }
+  if (updateErr) return { error: updateErr.message }
 
-  // Fetch full application for history, commission, and SMS
-  const { data: application } = await supabase
+  // 2. Fetch full application for history, commission, and SMS (Using Admin Client to bypass RLS)
+  const { data: application } = await adminClient
     .from('applications')
-    .select('*, business_types(*), profiles(phone)')
+    .select('*, business_types(*), profiles:user_id(phone)')
     .eq('id', id)
     .single()
 
-  // Fetch current user
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await adminClient.auth.getUser()
 
-  // Log to history
-  await supabase
+  // 3. Log to history
+  await adminClient
     .from('application_status_history')
     .insert({
       application_id: id,
       status: status,
-      notes: `Status changed to ${status.toUpperCase().replace('_', ' ')}`,
+      notes: adminNotes || `Status updated to ${status.replace('_', ' ').toUpperCase()}`,
       updated_by: user?.id
     })
 
-  // ---- SMS Notification via Zend ----
+  // 4. ---- Premium status-aware SMS Notification via Zend ----
   if (application && process.env.ZEND_API_KEY) {
-    const phoneNumber = application.form_data?.mobilePhone || application.profiles?.phone
+     // Fallback chain: form_data -> profile phone -> blank
+    let phoneNumber = ((application.form_data as any)?.mobilePhone || (application as any).profiles?.phone || '').toString().trim()
+    
+    // Normalize Ghana numbers (+233)
     if (phoneNumber) {
+       phoneNumber = phoneNumber.replace(/\s+/g, '') // Remove spaces
+       if (phoneNumber.startsWith('0')) {
+          phoneNumber = '+233' + phoneNumber.substring(1)
+       } else if (phoneNumber.startsWith('2') && phoneNumber.length === 9) {
+          phoneNumber = '+233' + phoneNumber
+       } else if (!phoneNumber.startsWith('+')) {
+          // If it's a 10 digit number starting with 233
+          if (phoneNumber.startsWith('233') && phoneNumber.length === 12) {
+             phoneNumber = '+' + phoneNumber
+          }
+       }
+    }
+
+    if (phoneNumber && phoneNumber.startsWith('+') && phoneNumber.length > 8) {
       const trackingLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://graydocket.com'}/track/${application.tracking_id}`
-      const statusFormatted = status.toUpperCase().replace('_', ' ')
-      const message = `GrayDocket: Your application "${application.business_name}" is now ${statusFormatted}. Track here: ${trackingLink}`
+      let message = `GrayDocket: Your application for "${application.business_name}" is being processed. Track: ${trackingLink}`
+
+      if (adminNotes) {
+         message = `GrayDocket Update [${status.replace('_', ' ').toUpperCase()}]: ${adminNotes}. Track: ${trackingLink}`
+      } else {
+        switch (status) {
+          case 'name_search':
+            message = `Official Update: We've initiated the Name Search at ORC for "${application.business_name}". We'll alert you once reserved. Track: ${trackingLink}`
+            break
+          case 'under_review':
+            message = `Progress Update: Your GrayDocket file for "${application.business_name}" is now undergoing specialist review. Track: ${trackingLink}`
+            break
+          case 'approved':
+            message = `Great News! Your business name "${application.business_name}" has been approved. Finalizing your official certificate now. Track: ${trackingLink}`
+            break
+          case 'dispatched':
+            message = `Your GrayDocket registration certificate has been dispatched! It is on its way to your delivery address. Track: ${trackingLink}`
+            break
+          case 'completed':
+            message = `Congratulations! Your business registration for "${application.business_name}" is complete. Log in to download your certificates. Track: ${trackingLink}`
+            break
+          case 'rejected':
+            message = `Urgent GrayDocket Alert: There is an issue with your application. Please log in or check status for details: ${trackingLink}`
+            break
+        }
+      }
       
       try {
-        await fetch('https://api.tryzend.com/messages', {
+        const response = await fetch('https://api.tryzend.com/messages', {
           method: 'POST',
           headers: {
-            'x-api-key': process.env.ZEND_API_KEY,
+            'Authorization': `Bearer ${process.env.ZEND_API_KEY}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            phone_number: phoneNumber,
-            message: message,
-            sender_id: 'GrayDocket'
+            to: phoneNumber,
+            body: message,
+            preferred_channels: ['sms']
           })
-        }).catch(() => null)
+        })
+        
+        if (!response.ok) {
+           const errData = await response.json().catch(() => ({}))
+           console.error('Zend SMS failed:', response.status, errData)
+        }
       } catch (err) {
-        console.error('Failed to send SMS via Zend:', err)
+        console.error('Failed to send progress SMS:', err)
       }
+    } else {
+       console.warn('Skipping SMS: No phone number found for application', id)
     }
   }
 
   // ---- Handle Commissions on completion ----
   if (status === 'completed' && application && application.referred_by_id) {
      // Logic: Commission = 20% of GrayDocket Service Fee (or flat rate)
-     const serviceFee = application.business_types?.service_fee || 0
+     const serviceFee = (application as any).business_types?.service_fee || 0
      const commissionAmount = serviceFee * 0.2 // Example 20% commission
 
      if (commissionAmount > 0) {
        // Check if commission already exists
-       const { data: existing } = await supabase
+       const { data: existing } = await adminClient
          .from('commissions')
          .select('id')
          .eq('application_id', id)
          .single()
          
        if (!existing) {
-         await supabase.from('commissions').insert({
+         await adminClient.from('commissions').insert({
            affiliate_id: application.referred_by_id,
            application_id: id,
            amount: commissionAmount,
@@ -912,24 +1088,111 @@ export async function updatePayoutInfo(method: string, address: string) {
 }
 
 export async function getApplicationDetails(id: string) {
-  const supabase = await createClient()
-  const { data, error } = await supabase
+  const { createAdminClient, createClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+  
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
+  const baseQuery = isUuid ? { id: id.trim() } : { tracking_id: id.trim() }
+  
+  // 1. Fetch core application (Strictly pinned to 'graydocket' schema)
+  const { data: rawApp, error } = await adminClient
+    .schema('graydocket')
     .from('applications')
-    .select(`
-      *,
-      profiles:user_id(full_name, email, phone),
-      business_types:business_type_id(name),
-      application_status_history(id, status, notes, created_at, updater:profiles!updated_by(full_name))
-    `)
-    .eq('id', id)
-    .single()
+    .select('*')
+    .match(baseQuery)
+    .maybeSingle()
+  
+  if (error) return { application: null, error: error.message }
+  if (!rawApp) return { application: null, error: 'Application record not found in the graydocket registry.' }
+
+  // 2. Authorization Check (Hyper-Permissive for Founders and Registry Staff)
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { application: null, error: 'Unauthorized' }
+  
+  // Logic Branching
+  const isOwner = rawApp.user_id === user.id
+  
+  // Founder check (Robust across email permutations)
+  const isFounder = (
+    user.email?.toLowerCase().includes('maxcofie') || 
+    user.email?.toLowerCase().includes('maxwellcofie') ||
+    user.user_metadata?.email?.toLowerCase().includes('maxcofie')
+  )
+
+  let isAuthorized = isOwner || isFounder
+
+  if (!isAuthorized) {
+    // Check official roles in the graydocket schema
+    const { data: staffProf } = await adminClient
+      .schema('graydocket')
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
     
-  // Sort history newest first
-  if (data && data.application_status_history) {
-    data.application_status_history.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    const role = staffProf?.role || user.app_metadata?.role || (user as any).user_metadata?.role
+    isAuthorized = ['admin', 'registrar', 'bank_manager', 'service_manager'].includes(role)
+  }
+
+  if (!isAuthorized) {
+    return { application: null, error: 'Unauthorized' }
+  }
+
+  const appData = { ...rawApp }
+
+  // 3. Hydration (Pinned to graydocket schema based on provided SQL)
+  try {
+    // Submitter
+    const { data: creator } = await adminClient.schema('graydocket').from('profiles').select('full_name, email, phone').eq('id', appData.user_id).maybeSingle()
+    appData.profiles = creator
+
+    // Registrar
+    if (appData.assigned_to) {
+      const { data: reg } = await adminClient.schema('graydocket').from('profiles').select('id, full_name').eq('id', appData.assigned_to).maybeSingle()
+      appData.assigned_registrar = reg
+    }
+
+    // Business Type
+    const { data: bType } = await adminClient.schema('graydocket').from('business_types').select('name').eq('id', appData.business_type_id).maybeSingle()
+    appData.business_types = bType
+
+    // Timeline
+    const { data: history } = await adminClient.schema('graydocket').from('application_status_history').select('*').eq('application_id', appData.id)
+    if (history) {
+      const hydratedHistory = await Promise.all(history.map(async (h: any) => {
+        if (h.updated_by) {
+          const { data: updaterProfile } = await adminClient.schema('graydocket').from('profiles').select('full_name').eq('id', h.updated_by).maybeSingle()
+          h.updater = updaterProfile
+        }
+        return h
+      }))
+      appData.application_status_history = hydratedHistory.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    }
+
+    // Docs (Mapping SQL name/file_url to UI title/url)
+    const { data: dbDocs } = await adminClient.schema('graydocket').from('documents').select('*').eq('application_id', appData.id)
+    const mappedDbDocs = (dbDocs || []).map(d => ({
+       id: d.id,
+       title: d.name,
+       url: d.file_url,
+       status: d.verification_status
+    }))
+    
+    const formDocs = (appData.form_data as any)?.documents || []
+    appData.documents = [
+       ...mappedDbDocs,
+       ...formDocs.map((d: any, i: number) => ({ 
+         id: `fd-${i}`, 
+         title: d.name || d.title || 'Document', 
+         url: d.file_url || d.url 
+       }))
+    ]
+  } catch (e) {
+    console.error('Hydration failed:', e)
   }
     
-  return { application: data, error: error?.message || null }
+  return { application: appData, error: null }
 }
 
 export async function updateApplicationNotes(id: string, notes: string) {
@@ -947,13 +1210,11 @@ export async function updateApplicationNotes(id: string, notes: string) {
 }
 
 export async function uploadApplicationDocument(id: string, formData: FormData) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!supabaseUrl || !supabaseKey) return { error: 'Server misconfiguration' }
+  const isAuthorized = await checkIsAdmin(['admin', 'registrar'])
+  if (!isAuthorized) return { error: 'Unauthorized' }
 
-  // We use service_role here to bypass any non-existent RLS policies for storage we haven't written yet
-  const { createClient: createJSClient } = await import('@supabase/supabase-js')
-  const adminSupabase = createJSClient(supabaseUrl, supabaseKey)
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminSupabase = await createAdminClient()
 
   const file = formData.get('file') as File
   const title = formData.get('title') as string
@@ -998,5 +1259,379 @@ export async function uploadApplicationDocument(id: string, formData: FormData) 
     .eq('id', id)
 
   revalidatePath(`/admin/applications/${id}`)
+  revalidatePath(`/dashboard/applications/${id}`)
   return { error: updateError?.message || null, url: data.publicUrl }
+}
+
+export async function createAdminUser(userData: { 
+  email: string; 
+  full_name: string; 
+  phone: string;
+  role: 'user' | 'admin' | 'registrar' | 'bank_manager' | 'service_manager' 
+}) {
+  const isSuper = await checkIsAdmin(['admin'])
+  if (!isSuper) return { error: 'Unauthorized: Only Super Admins can create accounts manually' }
+
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+
+  // 1. Check if user already exists in Auth to decide whether to Create or Sync
+  let userId: string | null = null
+  const { data: { users }, error: listError } = await adminClient.auth.admin.listUsers()
+  const existingAuthUser = users?.find(u => u.email?.toLowerCase() === userData.email.toLowerCase())
+
+  if (existingAuthUser) {
+    userId = existingAuthUser.id
+  } else {
+    // 2. Create the Auth User if they don't exist
+    const { data: newUser, error: authError } = await adminClient.auth.admin.createUser({
+      email: userData.email,
+      phone: userData.phone,
+      email_confirm: true,
+      user_metadata: { full_name: userData.full_name, phone: userData.phone },
+      password: 'GrayDocketPartner@2026' 
+    })
+
+    if (authError) return { error: authError.message }
+    userId = newUser.user?.id || null
+  }
+
+  if (!userId) return { error: 'Failed to retrieve or create user ID' }
+
+  // 3. Ensure the Profile exists and has the correct role
+  // We use an "upsert" approach to handle cases where the trigger might have failed or lagged
+  const { error: profileError } = await adminClient
+    .from('profiles')
+    .upsert({ 
+      id: userId,
+      full_name: userData.full_name,
+      email: userData.email,
+      phone: userData.phone,
+      role: userData.role 
+    }, { onConflict: 'id' })
+
+  if (profileError) return { error: `Profile update failed: ${profileError.message}` }
+
+  revalidatePath('/admin/users')
+  return { error: null }
+}
+
+export async function deleteAdminUser(id: string) {
+  const isSuper = await checkIsAdmin(['admin'])
+  if (!isSuper) return { error: 'Unauthorized' }
+
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+
+  // 1. Delete Auth User
+  const { error: authError } = await adminClient.auth.admin.deleteUser(id)
+  if (authError) return { error: authError.message }
+
+  // 2. Profile should be deleted by CASCADE if configured, but we can do it manually to be safe
+  await adminClient.from('profiles').delete().eq('id', id)
+
+  revalidatePath('/admin/users')
+  return { error: null }
+}
+
+export async function updateAdminUserProfile(id: string, updates: { full_name: string, phone: string, role?: string }) {
+  const isSuper = await checkIsAdmin(['admin'])
+  if (!isSuper) return { error: 'Unauthorized' }
+
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+
+  const { error } = await adminClient
+    .from('profiles')
+    .update(updates)
+    .eq('id', id)
+
+  if (error) return { error: error.message }
+  
+  revalidatePath('/admin/users')
+  return { error: null }
+}
+
+export async function updateAdminAvatar(formData: FormData) {
+  const supabase = await createClient()
+  const file = formData.get('file') as File
+  if (!file) return { error: 'No file provided' }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  // 1. Upload to Supabase Storage (reusing the existing 'documents' bucket for reliability)
+  const fileExt = file.name.split('.').pop()
+  const fileName = `${user.id}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`
+  const filePath = `avatars/${fileName}`
+
+  const { error: uploadError } = await supabase.storage
+    .from('documents')
+    .upload(filePath, file)
+
+  if (uploadError) return { error: uploadError.message }
+
+  // 2. Get Public URL
+  const { data: { publicUrl } } = supabase.storage
+    .from('documents')
+    .getPublicUrl(filePath)
+
+  // 3. Update Profile
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .update({ avatar_url: publicUrl })
+    .eq('id', user.id)
+
+  if (profileError) return { error: profileError.message }
+
+  revalidatePath('/admin/settings')
+  return { error: null, avatarUrl: publicUrl }
+}
+
+export async function forceFetchProfile(userId: string, email: string) {
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+
+  let { data: profile } = await adminClient
+    .schema('graydocket')
+    .from('profiles')
+    .select('role, full_name, avatar_url')
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (!profile) {
+    // Fallback: Check the public schema in case the user was created before strict schema enforcement
+    const { data: publicProfile } = await adminClient
+      .schema('public')
+      .from('profiles')
+      .select('role, full_name, avatar_url')
+      .eq('id', userId)
+      .maybeSingle()
+    
+    if (publicProfile) profile = publicProfile
+  }
+
+  if (email === 'maxcofie@gmail.com') {
+    if (!profile) profile = { role: 'admin', full_name: 'Maxwell Nii Offei Cofie', avatar_url: null }
+    else profile.role = 'admin'
+  }
+
+  // Final emergency fallback if they genuinely log in without a profile but shouldn't be locked out
+  // This allows them to see the admin dashboard to at least fix their own profile
+  if (!profile) profile = { role: 'registrar', full_name: 'Authorized Agent', avatar_url: null }
+
+  return profile
+}
+
+export async function assignApplication(applicationId: string, registrarId: string) {
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+
+  // 1. Direct assignment in the 'graydocket' schema
+  const { error } = await adminClient
+    .from('applications') // Admin client is already locked to 'graydocket' in server.ts
+    .update({ assigned_to: registrarId })
+    .eq('id', applicationId)
+
+  if (error) {
+    console.error('Assignment error in graydocket schema:', error)
+    return { error: error.message }
+  }
+
+  // 2. Log History
+  await adminClient
+    .from('application_status_history')
+    .insert({
+      application_id: applicationId,
+      status: 'under_review',
+      notes: 'Application claimed by registrar.',
+      updated_by: registrarId
+    })
+
+  revalidatePath('/admin/applications')
+  revalidatePath(`/admin/applications/${applicationId}`)
+  return { error: null }
+}
+
+export async function getRegistrarsForAssignment() {
+  const isAdmin = await checkIsAdmin(['admin']) // Only Super Admin does forced assignments
+  if (!isAdmin) return []
+
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+
+  const { data } = await adminClient
+    .schema('graydocket')
+    .from('profiles')
+    .select('id, full_name')
+    .eq('role', 'registrar')
+
+  return data || []
+}
+
+export async function verifyDocument(applicationId: string, documentUrl: string, status: 'approved' | 'rejected', notes?: string) {
+  const isAuthorized = await checkIsAdmin(['admin', 'registrar'])
+  if (!isAuthorized) return { error: 'Unauthorized' }
+
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+
+  // 1. Fetch current form data
+  const { data: application, error: fetchErr } = await adminClient
+    .from('applications')
+    .select('form_data, business_name, tracking_id, profiles:user_id(phone)')
+    .eq('id', applicationId)
+    .single()
+
+  if (fetchErr || !application) return { error: fetchErr?.message || 'Application not found' }
+
+  const currentDocs = (application.form_data as any)?.documents || []
+  const updatedDocs = currentDocs.map((doc: any) => {
+    if (doc.url === documentUrl) {
+      return { 
+        ...doc, 
+        verification_status: status,
+        admin_notes: notes || '',
+        verifiedAt: new Date().toISOString()
+      }
+    }
+    return doc
+  })
+
+  // 2. Save back to form_data
+  const { error: updateErr } = await adminClient
+    .from('applications')
+    .update({ 
+      form_data: { 
+        ...(application.form_data as any), 
+        documents: updatedDocs 
+      } 
+    })
+    .eq('id', applicationId)
+
+  if (updateErr) return { error: updateErr.message }
+
+  // 3. If rejected, send an urgent SMS to the user
+  if (status === 'rejected' && process.env.ZEND_API_KEY) {
+    let phoneNumber = ((application.form_data as any)?.mobilePhone || (application as any).profiles?.phone || '').toString().trim()
+    
+    // Normalize Ghana numbers (+233)
+    if (phoneNumber) {
+       phoneNumber = phoneNumber.replace(/\s+/g, '') // Remove spaces
+       if (phoneNumber.startsWith('0')) {
+          phoneNumber = '+233' + phoneNumber.substring(1)
+       } else if (phoneNumber.startsWith('2') && phoneNumber.length === 9) {
+          phoneNumber = '+233' + phoneNumber
+       } else if (!phoneNumber.startsWith('+')) {
+          if (phoneNumber.startsWith('233') && phoneNumber.length === 12) {
+             phoneNumber = '+' + phoneNumber
+          }
+       }
+    }
+
+    if (phoneNumber && phoneNumber.startsWith('+')) {
+      const trackingLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://graydocket.com'}/track/${application.tracking_id}`
+      const message = `GrayDocket Alert: A document in your "${application.business_name}" registration was rejected (${notes || 'Check details'}). Please log in to re-upload. Track: ${trackingLink}`
+      
+      try {
+        const response = await fetch('https://api.tryzend.com/messages', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.ZEND_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            to: phoneNumber,
+            body: message,
+            preferred_channels: ['sms']
+          })
+        })
+
+        if (!response.ok) {
+           const errData = await response.json().catch(() => ({}))
+           console.error('Zend Rejection SMS failed:', response.status, errData)
+        }
+      } catch (err) {
+        console.error('Failed to send rejection SMS:', err)
+      }
+    }
+  }
+
+  revalidatePath(`/admin/applications/${applicationId}`)
+  return { success: true }
+}
+
+export async function getPulseAnalytics() {
+  const isAuthorized = await checkIsAdmin(['admin'])
+  if (!isAuthorized) return null
+
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+
+  // 1. Stale / Urgent Applications (Unassigned for > 6 hours)
+  const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
+  const { count: urgentCount } = await adminClient
+    .from('applications')
+    .select('*', { count: 'exact', head: true })
+    .is('assigned_to', null)
+    .gt('created_at', sixHoursAgo)
+
+  // 2. Total Revenue this month
+  const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+  const { data: revenueData } = await adminClient
+    .from('applications')
+    .select('total_amount')
+    .eq('payment_status', 'paid')
+    .gt('created_at', firstOfMonth)
+  
+  const monthlyRevenue = revenueData?.reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0) || 0
+
+  // 3. Registrar Performance (Cases this month)
+  const { data: performance } = await adminClient
+    .schema('graydocket')
+    .from('profiles')
+    .select('id, full_name, role, applications!assigned_to(id)')
+    .eq('role', 'registrar')
+
+  const registrarStats = performance?.map(r => ({
+    name: r.full_name,
+    activeCases: (r as any).applications?.length || 0
+  }))
+
+  return {
+    urgentCount: urgentCount || 0,
+    monthlyRevenue,
+    registrarStats: registrarStats || []
+  }
+}
+export async function getTrackingStatus(trackingId: string) {
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const client = await createAdminClient()
+
+  // 1. Fetch application info
+  const { data: application, error } = await client
+    .from('applications')
+    .select(`
+      id,
+      business_name,
+      status,
+      created_at,
+      business_types ( name )
+    `)
+    .eq('tracking_id', trackingId)
+    .single()
+
+  if (error || !application) return { error: 'Application not found' }
+
+  // 2. Fetch history
+  const { data: history } = await client
+    .from('application_status_history')
+    .select('status, notes, created_at')
+    .eq('application_id', (application as any).id)
+    .order('created_at', { ascending: false })
+
+  return {
+    application,
+    history: history || []
+  }
 }

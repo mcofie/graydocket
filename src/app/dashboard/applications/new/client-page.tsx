@@ -24,7 +24,7 @@ import PersonForm from './PersonForm'
 function NewRegistrationContent() {
   const [step, setStep] = useState(0)
   const [selectedType, setSelectedType] = useState<string | null>(null)
-  const [selectedAddOns, setSelectedAddOns] = useState<string[]>(['bank'])
+  const [selectedAddOns, setSelectedAddOns] = useState<string[]>([])
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
@@ -838,7 +838,7 @@ function NewRegistrationContent() {
         </div>
       )}
 
-      {/* ============ Step 3 (Company): Secretary, Shareholders, Capital, Auditor ============ */}
+      {/* COMPANY: Secretary & Shareholders */}
       {step === 3 && isCompany && (
         <div className={styles.stepCard}>
           <h2 className={styles.stepTitle}>Secretary, Shareholders & Capital</h2>
@@ -1001,7 +1001,7 @@ function NewRegistrationContent() {
           <p className={styles.stepDesc}>Enhance your business with these optional services.</p>
 
           <div className={styles.addOnGrid}>
-            {dynamicAddOns.map((addon) => (
+            {dynamicAddOns.filter(a => a.id !== 'bank').map((addon) => (
               <button
                 key={addon.id}
                 className={`${styles.addOnCard} ${selectedAddOns.includes(addon.id) ? styles.selected : ''}`}
@@ -1026,7 +1026,7 @@ function NewRegistrationContent() {
           </div>
 
           <div className={styles.stepNav}>
-            <button className="btn btn-ghost" onClick={() => setStep(isCompany ? 3 : 2)}>
+            <button className="btn btn-ghost" onClick={() => setStep(step - 1)}>
               <ArrowLeft size={16} /> Back
             </button>
             <div style={{ display: 'flex', gap: 'var(--space-2)' }}>

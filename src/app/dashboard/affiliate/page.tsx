@@ -109,23 +109,16 @@ export default function AffiliateDashboard() {
 
   if (!profile?.is_affiliate) {
     return (
-      <div className={styles.overview}>
-        <div className={styles.emptyState} style={{ padding: '80px var(--space-8)', background: 'var(--color-neutral-0)', borderStyle: 'solid' }}>
-          <div className={styles.statIcon} style={{ background: 'var(--color-primary-50)', color: 'var(--color-primary-600)', width: '80px', height: '80px', margin: '0 auto 24px' }}>
-             <TrendingUp size={40} />
+      <div className={styles.overview} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ background: 'var(--color-primary-50)', color: 'var(--color-primary-600)', width: '80px', height: '80px', borderRadius: '50%', margin: '0 auto 24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <TrendingUp size={40} />
           </div>
-          <h2 style={{ fontSize: '28px', fontWeight: 700, color: 'var(--color-neutral-900)', marginBottom: '16px' }}>Become a GrayDocket Partner</h2>
-          <p style={{ color: 'var(--color-neutral-500)', maxWidth: 540, margin: '0 auto 40px', fontSize: '16px', lineHeight: 1.6 }}>
-            Earn revenue by referring businesses to register their companies. Get <strong style={{ color: 'var(--color-neutral-900)' }}>20% commission</strong> on all service fees for every successful incorporation.
+          <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '12px' }}>Access Restricted</h2>
+          <p style={{ color: 'var(--color-neutral-500)', maxWidth: '400px', margin: '0 auto 24px' }}>
+            The GrayDocket Partner Program is an exclusive institutional channel.
           </p>
-          <button 
-            onClick={handleApply}
-            disabled={isApplying}
-            className="btn btn-primary btn-lg" 
-            style={{ padding: '16px 48px' }}
-          >
-            {isApplying ? 'Activating account...' : 'Apply for Partner Program'}
-          </button>
+          <a href="/dashboard" className="btn btn-primary">Return to Dashboard</a>
         </div>
       </div>
     )

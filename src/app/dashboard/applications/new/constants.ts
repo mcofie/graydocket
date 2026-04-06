@@ -61,3 +61,10 @@ export interface ShareholderEntry {
 export const emptyShareholder: ShareholderEntry = {
   type: 'individual', name: '', tinNumber: '', nationality: '', address: '', numberOfShares: '', valuePerShare: ''
 }
+
+export const bankPartners = [
+  { id: 'zenith', name: 'Zenith Bank (Ghana)', logo: '🏙️', minBalance: 'GH₵ 0.00', perks: 'Free Business Cards, 24/7 Mobile Banking Support' },
+  { id: 'ecobank', name: 'Ecobank Ghana', logo: '🦁', minBalance: 'GH₵ 100.00', perks: 'Omni Lite, Instant Multi-Currency Accounts' },
+  { id: 'fnb', name: 'FNB Ghana', logo: '🌳', minBalance: 'GH₵ 50.00', perks: 'Gold Business Account, Zero-Fee Digital Payments' },
+  { id: 'absavibe', name: 'Absa Bank Ghana', logo: '⚙️', minBalance: 'GH₵ 0.00', perks: 'Priority Relationship Manager, Instant Overdraft Facilities' },
+]

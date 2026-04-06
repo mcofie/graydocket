@@ -14,6 +14,7 @@ import {
   LogOut,
   Menu,
   X,
+  CreditCard,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import styles from './dashboard.module.css'
@@ -21,7 +22,8 @@ import styles from './dashboard.module.css'
 const navItems = [
   { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Applications', href: '/dashboard/applications', icon: FileText },
-  { label: 'New Registration', href: '/dashboard/applications/new', icon: PlusCircle },
+  { label: 'Register Business', href: '/dashboard/applications/new', icon: PlusCircle },
+  { label: 'Business Banking', href: '/dashboard/banking', icon: CreditCard },
   { label: 'Documents', href: '/dashboard/documents', icon: FolderOpen },
   { label: 'Partner Program', href: '/dashboard/affiliate', icon: Users },
   { label: 'Settings', href: '/dashboard/settings', icon: Settings },
@@ -36,14 +38,24 @@ export default function DashboardLayout({
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [user, setUser] = useState<{ email?: string; user_metadata?: { full_name?: string } } | null>(null)
+  const [isAffiliate, setIsAffiliate] = useState(false)
 
   useEffect(() => {
-    const getUser = async () => {
+    const getUserData = async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       setUser(user)
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_affiliate')
+          .eq('id', user.id)
+          .single()
+        setIsAffiliate(profile?.is_affiliate || false)
+      }
     }
-    getUser()
+    getUserData()
   }, [])
 
   const handleSignOut = async () => {
@@ -86,7 +98,10 @@ export default function DashboardLayout({
         </div>
 
         <nav className={styles.sidebarNav}>
-          {navItems.map((item) => {
+          {navItems.filter(item => {
+            if (item.href === '/dashboard/affiliate') return isAffiliate
+            return true
+          }).map((item) => {
             const Icon = item.icon
             const isActive =
               pathname === item.href ||

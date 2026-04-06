@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { getAdminStats } from '@/lib/actions'
 import styles from './admin.module.css'
 import Skeleton from '@/components/ui/Skeleton'
@@ -13,7 +14,11 @@ import {
   Inbox,
   ArrowRight,
   TrendingUp,
-  FileText
+  FileText,
+  Activity,
+  Clock,
+  Zap,
+  BarChart3
 } from 'lucide-react'
 
 export default function AdminDashboardPage() {
@@ -84,128 +89,185 @@ export default function AdminDashboardPage() {
   return (
     <div className={styles.adminContainer}>
       <div className={styles.headerSection}>
-        <h1 className={styles.title}>Admin Control Center</h1>
-        <p className={styles.subtitle}>
-          Monitor platform flow, system revenue, and corporate applications in real-time.
-        </p>
+        <div>
+          <h1 className={styles.title}>Admin Control Center</h1>
+          <p className={styles.subtitle}>
+            Monitor platform flow, system revenue, and corporate applications in real-time.
+          </p>
+        </div>
+        <div style={{ background: 'var(--color-primary-50)', color: 'var(--color-primary-600)', padding: '12px 20px', borderRadius: '12px', border: '1px solid var(--color-primary-100)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+           <Zap size={20} fill="var(--color-primary-600)" />
+           <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>System Pulse</div>
+              <div style={{ fontSize: '14px', fontWeight: 600 }}>Operational & Live</div>
+           </div>
+        </div>
       </div>
 
       <div className={styles.statsSection}>
         <div className={styles.statsGrid}>
-          {/* Total Apps Card */}
-          <div className={styles.statCard}>
-            <div className={styles.statHeader}>
-              <h3 className={styles.statTitle}>Total Applications</h3>
-              <div className={`${styles.statIconWrapper} ${styles.primary}`}>
-                <Building2 size={20} strokeWidth={2.5} />
+          {stats.role === 'admin' ? (
+            <>
+              {/* Revenue Card */}
+              <div className={styles.statCard} style={{ borderBottom: '4px solid #10b981' }}>
+                <div className={styles.statHeader}>
+                  <h3 className={styles.statTitle}>MTD Revenue (GHS)</h3>
+                  <div className={`${styles.statIconWrapper}`} style={{ background: '#10b98115', color: '#10b981' }}>
+                    <TrendingUp size={20} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                  <span className={styles.statValue}>¢{stats.monthlyRevenue.toLocaleString()}</span>
+                  <span style={{ fontSize: '12px', color: '#10b981', fontWeight: 600 }}>Active Month</span>
+                </div>
               </div>
-            </div>
-            <div className={styles.statValue}>
-              {stats.appCount}
-              <span className={`${styles.trendIndicator} ${styles.trendPositive}`}>
-                <TrendingUp size={12} strokeWidth={3} /> +12%
-              </span>
-            </div>
-          </div>
-          
-          {/* Total Users Card */}
-          <div className={styles.statCard}>
-            <div className={styles.statHeader}>
-              <h3 className={styles.statTitle}>Total Users</h3>
-              <div className={`${styles.statIconWrapper} ${styles.info}`}>
-                <Users size={20} strokeWidth={2.5} />
-              </div>
-            </div>
-            <div className={styles.statValue}>
-              {stats.userCount}
-            </div>
-          </div>
-
-          {/* Completed Card */}
-          <div className={styles.statCard}>
-            <div className={styles.statHeader}>
-              <h3 className={styles.statTitle}>Completed Filings</h3>
-              <div className={`${styles.statIconWrapper} ${styles.success}`}>
-                <CheckCircle2 size={20} strokeWidth={2.5} />
-              </div>
-            </div>
-            <div className={styles.statValue}>
-              {stats.completedCount}
-            </div>
-          </div>
-
-          {/* Revenue Card */}
-          <div className={styles.statCard}>
-            <div className={styles.statHeader}>
-              <h3 className={styles.statTitle}>Platform Revenue</h3>
-              <div className={`${styles.statIconWrapper} ${styles.accent}`}>
-                <Banknote size={20} strokeWidth={2.5} />
-              </div>
-            </div>
-            <div className={styles.statValue}>
-              <span style={{ fontSize: 'var(--text-xl)', color: 'var(--color-neutral-500)', transform: 'translateY(-2px)' }}>GH₵</span>
-              {stats.revenue.toLocaleString()}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className={styles.tableContainer}>
-        <div className={styles.tableHeader}>
-          <h2 className={styles.tableTitle}>
-            <span className={styles.entityIcon}><FileText size={18} strokeWidth={2.5} /></span>
-            Recent Submissions
-          </h2>
-          <button className={styles.viewAllBtn}>
-            View All <ArrowRight size={16} strokeWidth={2.5} />
-          </button>
-        </div>
-
-        <div className={styles.tableWrapper}>
-          {stats.recentApps.length === 0 ? (
-            <div className={styles.emptyState}>
-              <div className={styles.emptyIconWrapper}>
-                <Inbox size={32} />
-              </div>
-              <h3 className={styles.emptyStateTitle}>No recent activity</h3>
-              <p className={styles.emptyStateDesc}>New applications will appear here as they come in.</p>
-            </div>
+            </>
           ) : (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>TRK ID</th>
-                  <th>Business Name</th>
-                  <th>User</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.recentApps.map((app: any) => (
-                  <tr key={app.id}>
-                    <td>
-                      <span className={styles.tableRowId}>{app.tracking_id}</span>
-                    </td>
-                    <td>
-                      <div className={styles.tableRowEntity}>
-                        {app.business_name}
-                      </div>
-                    </td>
-                    <td>
-                      <span className={styles.tableRowUser}>{app.profiles?.full_name || 'N/A'}</span>
-                    </td>
-                    <td>
-                      <span className={`badge badge-${app.status}`}>
-                        {app.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <>
+              {/* My Workload Card */}
+              <div className={styles.statCard} style={{ borderBottom: '4px solid var(--color-primary-600)' }}>
+                <div className={styles.statHeader}>
+                  <h3 className={styles.statTitle}>My Assigned Workload</h3>
+                  <div className={`${styles.statIconWrapper} ${styles.primary}`}>
+                    <Building2 size={20} />
+                  </div>
+                </div>
+                <span className={styles.statValue}>{stats.totalApplications}</span>
+                <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)', marginTop: '4px' }}>Units requiring your action</div>
+              </div>
+            </>
           )}
+
+          {/* Urgent Apps Card - Same for both but different copy */}
+          <div className={styles.statCard} style={{ borderBottom: stats.urgentCount > 0 ? '4px solid #ef4444' : '4px solid var(--color-neutral-200)' }}>
+            <div className={styles.statHeader}>
+              <h3 className={styles.statTitle}>{stats.role === 'admin' ? 'Urgent / Unassigned' : 'Available in Queue'}</h3>
+              <div className={`${styles.statIconWrapper}`} style={{ background: stats.urgentCount > 0 ? '#ef444415' : 'var(--color-neutral-100)', color: stats.urgentCount > 0 ? '#ef4444' : 'var(--color-neutral-400)' }}>
+                <Clock size={20} />
+              </div>
+            </div>
+            <span className={styles.statValue}>{stats.urgentCount}</span>
+            <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)', marginTop: '4px' }}>{stats.role === 'admin' ? 'Apps unassigned for > 6 hrs' : 'Unassigned apps waiting'}</div>
+          </div>
+
+          <div className={styles.statCard}>
+            <div className={styles.statHeader}>
+              <h3 className={styles.statTitle}>{stats.role === 'admin' ? 'Active Capacity' : 'In Progress'}</h3>
+              <div className={`${styles.statIconWrapper} ${styles.primary}`}>
+                <Activity size={20} />
+              </div>
+            </div>
+            <span className={styles.statValue}>{stats.totalApplications - stats.completedApplications}</span>
+            <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)', marginTop: '4px' }}>Apps in processing flow</div>
+          </div>
+
+          <div className={styles.statCard}>
+            <div className={styles.statHeader}>
+              <h3 className={styles.statTitle}>{stats.role === 'admin' ? 'Platform Users' : 'Cases Completed'}</h3>
+              <div className={`${styles.statIconWrapper} ${styles.secondary}`}>
+                {stats.role === 'admin' ? <Users size={20} /> : <CheckCircle2 size={20} />}
+              </div>
+            </div>
+            <span className={styles.statValue}>{stats.role === 'admin' ? stats.totalUsers : stats.completedApplications}</span>
+          </div>
         </div>
       </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: stats.role === 'admin' ? '1.5fr 1fr' : '1fr', gap: 'var(--space-6)', marginTop: 'var(--space-6)' }}>
+           {/* Recent Applications */}
+           <div className={styles.tableContainer} style={{ margin: 0 }}>
+             <div className={styles.tableHeader}>
+               <h2 className={styles.tableTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                 <FileText size={18} /> {stats.role === 'admin' ? 'Platform Activity' : 'My Recent Activity'}
+               </h2>
+               <Link href="/admin/applications" className={styles.viewAllLink} style={{ fontSize: '13px', color: 'var(--color-primary-600)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                 View all <ArrowRight size={16} />
+               </Link>
+             </div>
+             
+             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: 'var(--space-6)' }}>
+               {stats.recentApplications.map((app: any) => (
+                 <Link 
+                   key={app.id} 
+                   href={`/admin/applications/${app.id}`}
+                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'var(--color-neutral-0)', border: '1px solid var(--color-neutral-100)', borderRadius: '12px', textDecoration: 'none', color: 'inherit' }}
+                 >
+                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                     <div style={{ background: 'var(--color-neutral-50)', padding: '8px', borderRadius: '8px' }}>
+                       <FileText size={18} />
+                     </div>
+                     <div style={{ display: 'flex', flexDirection: 'column' }}>
+                       <span style={{ fontWeight: 600, fontSize: '14px' }}>{app.business_name}</span>
+                       <span style={{ fontSize: '11px', color: 'var(--color-neutral-500)' }}>
+                         {app.profiles?.full_name || 'Anonymous User'} • {new Date(app.created_at).toLocaleDateString()}
+                       </span>
+                     </div>
+                   </div>
+                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                     <span className={`badge badge-${app.status}`} style={{ fontSize: '10px' }}>
+                       {app.status.replace('_', ' ')}
+                     </span>
+                     <ArrowRight size={14} style={{ color: 'var(--color-neutral-400)' }} />
+                   </div>
+                 </Link>
+               ))}
+               {stats.recentApplications.length === 0 && (
+                 <div style={{ padding: '48px', textAlign: 'center', color: 'var(--color-neutral-400)' }}>
+                   <Inbox size={32} style={{ marginBottom: '12px' }} />
+                   <p>No recent activity found.</p>
+                 </div>
+               )}
+             </div>
+           </div>
+
+           {/* Registrar Radar - Only for Admins */}
+           {stats.role === 'admin' && (
+             <div className={styles.tableContainer} style={{ margin: 0, padding: 'var(--space-6)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                   <BarChart3 size={20} style={{ color: 'var(--color-primary-600)' }} />
+                   <h2 style={{ fontSize: '16px', fontWeight: 700 }}>Registrar Radar</h2>
+                </div>
+                <p style={{ fontSize: '13px', color: 'var(--color-neutral-500)', marginBottom: '24px' }}>
+                   Real-time workload distribution across the processing team.
+                </p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                   {stats.registrarStats.map((reg: any) => (
+                      <div key={reg.name} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                            <span style={{ fontWeight: 600 }}>{reg.name}</span>
+                            <span style={{ fontWeight: 700, color: 'var(--color-primary-600)' }}>{reg.activeCases} Cases</span>
+                         </div>
+                         <div style={{ width: '100%', height: '8px', background: 'var(--color-neutral-100)', borderRadius: '4px', overflow: 'hidden' }}>
+                            <div 
+                               style={{ 
+                                 width: `${Math.min((reg.activeCases / (stats.totalApplications || 50)) * 100 * 3, 100)}%`, 
+                                 height: '100%', 
+                                 background: 'var(--color-primary-600)', 
+                                 borderRadius: '4px' 
+                               }} 
+                            />
+                         </div>
+                      </div>
+                   ))}
+                   {stats.registrarStats.length === 0 && (
+                      <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-neutral-400)', fontSize: '13px' }}>
+                         No registrars currently active.
+                      </div>
+                   )}
+                </div>
+
+                <div style={{ marginTop: 'auto', paddingTop: '24px' }}>
+                   <div style={{ background: 'var(--color-neutral-50)', padding: '16px', borderRadius: '12px', border: '1px solid var(--color-neutral-200)' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-neutral-500)', marginBottom: '4px' }}>Efficiency Tip</div>
+                      <p style={{ fontSize: '12px', color: 'var(--color-neutral-600)', lineHeight: 1.5 }}>
+                         Urgent applications unassigned for &gt; 6 hours trigger an automated alert to all active registrars.
+                      </p>
+                   </div>
+                </div>
+             </div>
+           )}
+        </div>
     </div>
   )
 }
