@@ -104,7 +104,26 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
 
   const handleStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newStatus = e.target.value
-    const customNote = window.prompt(`Add a note for this status change (sent to customer):`) || undefined
+    const currentStatus = app.status
+
+    // 1. Irreversibility Alert (Client-side Guard)
+    const terminalStates = ['completed', 'cancelled']
+    const checkpointStates = ['dispatched', 'delivered']
+    
+    let warning = ''
+    if (terminalStates.includes(newStatus)) {
+      warning = `CRITICAL: Moving to ${newStatus.toUpperCase()} is PERMANENT. You will NOT be able to change the status again. Are you absolutely sure?`
+    } else if (checkpointStates.includes(newStatus)) {
+      warning = `LOGISTICS ALERT: Moving to ${newStatus.toUpperCase()} is a procedural checkpoint. Reversing this state later will be restricted by the system. Proceed?`
+    }
+
+    if (warning && !window.confirm(warning)) {
+      // Revert the UI state if cancelled
+      e.target.value = currentStatus
+      return
+    }
+
+    const customNote = window.prompt(`Add a status update note for the customer (sent via SMS):`) || undefined
     
     setApp({ ...app, status: newStatus }) // Optimistic UI
     const { error } = await updateApplicationStatus(appId, newStatus, customNote)

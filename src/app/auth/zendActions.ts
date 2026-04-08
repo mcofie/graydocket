@@ -1,7 +1,9 @@
 'use server'
+import crypto from 'crypto'
 
 import { createClient as createSupabaseServerClient } from '@/lib/supabase/server'
 import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js'
+import { formatPhoneNumber } from '@/lib/sms'
 
 export async function sendZendOtp(phone: string) {
   if (!process.env.ZEND_API_KEY) {
@@ -9,29 +11,40 @@ export async function sendZendOtp(phone: string) {
     return { success: true, id: 'mock_otp_123', message: 'Mock OTP sent (ZEND_API_KEY missing)' }
   }
 
+  const normalizedPhone = formatPhoneNumber(phone)
+  // Generate a stateless 6-digit OTP
+  const code = Math.floor(100000 + Math.random() * 900000).toString()
+  const expiry = Date.now() + 10 * 60 * 1000 // 10 minutes
+  
+  // Create a stateless verification token (Hash: phone + code + expiry + secret)
+  const secret = process.env.ZEND_API_KEY // Using API Key as secret for now
+  const hash = crypto.createHmac('sha256', secret)
+    .update(`${normalizedPhone}${code}${expiry}`)
+    .digest('hex')
+  
+  const otpId = `${hash}.${expiry}`
+
   try {
-    const response = await fetch('https://api.tryzend.com/otp/send', {
+    const response = await fetch('https://api.tryzend.com/messages', {
       method: 'POST',
       headers: { 
         'x-api-key': process.env.ZEND_API_KEY, 
         'Content-Type': 'application/json' 
       },
       body: JSON.stringify({ 
-        phone_number: phone, 
-        app: 'graydocket', 
-        channel: 'sms', 
-        expiry: 10, 
-        length: 6 
+        to: normalizedPhone,
+        body: `Your GrayDocket verification code is: ${code}. Valid for 10 minutes.`,
+        preferred_channels: ['sms'],
+        sender_id: 'GrayDocket'
       })
     })
     
     if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`Zend API error: ${errText}`)
+        throw new Error(`Zend Messages API error: ${errText}`)
     }
     
-    const data = await response.json()
-    return { success: true, id: data.id }
+    return { success: true, id: otpId }
   } catch (error: any) {
     console.error('Zend send OTP error:', error)
     return { success: false, error: error.message || 'Failed to send OTP' }
@@ -46,20 +59,28 @@ export async function verifyZendOtp(id: string, code: string, phone: string) {
     if (code !== '123456') return { success: false, message: 'Invalid mock code. Try 123456' }
     isVerified = true
   } else {
+    const normalizedPhone = formatPhoneNumber(phone)
     try {
-      const response = await fetch(`https://api.tryzend.com/otp/${id}/verify`, {
-        method: 'POST',
-        headers: { 
-          'x-api-key': process.env.ZEND_API_KEY, 
-          'Content-Type': 'application/json' 
-        },
-        body: JSON.stringify({ code })
-      })
-
-      const data = await response.json()
+      // Split hash and expiry safely
+      const parts = (id || '').split('.');
+      if (parts.length !== 2) return { success: false, message: 'Invalid session ID' };
       
-      if (!data.success) {
-        return { success: false, message: data.message || 'Invalid OTP code' }
+      const [receivedHash, expiryText] = parts;
+      const expiry = parseInt(expiryText, 10);
+      
+      // Check expiry
+      if (Date.now() > expiry) {
+        return { success: false, message: 'OTP has expired. Please request a new one.' }
+      }
+      
+      // Re-calculate hash to verify the code
+      const secret = process.env.ZEND_API_KEY;
+      const expectedHash = crypto.createHmac('sha256', secret)
+        .update(`${normalizedPhone}${code}${expiry}`)
+        .digest('hex');
+        
+      if (receivedHash !== expectedHash) {
+        return { success: false, message: 'Invalid OTP code' }
       }
 
       isVerified = true
@@ -84,11 +105,12 @@ export async function verifyZendOtp(id: string, code: string, phone: string) {
     )
 
     // 2. Lookup the user's profile by their phone number (could be slightly formatted differently)
-    // You may need to clean strictly but we assume matching formats.
+    // We normalize to ensure we match the format stored in DB
+    const normalizedPhone = formatPhoneNumber(phone)
     const { data: profiles, error: lookupError } = await adminSupabase
       .from('profiles')
       .select('id, email')
-      .eq('phone', phone)
+      .eq('phone', normalizedPhone)
       .limit(1)
 
     if (lookupError || !profiles || profiles.length === 0) {

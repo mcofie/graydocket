@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { formatPhoneNumber } from '@/lib/sms'
 import styles from '../auth.module.css'
 
 export default function RegisterPage() {
@@ -24,13 +25,14 @@ export default function RegisterPage() {
 
     try {
       const supabase = createClient()
+      const normalizedPhone = formatPhoneNumber(phone)
       const { error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             full_name: fullName,
-            phone: phone,
+            phone: normalizedPhone,
           },
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },

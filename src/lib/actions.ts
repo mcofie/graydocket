@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { formatPhoneNumber } from '@/lib/sms'
 
 function generateTrackingId(): string {
   const prefix = 'GD'
@@ -70,9 +71,42 @@ export async function submitApplication(data: {
       paystack_reference: data.paystackReference
     },
     total_amount: data.totalAmount,
-    payment_status: data.paystackReference ? 'paid' : 'pending',
+    payment_status: 'pending', // Default to pending
     referred_by_id: referredById,
     updated_at: new Date().toISOString()
+  }
+
+  // --- Server-side Paystack Verification ---
+  if (data.paystackReference) {
+    if (!process.env.PAYSTACK_SECRET_KEY) {
+      console.error('PAYSTACK_SECRET_KEY is not configured.')
+      return { error: 'Payment verification failed (Configuration Error).' }
+    }
+
+    try {
+      const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${data.paystackReference}`, {
+        headers: {
+          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      const verifyData = await verifyRes.json()
+
+      if (verifyData.status && verifyData.data.status === 'success') {
+        applicationPayload.payment_status = 'paid'
+        // Ensure the amount matches (Paystack amount is in pesewas)
+        const expectedAmountPesewas = data.totalAmount * 100
+        if (Math.abs(verifyData.data.amount - expectedAmountPesewas) > 1) {
+             console.warn(`Payment amount mismatch: Expected ${expectedAmountPesewas}, got ${verifyData.data.amount}`)
+             // We'll still proceed but log it, or we could reject it
+        }
+      } else {
+        return { error: 'Payment verification failed. Please contact support.' }
+      }
+    } catch (err) {
+      console.error('Paystack verification error:', err)
+      return { error: 'Technical error during payment verification.' }
+    }
   }
 
   // We add these conditionally because they might not exist in older app schemas
@@ -177,6 +211,24 @@ export async function submitApplication(data: {
     }
   }
 
+  // --- Calculate and Insert Affiliate Commission ---
+  if (applicationPayload.payment_status === 'paid' && referredById) {
+    try {
+      // 20% commission rule
+      const commissionAmount = data.totalAmount * 0.20
+      
+      await supabase.from('commissions').insert({
+        affiliate_id: referredById,
+        application_id: application.id,
+        amount: commissionAmount,
+        status: 'pending' // Pending approval by admin before payout
+      })
+    } catch (err) {
+      console.error('Failed to create commission entry:', err)
+      // We don't fail the whole submission if commission entry fails, but we log it
+    }
+  }
+
   // --- Send SMS Notification ---
   if (data.paystackReference && process.env.ZEND_API_KEY) {
     const phoneNumber = data.formData.mobilePhone as string
@@ -184,17 +236,19 @@ export async function submitApplication(data: {
       const trackingLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://graydocket.com'}/track/${trackingId}`
       const message = `Payment received! Your GrayDocket application for "${data.businessName}" is processing. Track your status here: ${trackingLink}`
       
+      const normalizedPhone = formatPhoneNumber(phoneNumber)
       try {
         await fetch('https://api.tryzend.com/messages', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${process.env.ZEND_API_KEY}`,
+            'x-api-key': process.env.ZEND_API_KEY as string,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            to: phoneNumber,
+            to: normalizedPhone,
             body: message,
-            preferred_channels: ['sms']
+            preferred_channels: ['sms'],
+            sender_id: 'GrayDocket'
           })
         })
       } catch (err) {
@@ -221,16 +275,18 @@ export async function submitApplication(data: {
         const uniquePhones = [...new Set(registrars.map((r: any) => r.phone).filter(Boolean))]
 
         await Promise.all(uniquePhones.map(async (phone) => {
+          const normalizedAdminPhone = formatPhoneNumber(phone)
           await fetch('https://api.tryzend.com/messages', {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${process.env.ZEND_API_KEY}`,
+              'x-api-key': process.env.ZEND_API_KEY as string,
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              to: phone,
+              to: normalizedAdminPhone,
               body: adminMsg,
-              preferred_channels: ['sms']
+              preferred_channels: ['sms'],
+              sender_id: 'GrayDocket'
             })
           })
         }))
@@ -744,7 +800,32 @@ export async function updateApplicationStatus(id: string, status: string, adminN
   const { createAdminClient } = await import('@/lib/supabase/server')
   const adminClient = await createAdminClient()
 
-  // 1. Update Status
+  // 1. State Transition Validation
+  const { data: currentApp } = await adminClient
+    .from('applications')
+    .select('status')
+    .eq('id', id)
+    .single()
+
+  if (currentApp) {
+    // Rule: Terminal states cannot be changed
+    if (['completed', 'cancelled'].includes(currentApp.status)) {
+      return { error: `Restricted: Application is already in a terminal state (${currentApp.status})` }
+    }
+
+    // Rule: Logical Logistics (delivered can only go to completed)
+    if (currentApp.status === 'delivered' && !['completed', 'cancelled'].includes(status)) {
+      return { error: 'Logistics violation: Delivered applications can only move to Completed' }
+    }
+
+    // Rule: Dispatch protection (once it's in the real world, it stays there)
+    const processingStates = ['submitted', 'name_search', 'under_review', 'approved']
+    if (currentApp.status === 'dispatched' && processingStates.includes(status)) {
+      return { error: 'Logistics violation: Dispatched applications cannot move back to internal processing' }
+    }
+  }
+
+  // 2. Update Status
   const { error: updateErr } = await adminClient
     .from('applications')
     .update({ 
@@ -777,23 +858,8 @@ export async function updateApplicationStatus(id: string, status: string, adminN
 
   // 4. ---- Premium status-aware SMS Notification via Zend ----
   if (application && process.env.ZEND_API_KEY) {
-     // Fallback chain: form_data -> profile phone -> blank
-    let phoneNumber = ((application.form_data as any)?.mobilePhone || (application as any).profiles?.phone || '').toString().trim()
-    
-    // Normalize Ghana numbers (+233)
-    if (phoneNumber) {
-       phoneNumber = phoneNumber.replace(/\s+/g, '') // Remove spaces
-       if (phoneNumber.startsWith('0')) {
-          phoneNumber = '+233' + phoneNumber.substring(1)
-       } else if (phoneNumber.startsWith('2') && phoneNumber.length === 9) {
-          phoneNumber = '+233' + phoneNumber
-       } else if (!phoneNumber.startsWith('+')) {
-          // If it's a 10 digit number starting with 233
-          if (phoneNumber.startsWith('233') && phoneNumber.length === 12) {
-             phoneNumber = '+' + phoneNumber
-          }
-       }
-    }
+    // Normalize phone number
+    const phoneNumber = formatPhoneNumber((application.form_data as any)?.mobilePhone || (application as any).profiles?.phone || '')
 
     if (phoneNumber && phoneNumber.startsWith('+') && phoneNumber.length > 8) {
       const trackingLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://graydocket.com'}/track/${application.tracking_id}`
@@ -828,13 +894,14 @@ export async function updateApplicationStatus(id: string, status: string, adminN
         const response = await fetch('https://api.tryzend.com/messages', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${process.env.ZEND_API_KEY}`,
+            'x-api-key': process.env.ZEND_API_KEY as string,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
             to: phoneNumber,
             body: message,
-            preferred_channels: ['sms']
+            preferred_channels: ['sms'],
+            sender_id: 'GrayDocket'
           })
         })
         
@@ -1341,9 +1408,14 @@ export async function updateAdminUserProfile(id: string, updates: { full_name: s
   const { createAdminClient } = await import('@/lib/supabase/server')
   const adminClient = await createAdminClient()
 
+  const normalizedUpdates = {
+    ...updates,
+    phone: formatPhoneNumber(updates.phone)
+  }
+
   const { error } = await adminClient
     .from('profiles')
-    .update(updates)
+    .update(normalizedUpdates)
     .eq('id', id)
 
   if (error) return { error: error.message }
@@ -1537,13 +1609,14 @@ export async function verifyDocument(applicationId: string, documentUrl: string,
         const response = await fetch('https://api.tryzend.com/messages', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${process.env.ZEND_API_KEY}`,
+            'x-api-key': process.env.ZEND_API_KEY as string,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
             to: phoneNumber,
             body: message,
-            preferred_channels: ['sms']
+            preferred_channels: ['sms'],
+            sender_id: 'GrayDocket'
           })
         })
 
