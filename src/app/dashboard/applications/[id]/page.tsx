@@ -86,9 +86,49 @@ export default function UserApplicationDetailPage({ params }: { params: Promise<
   const currentStatus = app.status || 'draft'
   const isCompleted = ['completed', 'approved', 'delivered'].includes(currentStatus)
   const isCritical = ['rejected', 'cancelled', 'on_hold'].includes(currentStatus)
+  const corrections = app.form_data?.corrections || {}
+  const hasCorrections = Object.keys(corrections).length > 0
 
   return (
     <div className={styles.overview}>
+      {/* CORRECTION ALERT BANNER */}
+      {hasCorrections && currentStatus === 'rejected' && (
+        <div style={{ 
+          background: 'var(--color-error-light)', 
+          border: '1px solid var(--color-error)', 
+          borderRadius: '16px', 
+          padding: 'var(--space-6)', 
+          marginBottom: 'var(--space-8)',
+          display: 'flex',
+          gap: '20px',
+          alignItems: 'flex-start',
+          animation: 'slideDown 0.4s ease-out'
+        }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--color-error)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <AlertCircle color="white" size={24} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <h3 style={{ color: 'var(--color-error)', fontWeight: 800, fontSize: '18px', marginBottom: '8px' }}>Action Required: Application Revisions</h3>
+            <p style={{ color: 'var(--color-neutral-600)', fontSize: '14px', lineHeight: 1.5, marginBottom: '16px' }}>
+              Our registrar has requested corrections for the following fields. Please update these details to proceed with your registration.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+              {Object.entries(corrections).map(([key, reason]: [string, any]) => (
+                <div key={key} style={{ background: 'white', padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--color-error-light)' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--color-neutral-400)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                    {key.split('.').pop()?.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--color-neutral-800)', fontWeight: 600 }}>{reason}</div>
+                </div>
+              ))}
+            </div>
+            <Link href={`/dashboard/applications/${appId}/edit`} className="btn btn-primary" style={{ height: '44px', gap: '8px', background: 'var(--color-error)', border: 'none' }}>
+               Fix & Resubmit Application <ArrowLeft size={16} style={{ transform: 'rotate(180deg)' }} />
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* DOCUMENT VIEWER MODAL */}
       {selectedDoc && (
         <div style={{
@@ -191,47 +231,83 @@ export default function UserApplicationDetailPage({ params }: { params: Promise<
              <h3 style={{ fontSize: '18px', fontWeight: 800, marginBottom: 'var(--space-8)', display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <Clock size={22} style={{ color: 'var(--color-primary-500)' }} /> Lifecycle Timeline
              </h3>
-
-             <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', position: 'relative', paddingLeft: '4px' }}>
+             <div style={{ display: 'flex', flexDirection: 'column', position: 'relative', paddingLeft: '4px' }}>
                 {app.application_status_history && app.application_status_history.length > 0 ? (
-                  app.application_status_history.map((hist: any, i: number) => (
-                    <div key={hist.id} style={{ display: 'flex', gap: '24px', position: 'relative' }}>
-                      {/* Vertical Connecting Line */}
-                      {i < app.application_status_history.length - 1 && (
-                        <div style={{ position: 'absolute', top: '24px', bottom: '-40px', left: '11px', width: '2px', background: 'linear-gradient(to bottom, var(--color-primary-500), var(--color-neutral-100))' }} />
-                      )}
-                      
-                      {/* Animated Node */}
-                      <div style={{ position: 'relative', zIndex: 1, marginTop: '4px' }}>
-                        <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'white', border: `2px solid ${i === 0 ? 'var(--color-primary-500)' : 'var(--color-neutral-200)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                           {i === 0 ? <CheckCircle2 size={14} style={{ color: 'var(--color-primary-500)' }} /> : <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--color-neutral-200)' }} />}
-                        </div>
-                        {i === 0 && (
-                          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: '50%', background: 'var(--color-primary-500)', opacity: 0.2, animation: 'pulse 2s infinite' }} />
+                  app.application_status_history.map((hist: any, i: number) => {
+                    const isLatest = i === 0;
+                    return (
+                      <div key={hist.id} style={{ display: 'flex', gap: '24px', position: 'relative', paddingBottom: i < app.application_status_history.length - 1 ? '40px' : '0' }}>
+                        {/* Vertical Connecting Line */}
+                        {i < app.application_status_history.length - 1 && (
+                          <div style={{ 
+                            position: 'absolute', 
+                            top: '28px', 
+                            bottom: '0', 
+                            left: '13px', 
+                            width: '2px', 
+                            background: isLatest ? 'var(--color-primary-500)' : 'var(--color-neutral-200)',
+                            opacity: isLatest ? 0.3 : 1
+                          }} />
                         )}
-                      </div>
-                      
-                      <div style={{ flex: 1 }}>
-                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h4 style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--color-neutral-900)', letterSpacing: '0.02em' }}>
+                        
+                        {/* Node */}
+                        <div style={{ position: 'relative', zIndex: 1 }}>
+                          <div style={{ 
+                            width: '28px', 
+                            height: '28px', 
+                            borderRadius: '50%', 
+                            background: isLatest ? 'var(--color-primary-500)' : 'white', 
+                            border: `2px solid ${isLatest ? 'var(--color-primary-500)' : 'var(--color-neutral-200)'}`, 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center',
+                            boxShadow: isLatest ? '0 0 0 5px var(--color-primary-50)' : 'none',
+                            transition: 'all 0.3s ease'
+                          }}>
+                             {isLatest ? 
+                               <CheckCircle2 size={16} style={{ color: 'white' }} /> : 
+                               <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--color-neutral-300)' }} />
+                             }
+                          </div>
+                        </div>
+
+                        {/* Content */}
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+                            <h4 style={{ 
+                              fontSize: '15px', 
+                              fontWeight: isLatest ? 750 : 600, 
+                              color: isLatest ? 'var(--color-neutral-900)' : 'var(--color-neutral-500)',
+                              textTransform: 'capitalize'
+                            }}>
                               {hist.status.replace('_', ' ')}
                             </h4>
-                            <span style={{ fontSize: '12px', color: 'var(--color-neutral-400)', fontWeight: 600 }}>{new Date(hist.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                         </div>
-                         <div style={{ background: 'var(--color-neutral-50)', padding: '16px', borderRadius: '12px', marginTop: '12px', border: '1px solid var(--color-neutral-100)' }}>
-                            <p style={{ fontSize: '13.5px', color: 'var(--color-neutral-600)', lineHeight: 1.5 }}>
-                               "{hist.notes || `Institutional state transitioned to ${hist.status.replace('_', ' ')}.`}"
+                            <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-neutral-400)', textTransform: 'uppercase' }}>
+                               {new Date(hist.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                          </div>
+                          <div style={{ background: isLatest ? 'var(--color-neutral-50)' : 'transparent', padding: isLatest ? '16px' : '0', borderRadius: '12px', border: isLatest ? '1px solid var(--color-neutral-100)' : 'none' }}>
+                            <p style={{ 
+                              fontSize: '13.5px', 
+                              color: isLatest ? 'var(--color-neutral-600)' : 'var(--color-neutral-400)',
+                              lineHeight: 1.5,
+                              fontStyle: isLatest ? 'normal' : 'italic'
+                            }}>
+                              {hist.notes || `Institutional state transitioned to ${hist.status.replace('_', ' ')}.`}
                             </p>
-                            <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: 'var(--color-neutral-500)', fontWeight: 600 }}>
-                               <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'white', border: '1px solid var(--color-neutral-200)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                  <User size={12} />
+                            {isLatest && (
+                               <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: 'var(--color-neutral-500)', fontWeight: 600 }}>
+                                  <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'white', border: '1px solid var(--color-neutral-200)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                     <User size={12} />
+                                  </div>
+                                  AUTHENTICATED BY: <span style={{ color: 'var(--color-neutral-900)' }}>{hist.updater?.full_name || 'SYSTEM CORE'}</span>
                                </div>
-                               AUTHENTICATED BY: <span style={{ color: 'var(--color-neutral-900)' }}>{hist.updater?.full_name || 'SYSTEM CORE'}</span>
-                            </div>
-                         </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    )
+                  })
                 ) : (
                   <div style={{ padding: '48px', textAlign: 'center', color: 'var(--color-neutral-400)', fontSize: '14px', border: '1px dashed var(--color-neutral-200)', borderRadius: '16px' }}>
                     No timeline data available. Timeline initiated upon registry submission.

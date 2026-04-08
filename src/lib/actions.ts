@@ -95,10 +95,13 @@ export async function submitApplication(data: {
       if (verifyData.status && verifyData.data.status === 'success') {
         applicationPayload.payment_status = 'paid'
         // Ensure the amount matches (Paystack amount is in pesewas)
-        const expectedAmountPesewas = data.totalAmount * 100
-        if (Math.abs(verifyData.data.amount - expectedAmountPesewas) > 1) {
-             console.warn(`Payment amount mismatch: Expected ${expectedAmountPesewas}, got ${verifyData.data.amount}`)
-             // We'll still proceed but log it, or we could reject it
+        const expectedAmountPesewas = Math.round(data.totalAmount * 100)
+        const actualAmountPesewas = verifyData.data.amount
+        const currencyMatch = verifyData.data.currency === 'GHS'
+
+        if (actualAmountPesewas < expectedAmountPesewas || !currencyMatch) {
+             console.warn(`Payment integrity violation: Expected ${expectedAmountPesewas} GHS, got ${actualAmountPesewas} ${verifyData.data.currency}`)
+             return { error: 'Payment integrity check failed. Amount or currency mismatch detected.' }
         }
       } else {
         return { error: 'Payment verification failed. Please contact support.' }
@@ -668,19 +671,43 @@ export async function getAdminApplications() {
   return { applications: finalApps, error: error?.message || null }
 }
 
-export async function getAdminPayments() {
+export async function getAdminPayments(status: string = 'paid') {
   const isAdmin = await checkIsAdmin(['admin'])
   if (!isAdmin) return { payments: [], error: 'Unauthorized' }
 
-  const supabase = await createClient()
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
 
-  const { data, error } = await supabase
+  let query = adminClient
+    .schema('graydocket')
     .from('applications')
-    .select('id, tracking_id, business_name, total_amount, payment_status, created_at, updated_at, profiles:user_id(full_name, email)')
-    .eq('payment_status', 'paid')
+    .select('id, tracking_id, business_name, total_amount, payment_status, form_data, created_at, updated_at, profiles:user_id(full_name, email)')
     .order('updated_at', { ascending: false })
 
-  return { payments: data || [], error: error?.message || null }
+  if (status) {
+    query = query.eq('payment_status', status)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+     // Fallback to public schema if graydocket doesn't have it yet
+     let fallbackQuery = adminClient
+       .from('applications')
+       .select('id, tracking_id, business_name, total_amount, payment_status, form_data, created_at, updated_at, profiles:user_id(full_name, email)')
+       .order('updated_at', { ascending: false })
+     
+     if (status) {
+       fallbackQuery = fallbackQuery.eq('payment_status', status)
+     }
+
+     const { data: publicData, error: publicErr } = await fallbackQuery
+     
+     if (publicErr) return { payments: [], error: publicErr.message }
+     return { payments: publicData || [], error: null }
+  }
+
+  return { payments: data || [], error: null }
 }
 
 export async function getAdminAffiliates() {
@@ -1708,3 +1735,130 @@ export async function getTrackingStatus(trackingId: string) {
     history: history || []
   }
 }
+
+export async function requestFieldCorrection(applicationId: string, fieldKey: string, reason: string) {
+  const isAuthorized = await checkIsAdmin(['admin', 'registrar'])
+  if (!isAuthorized) return { error: 'Unauthorized: Access restricted to registrars.' }
+
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+
+  // 1. Fetch current application
+  const { data: application } = await adminClient
+    .from('applications')
+    .select('*, profiles:user_id(phone)')
+    .eq('id', applicationId)
+    .single()
+
+  if (!application) return { error: 'Application not found' }
+
+  // 2. Update form_data with correction
+  const formData = (application.form_data as any) || {}
+  const corrections = formData.corrections || {}
+  corrections[fieldKey] = reason
+  formData.corrections = corrections
+
+  // 3. Update application status to 'rejected'
+  const { error: updateErr } = await adminClient
+    .from('applications')
+    .update({ 
+      form_data: formData,
+      status: 'rejected',
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', applicationId)
+
+  if (updateErr) return { error: updateErr.message }
+
+  // 4. Log to history
+  const { data: { user: adminUser } } = await adminClient.auth.getUser()
+  await adminClient
+    .from('application_status_history')
+    .insert({
+      application_id: applicationId,
+      status: 'rejected',
+      notes: `CORRECTION REQUIRED on field: ${fieldKey}. Reason: ${reason}`,
+      updated_by: adminUser?.id
+    })
+
+  // 5. Send SMS Notification
+  if (process.env.ZEND_API_KEY) {
+    const phoneNumber = formatPhoneNumber((application as any).profiles?.phone || '')
+    if (phoneNumber) {
+      const trackingLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://graydocket.com'}/dashboard/applications/${applicationId}`
+      const message = `Urgent GrayDocket Alert: A correction is required for your application "${application.business_name}". Please log in to your dashboard to resolve: ${trackingLink}`
+      
+      try {
+        await fetch('https://api.tryzend.com/messages', {
+          method: 'POST',
+          headers: {
+            'x-api-key': process.env.ZEND_API_KEY as string,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            to: phoneNumber,
+            body: message,
+            preferred_channels: ['sms'],
+            sender_id: 'GrayDocket'
+          })
+        })
+      } catch (err) {
+        console.error('Failed to send correction SMS:', err)
+      }
+    }
+  }
+
+  revalidatePath('/dashboard')
+  revalidatePath('/admin/applications')
+  return { success: true }
+}
+
+export async function resubmitApplication(applicationId: string, formData: Record<string, unknown>) {
+  const { createClient } = await import('@/lib/supabase/server')
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Authentication required for resubmission.' }
+
+  // 1. Fetch current application to verify ownership
+  const { data: app } = await supabase
+    .from('applications')
+    .select('user_id, status, form_data')
+    .eq('id', applicationId)
+    .single()
+
+  if (!app || app.user_id !== user.id) return { error: 'Unauthorized: You do not have permission to edit this record.' }
+
+  // 2. Prepare new form data (clearing old corrections)
+  const newFormData = { ...formData }
+  if (newFormData.corrections) {
+      delete newFormData.corrections
+  }
+
+  // 3. Update application
+  const { error: updateErr } = await supabase
+    .from('applications')
+    .update({
+      form_data: newFormData,
+      status: 'submitted', 
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', applicationId)
+
+  if (updateErr) return { error: updateErr.message }
+
+  // 4. Log to history
+  await supabase.from('application_status_history').insert({
+    application_id: applicationId,
+    status: 'submitted',
+    notes: 'Application resubmitted after requested institutional corrections.',
+    updated_by: user.id
+  })
+
+  revalidatePath('/dashboard')
+  revalidatePath('/dashboard/applications')
+  revalidatePath(`/dashboard/applications/${applicationId}`)
+  
+  return { success: true }
+}
+
+

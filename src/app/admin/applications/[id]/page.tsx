@@ -3,7 +3,7 @@
 import { useState, useEffect, use, useRef } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, FileText, UploadCloud, ExternalLink, Copy, Printer, Clock, Save, User, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
-import { getApplicationDetails, updateApplicationStatus, uploadApplicationDocument, updateApplicationNotes, assignApplication, getRegistrarsForAssignment, verifyDocument } from '@/lib/actions'
+import { getApplicationDetails, updateApplicationStatus, uploadApplicationDocument, updateApplicationNotes, assignApplication, getRegistrarsForAssignment, verifyDocument, requestFieldCorrection } from '@/lib/actions'
 import { createClient } from '@/lib/supabase/client'
 import styles from '../../../dashboard/overview.module.css'
 
@@ -130,6 +130,22 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
     if (error) {
       alert(error)
       await fetchData() // Rollback
+    } else {
+      await fetchData()
+    }
+  }
+
+  const handleFlagField = async (fieldKey: string, fieldName: string) => {
+    const reason = window.prompt(`Why does "${fieldName}" need correction? Individual fields flagged will help the user fix them precisely.`)
+    if (reason === null) return // Cancelled
+    if (!reason.trim()) {
+      alert('You must provide a reason for the correction request.')
+      return
+    }
+    
+    const res = await requestFieldCorrection(appId, fieldKey, reason)
+    if (res.error) {
+      alert(res.error)
     } else {
       await fetchData()
     }
@@ -277,21 +293,54 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
     }, 500)
   }
 
-  const renderUIDataNode = (obj: any, level = 0): React.ReactNode => {
+  const renderUIDataNode = (obj: any, level = 0, path = ''): React.ReactNode => {
     if (!obj) return null
     if (typeof obj !== 'object') return <span style={{ fontWeight: 500 }}>{String(obj)}</span>
     
+    const corrections = app.form_data?.corrections || {}
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {Object.entries(obj).map(([key, val]) => {
-          if (key === 'documents') return null
+          if (key === 'documents' || key === 'corrections' || key === 'paystackReference' || key === 'total_amount' || key === 'delivery_method' || key === 'delivery_address' || key === 'businessType') return null
+          
+          const currentPath = path ? `${path}.${key}` : key
           const readableKey = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())
+          const existingCorrection = corrections[currentPath]
           
           return (
-            <div key={key} style={{ background: level === 0 ? 'white' : 'transparent', padding: level === 0 ? '16px' : '0', border: level === 0 ? '1px solid var(--color-neutral-200)' : 'none', borderRadius: '8px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-neutral-500)', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.05em' }}>
-                {readableKey}
+            <div key={key} style={{ 
+              background: level === 0 ? 'white' : 'transparent', 
+              padding: level === 0 ? '16px' : '0', 
+              border: level === 0 ? (existingCorrection ? '1px solid var(--color-error)' : '1px solid var(--color-neutral-200)') : 'none', 
+              borderRadius: '8px',
+              position: 'relative',
+              transition: 'all 0.2s'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: existingCorrection ? 'var(--color-error)' : 'var(--color-neutral-500)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {readableKey}
+                </div>
+                {(!Array.isArray(val) && typeof val !== 'object') && (
+                  <button 
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleFlagField(currentPath, readableKey);
+                    }}
+                    style={{ background: 'none', border: 'none', color: existingCorrection ? 'var(--color-error)' : 'var(--color-neutral-200)', cursor: 'pointer', display: 'flex' }}
+                    title="Flag for Correction"
+                  >
+                    <AlertCircle size={14} />
+                  </button>
+                )}
               </div>
+              
+              {existingCorrection && (
+                <div style={{ background: 'var(--color-error-light)', color: 'var(--color-error)', fontSize: '11px', padding: '8px 12px', borderRadius: '6px', marginBottom: '12px', border: '1px solid var(--color-error-light)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                   <div style={{ fontWeight: 900 }}>REVISION REQUIRED:</div> {existingCorrection}
+                </div>
+              )}
               
               {Array.isArray(val) ? (
                 val.length === 0 ? <span style={{ color: 'var(--color-neutral-400)', fontSize: '13px', fontStyle: 'italic' }}>Empty</span> : (
@@ -299,14 +348,14 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
                     {val.map((item, i) => (
                       <div key={i} style={{ padding: '16px', background: 'var(--color-neutral-50)', border: '1px solid var(--color-neutral-200)', borderRadius: '8px' }}>
                         <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-primary-600)', textTransform: 'uppercase', marginBottom: '12px' }}>Item {i + 1}</div>
-                        {typeof item === 'object' ? renderUIDataNode(item, level + 1) : String(item)}
+                        {typeof item === 'object' ? renderUIDataNode(item, level + 1, `${currentPath}.${i}`) : String(item)}
                       </div>
                     ))}
                   </div>
                 )
               ) : typeof val === 'object' ? (
                 <div style={{ marginTop: '8px', padding: '12px', background: 'var(--color-neutral-50)', borderRadius: '8px', border: '1px solid var(--color-neutral-200)' }}>
-                  {renderUIDataNode(val, level + 1)}
+                  {renderUIDataNode(val, level + 1, currentPath)}
                 </div>
               ) : (
                 <div style={{ fontSize: '14px', color: val === '' ? 'var(--color-neutral-400)' : 'var(--color-neutral-900)', fontWeight: val === '' ? 400 : 500, fontStyle: val === '' ? 'italic' : 'normal' }}>
