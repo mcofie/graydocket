@@ -216,20 +216,7 @@ export async function submitApplication(data: {
 
   // --- Calculate and Insert Affiliate Commission ---
   if (applicationPayload.payment_status === 'paid' && referredById) {
-    try {
-      // 20% commission rule
-      const commissionAmount = data.totalAmount * 0.20
-      
-      await supabase.from('commissions').insert({
-        affiliate_id: referredById,
-        application_id: application.id,
-        amount: commissionAmount,
-        status: 'pending' // Pending approval by admin before payout
-      })
-    } catch (err) {
-      console.error('Failed to create commission entry:', err)
-      // We don't fail the whole submission if commission entry fails, but we log it
-    }
+     await processAffiliateCommission(application.id)
   }
 
   // --- Send SMS Notification ---
@@ -1106,8 +1093,18 @@ export async function getAffiliateStats() {
 
   const { data: commissions } = await supabase
     .from('commissions')
-    .select('*')
+    .select(`
+      id, 
+      amount, 
+      status, 
+      created_at,
+      applications:application_id (
+         business_name,
+         tracking_id
+      )
+    `)
     .eq('affiliate_id', user.id)
+    .order('created_at', { ascending: false })
 
   const pending = commissions?.filter(c => c.status === 'pending').reduce((sum, c) => sum + Number(c.amount), 0) || 0
   const earned = commissions?.filter(c => c.status === 'paid').reduce((sum, c) => sum + Number(c.amount), 0) || 0
@@ -1123,6 +1120,59 @@ export async function getAffiliateStats() {
     referralCount: referrals || 0,
     commissions: commissions || []
   }
+}
+
+/**
+ * High-fidelity commission engine.
+ * Calculates and records earnings for affiliates based on the SERVICE FEE component of a successful application.
+ */
+export async function processAffiliateCommission(applicationId: string) {
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+
+  // 1. Fetch application with business type context (Service Fee info)
+  const { data: app, error: fetchErr } = await adminClient
+    .from('applications')
+    .select('id, referred_by_id, payment_status, business_types(service_fee)')
+    .eq('id', applicationId)
+    .single()
+
+  if (fetchErr || !app || !app.referred_by_id || app.payment_status !== 'paid') {
+     return { success: false, reason: 'Ineligible for commission tracking' }
+  }
+
+  // 2. Prevent duplicate accounting
+  const { data: existing } = await adminClient
+    .from('commissions')
+    .select('id')
+    .eq('application_id', applicationId)
+    .maybeSingle()
+
+  if (existing) return { success: true, reason: 'Commission already recorded' }
+
+  // 3. Calculation Logic (Institutional Standard: 20% of THE SERVICE FEE)
+  const serviceFee = (app.business_types as any)?.service_fee || 0
+  const commissionRate = 0.20
+  const commissionAmount = serviceFee * commissionRate
+
+  if (commissionAmount <= 0) return { success: false, reason: 'Zero value yield' }
+
+  // 4. Record Ledger Entry
+  const { error: insertErr } = await adminClient
+    .from('commissions')
+    .insert({
+      affiliate_id: app.referred_by_id,
+      application_id: applicationId,
+      amount: commissionAmount,
+      status: 'pending' // Pending administrative reconciliation
+    })
+
+  if (insertErr) {
+    console.error(`Ledger failure for app ${applicationId}:`, insertErr.message)
+    return { error: insertErr.message }
+  }
+
+  return { success: true }
 }
 
 export async function markUserAsAffiliate(userId: string, isAffiliate: boolean) {

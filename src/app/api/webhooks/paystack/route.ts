@@ -71,7 +71,11 @@ export async function POST(req: Request) {
 
       console.log(`Paystack Webhook: Payment reconciled for application ${app.id}`);
       
-      // 6. Optional: Log to History
+      // 6. Record Affiliate Commission
+      const { processAffiliateCommission } = await import('@/lib/actions');
+      await processAffiliateCommission(app.id);
+      
+      // 7. Optional: Log to History
       await adminClient.from('application_status_history').insert({
         application_id: app.id,
         status: app.status,

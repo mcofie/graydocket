@@ -45,6 +45,9 @@ export const metadata: Metadata = {
   },
 };
 
+import { Suspense } from "react";
+import ReferralTracker from "@/components/affiliate/ReferralTracker";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -52,7 +55,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body>{children}</body>
+      <body>
+        <Suspense fallback={null}>
+          <ReferralTracker />
+        </Suspense>
+        {children}
+      </body>
     </html>
   );
 }

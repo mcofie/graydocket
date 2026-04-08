@@ -6,6 +6,7 @@ import {
   DollarSign, 
   TrendingUp, 
   Copy, 
+  Check,
   CheckCircle2, 
   ExternalLink,
   ChevronRight,
@@ -109,16 +110,65 @@ export default function AffiliateDashboard() {
 
   if (!profile?.is_affiliate) {
     return (
-      <div className={styles.overview} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ background: 'var(--color-primary-50)', color: 'var(--color-primary-600)', width: '80px', height: '80px', borderRadius: '50%', margin: '0 auto 24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <TrendingUp size={40} />
+      <div className={styles.overview} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', padding: 'var(--space-8)' }}>
+        <div style={{ maxWidth: '640px', width: '100%', textAlign: 'center' }}>
+          <div style={{ 
+            background: 'linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-700) 100%)', 
+            color: 'white', 
+            width: '100px', 
+            height: '100px', 
+            borderRadius: '24px', 
+            margin: '0 auto 32px', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            boxShadow: '0 20px 40px rgba(var(--color-primary-rgb), 0.2)'
+          }}>
+            <TrendingUp size={48} />
           </div>
-          <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '12px' }}>Access Restricted</h2>
-          <p style={{ color: 'var(--color-neutral-500)', maxWidth: '400px', margin: '0 auto 24px' }}>
-            The GrayDocket Partner Program is an exclusive institutional channel.
+          
+          <h1 style={{ fontSize: '32px', fontWeight: 800, color: 'var(--color-neutral-900)', marginBottom: '16px', letterSpacing: '-0.02em' }}>
+            The Partner Program
+          </h1>
+          <p style={{ color: 'var(--color-neutral-500)', fontSize: '18px', lineHeight: '1.6', marginBottom: '48px' }}>
+            Scale your earnings by helping founders launch their companies. Join an exclusive ecosystem of institutional partners.
           </p>
-          <a href="/dashboard" className="btn btn-primary">Return to Dashboard</a>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px', textAlign: 'left', marginBottom: '48px' }}>
+             <div style={{ padding: '24px', borderRadius: '20px', border: '1px solid var(--color-neutral-200)', background: 'white' }}>
+                <div style={{ color: 'var(--color-primary-600)', marginBottom: '12px' }}><DollarSign size={24} /></div>
+                <h4 style={{ fontWeight: 800, marginBottom: '8px' }}>20% Yield</h4>
+                <p style={{ fontSize: '13px', color: 'var(--color-neutral-500)', margin: 0 }}>Earn high-margin commissions on all GrayDocket service fees.</p>
+             </div>
+             <div style={{ padding: '24px', borderRadius: '20px', border: '1px solid var(--color-neutral-200)', background: 'white' }}>
+                <div style={{ color: 'var(--color-primary-600)', marginBottom: '12px' }}><Clock size={24} /></div>
+                <h4 style={{ fontWeight: 800, marginBottom: '8px' }}>30-Day Persistence</h4>
+                <p style={{ fontSize: '13px', color: 'var(--color-neutral-500)', margin: 0 }}>Our tracking infrastructure ensures attribution for a full month.</p>
+             </div>
+             <div style={{ padding: '24px', borderRadius: '20px', border: '1px solid var(--color-neutral-200)', background: 'white' }}>
+                <div style={{ color: 'var(--color-primary-600)', marginBottom: '12px' }}><Wallet size={24} /></div>
+                <h4 style={{ fontWeight: 800, marginBottom: '8px' }}>Weekly Payouts</h4>
+                <p style={{ fontSize: '13px', color: 'var(--color-neutral-500)', margin: 0 }}>Liquidate your earnings every Friday directly to MoMo or Bank.</p>
+             </div>
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'center' }}>
+            <button 
+              className="btn btn-primary btn-lg" 
+              style={{ padding: '16px 40px', borderRadius: '16px', fontWeight: 800, fontSize: '16px' }}
+              onClick={handleApply}
+              disabled={isApplying}
+            >
+              {isApplying ? 'Processing Enrollment...' : 'Enroll as Partner'}
+            </button>
+            <a href="/dashboard" className="btn btn-ghost btn-lg" style={{ padding: '16px 40px' }}>
+              Back to Dashboard
+            </a>
+          </div>
+
+          <p style={{ marginTop: '40px', fontSize: '12px', color: 'var(--color-neutral-400)' }}>
+            By enrolling, you agree to the GrayDocket Partner Terms & Conditions.
+          </p>
         </div>
       </div>
     )
@@ -166,76 +216,109 @@ export default function AffiliateDashboard() {
 
       <div className={styles.mainGrid}>
         {/* Left Col: Tools and Activity */}
-        <div className={styles.leftCol}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
           
           {/* Referral Tool */}
-          <section className={styles.healthScoreCard}>
-            <div className={styles.healthHeader}>
-               <h3>Referral Link</h3>
-               <div className={styles.liveBadge}><div className={styles.pulseDot} /> Active & Tracking</div>
+          <section className="card" style={{ padding: 'var(--space-8)', background: 'white', borderRadius: '24px', border: '1px solid var(--color-neutral-200)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+               <h3 style={{ fontSize: '18px', fontWeight: 750, color: 'var(--color-neutral-900)' }}>Elite Referral Tool</h3>
+               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 600, color: '#059669', background: '#ecfdf5', padding: '4px 12px', borderRadius: '20px' }}>
+                 <div style={{ width: '6px', height: '6px', background: '#059669', borderRadius: '50%' }} /> Active Tracking
+               </div>
             </div>
             
-            <p className={styles.healthDetail}>Share this personalized link with clients. Our system will automatically track their registration and credit your account upon completion.</p>
+            <p style={{ color: 'var(--color-neutral-500)', fontSize: '14px', lineHeight: '1.6', marginBottom: '24px' }}>
+              Redirect clients to GrayDocket using your institutional link. Our tracking infrastructure maintains referral persistence for <strong style={{ fontWeight: 700 }}>30 days</strong>.
+            </p>
             
-            <div style={{ display: 'flex', gap: 'var(--space-3)', background: 'var(--color-neutral-50)', padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-neutral-200)', marginTop: 'var(--space-2)' }}>
-              <code style={{ flex: 1, fontSize: '13px', color: 'var(--color-neutral-700)', overflow: 'hidden', textOverflow: 'ellipsis', alignSelf: 'center' }}>{referralLink}</code>
-              <button 
-                onClick={copyLink}
-                className="btn btn-primary btn-sm"
-                style={{ borderRadius: 'var(--radius-md)', display: 'flex', gap: '8px', alignItems: 'center', whiteSpace: 'nowrap' }}
-              >
-                {copied ? <CheckCircle2 size={14} /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy Link'}
-              </button>
-            </div>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
-               <div className={styles.insightCard}>
-                  <div className={styles.insightType}>Partner Code</div>
-                  <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-neutral-900)' }}>{profile.affiliate_code}</div>
-               </div>
-               <div className={styles.insightCard}>
-                  <div className={styles.insightType}>Share Rate</div>
-                  <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-neutral-900)' }}>20%</div>
-               </div>
+            <div style={{ position: 'relative' }}>
+              <div style={{ 
+                background: 'var(--color-neutral-50)', 
+                padding: '16px 20px', 
+                borderRadius: '16px', 
+                border: '1px solid var(--color-neutral-200)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}>
+                <ExternalLink size={18} color="var(--color-neutral-400)" />
+                <code style={{ flex: 1, fontSize: '13px', color: 'var(--color-neutral-700)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{referralLink}</code>
+                <button 
+                  onClick={copyLink}
+                  style={{ 
+                    padding: '8px 20px', 
+                    borderRadius: '10px', 
+                    fontSize: '12px', 
+                    fontWeight: 800,
+                    background: copied ? 'var(--color-success)' : 'var(--color-neutral-900)',
+                    color: 'white',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
             </div>
           </section>
 
           {/* Activity section */}
-          <section className={styles.applicationsTable}>
-            <div style={{ padding: 'var(--space-6)', borderBottom: '1px solid var(--color-neutral-200)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-               <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-neutral-900)' }}>Recent Conversions</h3>
-               <button className="btn btn-ghost btn-xs">View all commissions</button>
+          <section style={{ background: 'white', borderRadius: '24px', border: '1px solid var(--color-neutral-200)', overflow: 'hidden' }}>
+            <div style={{ padding: '24px', borderBottom: '1px solid var(--color-neutral-200)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+               <h3 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--color-neutral-900)' }}>Commission Ledger</h3>
+               <span style={{ fontSize: '11px', fontWeight: 700, background: 'var(--color-neutral-100)', padding: '4px 12px', borderRadius: '20px' }}>Total {stats.commissions.length} Conversions</span>
             </div>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Client Date</th>
-                  <th>Commission</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.commissions.length > 0 ? (
-                  stats.commissions.slice(0, 5).map((c: any) => (
-                    <tr key={c.id}>
-                      <td>{new Date(c.created_at).toLocaleDateString()}</td>
-                      <td style={{ fontWeight: 600 }}>GH₵ {Number(c.amount).toLocaleString()}</td>
-                      <td>
-                        <span className={`badge badge-${c.status === 'paid' ? 'success' : 'warning'}`}>
-                          {c.status}
-                        </span>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#fafafa' }}>
+                    <th style={{ padding: '14px 24px', textAlign: 'left', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-neutral-400)' }}>Entity / Project</th>
+                    <th style={{ padding: '14px 24px', textAlign: 'left', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-neutral-400)' }}>Earnings</th>
+                    <th style={{ padding: '14px 24px', textAlign: 'right', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-neutral-400)' }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.commissions.length > 0 ? (
+                    stats.commissions.map((c: any) => (
+                      <tr key={c.id} style={{ borderBottom: '1px solid var(--color-neutral-100)' }}>
+                        <td style={{ padding: '16px 24px' }}>
+                          <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--color-neutral-900)' }}>{c.applications?.business_name || 'Anonymous User'}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--color-neutral-500)', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>{c.applications?.tracking_id || 'REFR-' + c.id.split('-')[0].toUpperCase()}</div>
+                        </td>
+                        <td style={{ padding: '16px 24px' }}>
+                          <div style={{ fontWeight: 800, color: 'var(--color-neutral-900)' }}>GH₵ {Number(c.amount).toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--color-neutral-400)', marginTop: '2px' }}>{new Date(c.created_at).toLocaleDateString()}</div>
+                        </td>
+                        <td style={{ padding: '16px 24px', textAlign: 'right' }}>
+                          <span style={{ 
+                            fontSize: '10px', 
+                            fontWeight: 800, 
+                            textTransform: 'uppercase', 
+                            padding: '4px 10px', 
+                            borderRadius: '20px',
+                            background: c.status === 'paid' ? '#ecfdf5' : '#fff7ed',
+                            color: c.status === 'paid' ? '#059669' : '#c2410c'
+                          }}>
+                            {c.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={3} style={{ padding: '60px 24px', textAlign: 'center' }}>
+                         <div style={{ color: 'var(--color-neutral-300)', marginBottom: '12px' }}><Users size={32} /></div>
+                         <p style={{ color: 'var(--color-neutral-500)', fontSize: '14px' }}>No commissions have been recorded yet.</p>
                       </td>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={3} className={styles.emptyState} style={{ border: 'none', background: 'transparent' }}>
-                       <p>No commissions tracked yet.</p>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </section>
         </div>
 
@@ -243,92 +326,91 @@ export default function AffiliateDashboard() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
           
           {/* Payout Card */}
-          <section className={styles.timelineSection}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
-               <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-neutral-900)' }}>Payout Configuration</h3>
+          <section style={{ background: 'white', borderRadius: '24px', padding: '24px', border: '1px solid var(--color-neutral-200)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+               <h3 style={{ fontSize: '16px', fontWeight: 800 }}>Transfer Logic</h3>
                {!isEditingPayout && (
-                 <button className="btn btn-link btn-xs" onClick={() => setIsEditingPayout(true)}>Change</button>
+                 <button style={{ color: 'var(--color-primary-600)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }} onClick={() => setIsEditingPayout(true)}>Modify</button>
                )}
             </div>
 
             {isEditingPayout ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                  <div className="form-group">
-                    <label className="form-label">Payment Method</label>
-                    <select className="form-input" value={payoutMethod} onChange={(e) => setPayoutMethod(e.target.value)}>
-                       <option value="momo">MTN/AirtelTigo Mobile Money</option>
-                       <option value="bank">Local Bank Account</option>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-neutral-500)', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Payment Channel</label>
+                    <select className="form-input" value={payoutMethod} onChange={(e) => setPayoutMethod(e.target.value)} style={{ borderRadius: '12px' }}>
+                       <option value="momo">Mobile Money (GHS)</option>
+                       <option value="bank">Local Bank Transfer</option>
                     </select>
                  </div>
                  <div className="form-group">
-                    <label className="form-label">Account details</label>
-                    <input className="form-input" placeholder="024XXXXXXXX" value={payoutAddress} onChange={(e) => setPayoutAddress(e.target.value)} />
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-neutral-500)', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Destination Identifier</label>
+                    <input className="form-input" placeholder="024XXXXXXXX or Account No." value={payoutAddress} onChange={(e) => setPayoutAddress(e.target.value)} style={{ borderRadius: '12px' }} />
                  </div>
-                 <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
-                    <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={handleSavePayout} disabled={payoutLoading}>
-                       {payoutLoading ? 'Saving...' : 'Update Settings'}
+                 <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                    <button className="btn btn-primary btn-sm" style={{ flex: 1, borderRadius: '10px' }} onClick={handleSavePayout} disabled={payoutLoading}>
+                       {payoutLoading ? 'Syncing...' : 'Save Protocol'}
                     </button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => setIsEditingPayout(false)}>Cancel</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setIsEditingPayout(false)} style={{ borderRadius: '10px' }}>Cancel</button>
                  </div>
               </div>
             ) : (
-              <div style={{ padding: 'var(--space-5)', background: 'var(--color-neutral-50)', borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-neutral-200)' }}>
+              <div style={{ padding: '20px', background: '#fafafa', borderRadius: '16px', border: '1px solid var(--color-neutral-100)' }}>
                  {profile.payout_address ? (
                    <>
-                     <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-neutral-400)', textTransform: 'uppercase', marginBottom: '8px' }}>Receiving Account</div>
-                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                        <div style={{ width: '40px', height: '40px', background: 'white', borderRadius: '50%', border: '1px solid var(--color-neutral-200)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                           <CreditCard size={20} color="var(--color-primary-600)" />
+                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ width: '48px', height: '48px', background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                           <CreditCard size={22} color="var(--color-primary-600)" />
                         </div>
                         <div>
-                           <div style={{ fontWeight: 600, fontSize: '14px' }}>{payoutMethod === 'momo' ? 'Mobile Money' : 'Bank Transfer'}</div>
-                           <div style={{ color: 'var(--color-neutral-500)', fontSize: '13px' }}>{payoutAddress}</div>
+                           <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--color-neutral-900)' }}>{payoutMethod === 'momo' ? 'Mobile Money' : 'Bank Transfer'}</div>
+                           <div style={{ color: 'var(--color-neutral-500)', fontSize: '13px', marginTop: '2px' }}>{payoutAddress}</div>
                         </div>
                      </div>
                    </>
                  ) : (
-                   <div style={{ textAlign: 'center', padding: 'var(--space-4)' }}>
-                      <p style={{ fontSize: '13px', color: 'var(--color-neutral-500)', marginBottom: 'var(--space-4)' }}>Configure where you'd like to receive your commissions.</p>
-                      <button className="btn btn-primary btn-sm" onClick={() => setIsEditingPayout(true)}>Setup Payouts</button>
+                   <div style={{ textAlign: 'center' }}>
+                      <p style={{ fontSize: '13px', color: 'var(--color-neutral-500)', marginBottom: '16px' }}>Define your institutional payout destination to enable auto-settlements.</p>
+                      <button className="btn btn-primary btn-sm" style={{ borderRadius: '10px' }} onClick={() => setIsEditingPayout(true)}>Init Configuration</button>
                    </div>
                  )}
               </div>
             )}
             
-            <div style={{ marginTop: 'var(--space-6)', padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)', background: 'var(--color-primary-50)', border: '1px solid var(--color-primary-100)', display: 'flex', gap: 'var(--space-3)' }}>
+            <div style={{ marginTop: '24px', padding: '16px', borderRadius: '16px', background: 'var(--color-primary-50)', border: '1px solid var(--color-primary-100)', display: 'flex', gap: '12px' }}>
                <AlertCircle size={18} color="var(--color-primary-600)" style={{ flexShrink: 0 }} />
-               <p style={{ fontSize: '12px', color: 'var(--color-primary-800)', lineHeight: '1.5' }}>
-                 Settlements are processed every Friday for balances exceeding <strong style={{ fontWeight: 800 }}>GH₵ 50.00</strong>.
+               <p style={{ fontSize: '12px', color: 'var(--color-primary-900)', lineHeight: '1.6', margin: 0 }}>
+                 Settlement operations occur every <strong style={{ fontWeight: 800 }}>Friday</strong> for balances above <strong style={{ fontWeight: 800 }}>GH₵ 50.00</strong>.
                </p>
             </div>
           </section>
 
-          {/* Marketing Card */}
-          <section className={styles.engineMonitorCard} style={{ padding: 'var(--space-6)' }}>
-             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: 'var(--space-4)', color: 'white' }}>Quick Referral Guide</h3>
-             <ul className={styles.timeline} style={{ paddingLeft: 'var(--space-4)', gap: 'var(--space-4)' }}>
-                <li className={styles.timelineItem} style={{ border: 'none' }}>
-                   <div className={styles.timelinePoint} style={{ top: '4px' }} />
-                   <div className={styles.timelineContent}>
-                      <h4 style={{ color: 'white' }}>Copy Link</h4>
-                      <p style={{ color: 'rgba(255,255,255,0.6)', margin: 0 }}>Use your unique URL for tracking.</p>
+          {/* Guide Card */}
+          <section style={{ background: 'linear-gradient(135deg, #18181b 0%, #27272a 100%)', color: 'white', borderRadius: '24px', padding: '24px' }}>
+             <h3 style={{ fontSize: '16px', fontWeight: 800, marginBottom: '20px' }}>Protocol Guidelines</h3>
+             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                   <div style={{ width: '8px', height: '8px', background: 'var(--color-primary-400)', borderRadius: '50%', marginTop: '6px', flexShrink: 0 }} />
+                   <div>
+                      <h4 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '4px' }}>Client Activation</h4>
+                      <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', lineHeight: '1.5' }}>Link usage ensures multi-touch attribution for all registrations.</p>
                    </div>
-                </li>
-                <li className={styles.timelineItem}>
-                   <div className={styles.timelinePoint} style={{ top: '4px' }} />
-                   <div className={styles.timelineContent}>
-                      <h4 style={{ color: 'white' }}>Client Registers</h4>
-                      <p style={{ color: 'rgba(255,255,255,0.6)', margin: 0 }}>Automatic name search & filing.</p>
+                </div>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                   <div style={{ width: '8px', height: '8px', background: 'var(--color-primary-400)', borderRadius: '50%', marginTop: '6px', flexShrink: 0 }} />
+                   <div>
+                      <h4 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '4px' }}>Commission Yield</h4>
+                      <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', lineHeight: '1.5' }}>Earn a 20% institutional share on all GrayDocket service fees.</p>
                    </div>
-                </li>
-                <li className={styles.timelineItem}>
-                   <div className={styles.timelinePoint} style={{ top: '4px' }} />
-                   <div className={styles.timelineContent}>
-                      <h4 style={{ color: 'white' }}>Get Paid</h4>
-                      <p style={{ color: 'rgba(255,255,255,0.6)', margin: 0 }}>20% commission on completion.</p>
+                </div>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                   <div style={{ width: '8px', height: '8px', background: 'var(--color-primary-400)', borderRadius: '50%', marginTop: '6px', flexShrink: 0 }} />
+                   <div>
+                      <h4 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '4px' }}>Verified Liquidity</h4>
+                      <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', lineHeight: '1.5' }}>Commissions transition to settled state upon ORC filing approval.</p>
                    </div>
-                </li>
-             </ul>
+                </div>
+             </div>
           </section>
         </div>
       </div>
