@@ -4,18 +4,32 @@
 
 .newRegHeader {
   margin-bottom: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.newRegHeaderTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
 }
 
 .newRegHeader h1 {
   font-size: var(--text-2xl);
-  font-weight: var(--font-weight-bold);
+  font-weight: 850;
+  letter-spacing: -0.02em;
   color: var(--color-neutral-900);
-  margin-bottom: var(--space-2);
+  margin: 0;
+  line-height: 1.2;
 }
 
 .newRegHeader p {
   font-size: var(--text-sm);
   color: var(--color-neutral-500);
+  line-height: 1.5;
+  max-width: 600px;
 }
 
 /* Progress Steps */
@@ -24,7 +38,7 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--space-10);
-  padding: 0 var(--space-4);
+  padding: 0;
   position: relative;
 }
 
@@ -46,10 +60,10 @@
   align-items: center;
   justify-content: center;
   font-size: var(--text-sm);
-  font-weight: 700;
+  font-weight: 800;
   color: var(--color-neutral-400);
   background: var(--color-neutral-0);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   box-shadow: var(--shadow-sm);
   margin-bottom: var(--space-3);
 }
@@ -58,8 +72,8 @@
   border-color: var(--color-primary-500);
   background: var(--color-primary-500);
   color: white;
-  transform: scale(1.1);
-  box-shadow: 0 0 0 4px var(--color-primary-50);
+  transform: scale(1.15);
+  box-shadow: 0 0 0 5px var(--color-primary-50);
 }
 
 .progressDot.completed {
@@ -69,9 +83,9 @@
 }
 
 .progressLabel {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--color-neutral-500);
-  font-weight: 600;
+  font-weight: 750;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   text-align: center;
@@ -86,11 +100,15 @@
 .progressLine {
   position: absolute;
   top: 20px;
-  left: calc(50% + 25px);
-  width: calc(100% - 50px);
+  left: 50%;
+  width: 100%;
   height: 2px;
   background: var(--color-neutral-200);
   z-index: 1;
+}
+
+.progressStep:last-child .progressLine {
+  display: none;
 }
 
 .progressLine.completed {
@@ -101,7 +119,7 @@
 .stepCard {
   background: var(--color-neutral-0);
   border: 1px solid var(--color-neutral-200);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-2xl);
   padding: var(--space-8);
 }
 
@@ -278,8 +296,9 @@
 .reviewRow {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: var(--space-2) 0;
+  align-items: flex-start;
+  padding: var(--space-3) 0;
+  gap: var(--space-4);
 }
 
 .reviewLabel {
@@ -289,10 +308,10 @@
 
 .reviewValue {
   font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
+  font-weight: 700;
   color: var(--color-neutral-900);
   text-align: right;
-  max-width: 60%;
+  flex: 1;
 }
 
 /* Add-Ons */
@@ -447,6 +466,21 @@
   gap: var(--space-4);
 }
 
+.personFormHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-4);
+  gap: var(--space-4);
+}
+
+.personFormHeader h3 {
+  font-size: var(--text-lg);
+  font-weight: 750;
+  color: var(--color-neutral-900);
+  margin: 0;
+}
+
 /* Person / Director Blocks */
 .personBlock {
   margin-bottom: var(--space-8);
@@ -538,10 +572,25 @@
 }
 
 @media (max-width: 768px) {
+  .newRegHeaderTop {
+     flex-direction: column;
+     gap: var(--space-3);
+  }
+
+  .newRegHeaderTop .btn {
+     align-self: flex-start;
+  }
+
+  .stepCard {
+    padding: var(--space-5);
+    border-radius: var(--radius-xl);
+  }
+
   .typeGrid,
   .formGrid,
   .addOnGrid {
     grid-template-columns: 1fr;
+    gap: var(--space-4);
   }
 
   .stepNav {
@@ -551,13 +600,66 @@
 
   .stepNav .btn {
     width: 100%;
+    height: 48px;
+  }
+
+  .stepNav div {
+     display: flex;
+     flex-direction: column;
+     width: 100%;
+     gap: var(--space-3);
   }
 
   .progressLabel {
     display: none;
   }
 
+  .progressDot {
+     width: 32px;
+     height: 32px;
+     font-size: 12px;
+  }
+
+  .progressLine {
+     top: 16px;
+  }
+
   .shareholderBlock {
     padding: var(--space-4);
+  }
+
+  .personFormHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+
+  .personFormHeader .btn {
+    width: 100%;
+  }
+  .reviewRow {
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-2) 0;
+  }
+
+  .reviewValue {
+    text-align: left;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .newRegHeader h1 {
+     font-size: 24px;
+  }
+  .stepTitle {
+     font-size: 18px;
+  }
+  .progressBar {
+     margin-bottom: var(--space-8);
+  }
+  .typeCard {
+     padding: var(--space-4);
   }
 }

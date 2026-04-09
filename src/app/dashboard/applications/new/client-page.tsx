@@ -535,7 +535,7 @@ function NewRegistrationContent() {
   return (
     <div className={styles.newReg}>
       <div className={styles.newRegHeader}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className={styles.newRegHeaderTop}>
           <h1>Register Your Business</h1>
           <button className="btn btn-ghost btn-sm" onClick={handleClearDraft} style={{ color: 'var(--color-neutral-400)' }}>Clear Draft</button>
         </div>
