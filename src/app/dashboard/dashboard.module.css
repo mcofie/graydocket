@@ -267,3 +267,21 @@
     padding: var(--space-4);
   }
 }
+
+@media (max-width: 480px) {
+  .topBar {
+    padding: var(--space-3) var(--space-4);
+  }
+  .pageTitle {
+    font-size: var(--text-base);
+  }
+  .sidebar {
+    width: 260px;
+  }
+  .sidebarNav {
+    padding: var(--space-3);
+  }
+  .sidebarLink {
+    padding: var(--space-2) var(--space-3);
+  }
+}

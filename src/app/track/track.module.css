@@ -45,7 +45,7 @@
   border: 1px solid transparent;
   background: var(--color-neutral-50);
   border-radius: 12px;
-  font-size: 16px;
+  font-size: 16px !important;
   font-weight: 500;
   transition: all var(--transition-base);
   outline: none;

@@ -37,16 +37,26 @@ export default function Footer() {
       </div>
 
       <div className={styles.footerBottom}>
-        <p className={styles.footerCopy}>
-          © {new Date().getFullYear()} GrayDocket Infrastructure. All rights reserved. Registered with the ORC.
-        </p>
-        <div className={styles.footerSocials}>
-          <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" aria-label="Twitter">
-            𝕏
-          </a>
-          <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
-            in
-          </a>
+        <div className={styles.footerLegal}>
+          <p>
+            GrayDocket is a technology-enabled corporate service provider, not a law firm or a bank. We facilitate administrative processes with the Office of the Registrar of Companies (ORC) through accredited partners. We are not a law firm and do not provide legal or tax advice.
+          </p>
+          <p style={{ marginTop: '8px' }}>
+            Registered Data Controller with the Data Protection Commission (DPC), Ghana. Compliance with the Data Protection Act, 2012 (Act 843).
+          </p>
+        </div>
+        <div className={styles.footerBottomMeta}>
+          <p className={styles.footerCopy}>
+            © {new Date().getFullYear()} GrayDocket. All rights reserved.
+          </p>
+          <div className={styles.footerSocials}>
+            <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" aria-label="Twitter">
+              𝕏
+            </a>
+            <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+              in
+            </a>
+          </div>
         </div>
       </div>
     </footer>

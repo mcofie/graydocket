@@ -23,6 +23,7 @@ import {
 import { getAffiliateStats, applyToBeAffiliate, updatePayoutInfo } from '@/lib/actions'
 import { createClient } from '@/lib/supabase/client'
 import styles from '../overview.module.css'
+import affStyles from './affiliate.module.css'
 import Skeleton from '@/components/ui/Skeleton'
 
 export default function AffiliateDashboard() {
@@ -110,49 +111,36 @@ export default function AffiliateDashboard() {
 
   if (!profile?.is_affiliate) {
     return (
-      <div className={styles.overview} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', padding: 'var(--space-8)' }}>
-        <div style={{ maxWidth: '640px', width: '100%', textAlign: 'center' }}>
-          <div style={{ 
-            background: 'linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-700) 100%)', 
-            color: 'white', 
-            width: '100px', 
-            height: '100px', 
-            borderRadius: '24px', 
-            margin: '0 auto 32px', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            boxShadow: '0 20px 40px rgba(var(--color-primary-rgb), 0.2)'
-          }}>
+      <div className={affStyles.unregistered}>
+        <div className={affStyles.unregisteredContent}>
+          <div className={affStyles.unregisteredIcon}>
             <TrendingUp size={48} />
           </div>
           
-          <h1 style={{ fontSize: '32px', fontWeight: 800, color: 'var(--color-neutral-900)', marginBottom: '16px', letterSpacing: '-0.02em' }}>
+          <h1 className={affStyles.unregisteredTitle}>
             The Partner Program
           </h1>
-          <p style={{ color: 'var(--color-neutral-500)', fontSize: '18px', lineHeight: '1.6', marginBottom: '48px' }}>
+          <p className={affStyles.unregisteredDesc}>
             Scale your earnings by helping founders launch their companies. Join an exclusive ecosystem of institutional partners.
           </p>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px', textAlign: 'left', marginBottom: '48px' }}>
-             <div style={{ padding: '24px', borderRadius: '20px', border: '1px solid var(--color-neutral-200)', background: 'white' }}>
+          <div className={affStyles.valueGrid}>
+             <div className={affStyles.valueCard}>
                 <div style={{ color: 'var(--color-primary-600)', marginBottom: '12px' }}><DollarSign size={24} /></div>
                 <h4 style={{ fontWeight: 800, marginBottom: '8px' }}>20% Yield</h4>
                 <p style={{ fontSize: '13px', color: 'var(--color-neutral-500)', margin: 0 }}>Earn high-margin commissions on all GrayDocket service fees.</p>
              </div>
-             <div style={{ padding: '24px', borderRadius: '20px', border: '1px solid var(--color-neutral-200)', background: 'white' }}>
+             <div className={affStyles.valueCard}>
                 <div style={{ color: 'var(--color-primary-600)', marginBottom: '12px' }}><Clock size={24} /></div>
                 <h4 style={{ fontWeight: 800, marginBottom: '8px' }}>30-Day Persistence</h4>
                 <p style={{ fontSize: '13px', color: 'var(--color-neutral-500)', margin: 0 }}>Our tracking infrastructure ensures attribution for a full month.</p>
              </div>
-             <div style={{ padding: '24px', borderRadius: '20px', border: '1px solid var(--color-neutral-200)', background: 'white' }}>
+             <div className={affStyles.valueCard}>
                 <div style={{ color: 'var(--color-primary-600)', marginBottom: '12px' }}><Wallet size={24} /></div>
                 <h4 style={{ fontWeight: 800, marginBottom: '8px' }}>Weekly Payouts</h4>
                 <p style={{ fontSize: '13px', color: 'var(--color-neutral-500)', margin: 0 }}>Liquidate your earnings every Friday directly to MoMo or Bank.</p>
              </div>
           </div>
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'center' }}>
+          <div className={affStyles.enrollActions}>
             <button 
               className="btn btn-primary btn-lg" 
               style={{ padding: '16px 40px', borderRadius: '16px', fontWeight: 800, fontSize: '16px' }}
@@ -165,7 +153,6 @@ export default function AffiliateDashboard() {
               Back to Dashboard
             </a>
           </div>
-
           <p style={{ marginTop: '40px', fontSize: '12px', color: 'var(--color-neutral-400)' }}>
             By enrolling, you agree to the GrayDocket Partner Terms & Conditions.
           </p>
@@ -219,10 +206,10 @@ export default function AffiliateDashboard() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
           
           {/* Referral Tool */}
-          <section className="card" style={{ padding: 'var(--space-8)', background: 'white', borderRadius: '24px', border: '1px solid var(--color-neutral-200)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-               <h3 style={{ fontSize: '18px', fontWeight: 750, color: 'var(--color-neutral-900)' }}>Elite Referral Tool</h3>
-               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 600, color: '#059669', background: '#ecfdf5', padding: '4px 12px', borderRadius: '20px' }}>
+          <section className={affStyles.referralCard}>
+            <div className={affStyles.referralHeader}>
+               <h3 style={{ fontSize: '18px', fontWeight: 750, color: 'var(--color-neutral-900)', margin: 0 }}>Elite Referral Tool</h3>
+               <div className={affStyles.activeBadge}>
                  <div style={{ width: '6px', height: '6px', background: '#059669', borderRadius: '50%' }} /> Active Tracking
                </div>
             </div>
@@ -232,33 +219,13 @@ export default function AffiliateDashboard() {
             </p>
             
             <div style={{ position: 'relative' }}>
-              <div style={{ 
-                background: 'var(--color-neutral-50)', 
-                padding: '16px 20px', 
-                borderRadius: '16px', 
-                border: '1px solid var(--color-neutral-200)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px'
-              }}>
-                <ExternalLink size={18} color="var(--color-neutral-400)" />
-                <code style={{ flex: 1, fontSize: '13px', color: 'var(--color-neutral-700)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{referralLink}</code>
+              <div className={affStyles.linkContainer}>
+                <ExternalLink size={18} color="var(--color-neutral-400)" style={{ flexShrink: 0 }} />
+                <code className={affStyles.linkCode}>{referralLink}</code>
                 <button 
                   onClick={copyLink}
-                  style={{ 
-                    padding: '8px 20px', 
-                    borderRadius: '10px', 
-                    fontSize: '12px', 
-                    fontWeight: 800,
-                    background: copied ? 'var(--color-success)' : 'var(--color-neutral-900)',
-                    color: 'white',
-                    border: 'none',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}
+                  className={affStyles.copyBtn}
+                  style={{ background: copied ? 'var(--color-success)' : 'var(--color-neutral-900)' }}
                 >
                   {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy'}
                 </button>
@@ -267,13 +234,13 @@ export default function AffiliateDashboard() {
           </section>
 
           {/* Activity section */}
-          <section style={{ background: 'white', borderRadius: '24px', border: '1px solid var(--color-neutral-200)', overflow: 'hidden' }}>
-            <div style={{ padding: '24px', borderBottom: '1px solid var(--color-neutral-200)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-               <h3 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--color-neutral-900)' }}>Commission Ledger</h3>
+          <section className={affStyles.ledgerCard}>
+            <div className={affStyles.ledgerHeader}>
+               <h3 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--color-neutral-900)', margin: 0 }}>Commission Ledger</h3>
                <span style={{ fontSize: '11px', fontWeight: 700, background: 'var(--color-neutral-100)', padding: '4px 12px', borderRadius: '20px' }}>Total {stats.commissions.length} Conversions</span>
             </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div className={styles.applicationsTable} style={{ margin: 0, border: 'none' }}>
+              <table className={styles.table}>
                 <thead>
                   <tr style={{ background: '#fafafa' }}>
                     <th style={{ padding: '14px 24px', textAlign: 'left', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-neutral-400)' }}>Entity / Project</th>
@@ -326,14 +293,14 @@ export default function AffiliateDashboard() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
           
           {/* Payout Card */}
-          <section style={{ background: 'white', borderRadius: '24px', padding: '24px', border: '1px solid var(--color-neutral-200)' }}>
+          <section className={affStyles.payoutCard}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-               <h3 style={{ fontSize: '16px', fontWeight: 800 }}>Transfer Logic</h3>
+               <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>Transfer Logic</h3>
                {!isEditingPayout && (
                  <button style={{ color: 'var(--color-primary-600)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }} onClick={() => setIsEditingPayout(true)}>Modify</button>
                )}
             </div>
-
+            
             {isEditingPayout ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                  <div className="form-group">
@@ -355,11 +322,11 @@ export default function AffiliateDashboard() {
                  </div>
               </div>
             ) : (
-              <div style={{ padding: '20px', background: '#fafafa', borderRadius: '16px', border: '1px solid var(--color-neutral-100)' }}>
+              <div className={affStyles.payoutDisplay}>
                  {profile.payout_address ? (
                    <>
                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        <div style={{ width: '48px', height: '48px', background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div className={affStyles.payoutIconBox}>
                            <CreditCard size={22} color="var(--color-primary-600)" />
                         </div>
                         <div>
@@ -376,8 +343,7 @@ export default function AffiliateDashboard() {
                  )}
               </div>
             )}
-            
-            <div style={{ marginTop: '24px', padding: '16px', borderRadius: '16px', background: 'var(--color-primary-50)', border: '1px solid var(--color-primary-100)', display: 'flex', gap: '12px' }}>
+            <div className={affStyles.protocolNotice}>
                <AlertCircle size={18} color="var(--color-primary-600)" style={{ flexShrink: 0 }} />
                <p style={{ fontSize: '12px', color: 'var(--color-primary-900)', lineHeight: '1.6', margin: 0 }}>
                  Settlement operations occur every <strong style={{ fontWeight: 800 }}>Friday</strong> for balances above <strong style={{ fontWeight: 800 }}>GH₵ 50.00</strong>.
@@ -386,9 +352,9 @@ export default function AffiliateDashboard() {
           </section>
 
           {/* Guide Card */}
-          <section style={{ background: 'linear-gradient(135deg, #18181b 0%, #27272a 100%)', color: 'white', borderRadius: '24px', padding: '24px' }}>
-             <h3 style={{ fontSize: '16px', fontWeight: 800, marginBottom: '20px' }}>Protocol Guidelines</h3>
-             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <section className={affStyles.guideCard}>
+             <h3 style={{ fontSize: '16px', fontWeight: 800, marginBottom: '20px', margin: 0 }}>Protocol Guidelines</h3>
+             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '20px' }}>
                 <div style={{ display: 'flex', gap: '16px' }}>
                    <div style={{ width: '8px', height: '8px', background: 'var(--color-primary-400)', borderRadius: '50%', marginTop: '6px', flexShrink: 0 }} />
                    <div>

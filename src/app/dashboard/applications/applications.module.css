@@ -8,12 +8,51 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-2);
 }
 
 .header h2 {
-  font-size: var(--text-lg);
-  font-weight: var(--font-weight-bold);
+  font-size: 24px;
+  font-weight: 800;
   color: var(--color-neutral-900);
+}
+
+.subtitle {
+  color: var(--color-neutral-500);
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.searchContainer {
+  margin-bottom: var(--space-6);
+  position: relative;
+}
+
+.searchInput {
+  width: 100%;
+  padding: var(--space-3) var(--space-4) var(--space-3) 48px;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--color-neutral-200);
+  background: white;
+  font-size: 16px;
+  transition: all var(--transition-short);
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 4px var(--color-primary-50);
+}
+
+.searchIcon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-neutral-400);
+  pointer-events: none;
 }
 
 .tableWrap {
@@ -106,10 +145,127 @@
 }
 
 @media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+  .header button, .header a {
+    width: 100%;
+    justify-content: center;
+  }
   .tableWrap {
     overflow-x: auto;
   }
   .table {
     min-width: 700px;
   }
+}
+
+/* Card View for Low Quantity Items */
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--space-6);
+}
+
+.entityCard {
+  background: white;
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius-2xl);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  transition: all var(--transition-short);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.entityCard:hover {
+  border-color: var(--color-primary-300);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.iconBox {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--color-neutral-50);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-neutral-400);
+  transition: all var(--transition-short);
+}
+
+.entityCard:hover .iconBox {
+  background: var(--color-primary-50);
+  color: var(--color-primary-600);
+}
+
+.businessName {
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: var(--color-neutral-900);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.businessType {
+  font-size: 11px;
+  color: var(--color-neutral-400);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+
+.cardMeta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-2) 0;
+}
+
+.metaItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.metaLabel {
+  font-size: 12px;
+  color: var(--color-neutral-500);
+}
+
+.metaValue {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-neutral-700);
+}
+
+.cardAction {
+  margin-top: auto;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-neutral-100);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.viewStatus {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-primary-600);
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }

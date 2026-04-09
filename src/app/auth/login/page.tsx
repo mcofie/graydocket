@@ -125,6 +125,9 @@ function LoginContent() {
           <div className={styles.authFooter}>
             Don&apos;t have an account?{' '}
             <Link href="/auth/register">Create one</Link>
+            <span style={{ fontSize: '11px', display: 'block', marginTop: '16px', color: 'var(--color-neutral-400)' }}>
+              GrayDocket is an administrative automation platform and does not provide legal advice.
+            </span>
           </div>
         </div>
       </div>

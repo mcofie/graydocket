@@ -104,88 +104,78 @@ export default function ApplicationsPage() {
     <div className={styles.page}>
       <div className={styles.header}>
         <div>
-          <h2 style={{ fontSize: '24px', fontWeight: 800 }}>Registry Directory</h2>
-          <p style={{ color: 'var(--color-neutral-500)', fontSize: '14px', marginTop: '4px' }}>Manage and track your institutional assets</p>
+          <h2>Registry Directory</h2>
+          <p className={styles.subtitle}>Manage and track your institutional assets</p>
         </div>
-        <Link href="/dashboard/applications/new" className="btn btn-primary" style={{ padding: '0 24px', height: '44px' }}>
+        <Link href="/dashboard/applications/new" className="btn btn-primary" style={{ height: '44px', padding: '0 var(--space-6)' }}>
           <PlusCircle size={18} />
           New Registration
         </Link>
       </div>
 
-      <div style={{ marginBottom: '24px', position: 'relative' }}>
-         <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-neutral-400)' }} />
+      <div className={styles.searchContainer}>
+         <Search size={18} className={styles.searchIcon} />
          <input 
            type="text" 
            placeholder="Search by business name or tracking ID..." 
-           className="form-input"
-           style={{ paddingLeft: '48px', height: '48px', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', background: 'white' }}
+           className={styles.searchInput}
            value={searchQuery}
            onChange={(e) => setSearchQuery(e.target.value)}
          />
       </div>
 
-      <div className={styles.tableWrap}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>Tracking ID</th>
-              <th>Business Entity</th>
-              <th>Status</th>
-              <th>Amount</th>
-              <th>Registry Date</th>
-              <th style={{ textAlign: 'right' }}>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredApplications.map((app) => {
-              const colors = statusColors[app.status] || statusColors.draft
-              return (
-                <tr key={app.id} style={{ cursor: 'pointer' }} onClick={() => window.location.href = `/dashboard/applications/${app.id}`}>
-                  <td>
-                    <span style={{ 
-                      fontFamily: 'var(--font-mono)', 
-                      fontSize: '11px', 
-                      fontWeight: 700, 
-                      color: 'var(--color-neutral-400)',
-                      letterSpacing: '0.05em'
-                    }}>{app.tracking_id}</span>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                       <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'var(--color-neutral-50)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <FileText size={18} color="var(--color-neutral-400)" />
-                       </div>
-                       <div>
-                          <div style={{ fontWeight: 800, color: 'var(--color-neutral-900)' }}>{app.business_name}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--color-neutral-400)', textTransform: 'uppercase', letterSpacing: '0.02em', marginTop: '2px' }}>{app.business_types?.name || 'Standard'}</div>
-                       </div>
-                    </div>
-                  </td>
-                  <td>
-                    <span
-                      className={styles.statusBadge}
-                      style={{ background: colors.bg, color: colors.text, fontWeight: 800, fontSize: '10px' }}
-                    >
-                      {app.status.replace(/_/g, ' ')}
-                    </span>
-                  </td>
-                  <td>
-                    <span style={{ fontWeight: 700, color: 'var(--color-neutral-900)' }}>GH₵ {app.total_amount?.toLocaleString() || '0'}</span>
-                  </td>
-                  <td>
-                    <div style={{ fontSize: '13px', color: 'var(--color-neutral-600)' }}>{new Date(app.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                     <Link href={`/dashboard/applications/${app.id}`} className="btn" style={{ background: 'var(--color-neutral-900)', color: 'white', border: 'none', fontSize: '11px', fontWeight: 700, padding: '0 16px', height: '32px', gap: '8px' }}>
-                        <Eye size={14} /> View Dossier
-                     </Link>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+      <div className={styles.cardGrid}>
+        {filteredApplications.map((app) => {
+          const colors = statusColors[app.status] || statusColors.draft
+          return (
+            <div 
+              key={app.id} 
+              className={styles.entityCard}
+              onClick={() => window.location.href = `/dashboard/applications/${app.id}`}
+            >
+              <div className={styles.cardHeader}>
+                <div className={styles.iconBox}>
+                   <FileText size={24} />
+                </div>
+                <span
+                  className={styles.statusBadge}
+                  style={{ background: colors.bg, color: colors.text }}
+                >
+                  {app.status.replace(/_/g, ' ')}
+                </span>
+              </div>
+
+              <div>
+                <div className={styles.businessType}>{app.business_types?.name || 'Standard Registration'}</div>
+                <h3 className={styles.businessName}>{app.business_name}</h3>
+              </div>
+
+              <div className={styles.cardMeta}>
+                <div className={styles.metaItem}>
+                  <span className={styles.metaLabel}>Tracking ID</span>
+                  <span className={styles.metaValue} style={{ fontFamily: 'var(--font-mono)' }}>{app.tracking_id}</span>
+                </div>
+                <div className={styles.metaItem}>
+                  <span className={styles.metaLabel}>Registry Date</span>
+                  <span className={styles.metaValue}>{new Date(app.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                </div>
+                <div className={styles.metaItem}>
+                  <span className={styles.metaLabel}>Fee Structure</span>
+                  <span className={styles.metaValue}>GH₵ {app.total_amount?.toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div className={styles.cardAction}>
+                <div className={styles.viewStatus}>
+                   View Portfolio <ChevronRight size={14} />
+                </div>
+                <div style={{ fontSize: '10px', color: 'var(--color-neutral-400)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  Secure Dossier
+                </div>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

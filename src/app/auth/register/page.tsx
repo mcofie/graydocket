@@ -185,7 +185,11 @@ export default function RegisterPage() {
           )}
 
           <div className={styles.authFooter}>
-            By continuing, you agree to our <Link href="/terms">Terms</Link> and <Link href="/privacy">Privacy Policy</Link>.
+            By continuing, you agree to our <Link href="/terms">Terms</Link> and <Link href="/privacy">Privacy Policy</Link>. 
+            <br />
+            <span style={{ fontSize: '11px', display: 'block', marginTop: '8px', color: 'var(--color-neutral-400)' }}>
+              GrayDocket is an administrative automation platform, not a law firm, and does not provide legal advice.
+            </span>
           </div>
         </div>
       </div>

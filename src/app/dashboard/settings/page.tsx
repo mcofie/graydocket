@@ -165,9 +165,9 @@ export default function SettingsPage() {
 
                 <div className={styles.divider} />
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 'var(--space-4)' }}>
+                <div className={styles.actionRow}>
                   {saved && (
-                    <span style={{ color: 'var(--color-success)', fontSize: 'var(--text-sm)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span className={styles.savedMessage}>
                       <CheckCircle2 size={16} /> Profile updated
                     </span>
                   )}

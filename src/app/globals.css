@@ -177,9 +177,26 @@ button {
   background: none;
 }
 
-input, select, textarea {
+input, 
+select, 
+textarea {
   font-family: inherit;
-  font-size: 16px; /* Prevents iOS Safari zoom */
+  font-size: 16px !important; /* Prevents iOS Safari zoom - REQUIRED for mobile UX */
+}
+
+/* Ensure more specific input types are also covered */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="tel"],
+input[type="url"],
+input[type="search"],
+input[type="date"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="week"] {
+  font-size: 16px !important;
 }
 
 ul, ol {
@@ -334,7 +351,7 @@ ul, ol {
   border-radius: var(--radius-lg);
   background: var(--color-neutral-0);
   color: var(--color-neutral-900);
-  font-size: 16px; /* Forced 16px for mobile UX */
+  font-size: 16px !important; /* Forced 16px for mobile UX */
   transition: all var(--transition-fast);
   outline: none;
 }

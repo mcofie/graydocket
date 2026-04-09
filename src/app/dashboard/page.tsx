@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { PlusCircle, FileText, Building2, LayoutGrid, CheckCircle2, Clock, FolderOpen, ArrowRight, ExternalLink } from 'lucide-react'
+import { PlusCircle, FileText, Building2, LayoutGrid, CheckCircle2, Clock, FolderOpen, ArrowRight, ExternalLink, Briefcase, ChevronRight, AlertCircle } from 'lucide-react'
 import { getDashboardStats } from '@/lib/actions'
 import styles from './overview.module.css'
 import Skeleton from '@/components/ui/Skeleton'
@@ -130,10 +130,10 @@ export default function DashboardPage() {
       <div className={styles.mainGrid}>
         {/* Left Column: Main Entities/Table */}
         <div className={styles.leftCol}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
-            <h2 className={styles.sectionTitle} style={{ marginBottom: 0 }}>Your Registered Entities</h2>
+          <div className={styles.sectionHeaderRow}>
+            <h2 className={styles.sectionTitle}>Your Registered Entities</h2>
             {data?.hasApplications && (
-              <Link href="/dashboard/applications" style={{ fontSize: 'var(--text-sm)', color: 'var(--color-primary-600)', fontWeight: 500 }}>
+              <Link href="/dashboard/applications" className={styles.viewAllLink}>
                 View All Directory →
               </Link>
             )}
@@ -149,59 +149,57 @@ export default function DashboardPage() {
               </Link>
             </div>
           ) : (
-            <div className={styles.applicationsTable}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Entity Name</th>
-                    <th>Date Submitted</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.recentApplications && data.recentApplications.length > 0 ? (
-                    data.recentApplications.map((app) => {
-                      const status = statusColorMap[app.status] || statusColorMap.draft
-                      return (
-                        <tr key={app.id}>
-                          <td>
-                            <div style={{ fontWeight: 600, color: 'var(--color-neutral-900)' }}>{app.business_name || 'Untitled Business'}</div>
-                            <div style={{ fontSize: '11px', color: 'var(--color-neutral-400)', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
-                              {app.tracking_id || app.id.split('-')[0]}
-                            </div>
-                          </td>
-                          <td>{new Date(app.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
-                          <td>
-                            <span style={{ 
-                              padding: '4px 10px', 
-                              backgroundColor: status.bg, 
-                              color: status.text, 
-                              borderRadius: 'var(--radius-full)', 
-                              fontSize: '11px', 
-                              fontWeight: 600, 
-                              letterSpacing: '0.02em' 
-                            }}>
-                              {status.label}
-                            </span>
-                          </td>
-                          <td>
-                            <Link href={`/dashboard/applications/${app.id}`} className="btn btn-ghost btn-sm" style={{ padding: '4px 8px' }}>
-                              Manage
-                            </Link>
-                          </td>
-                        </tr>
-                      )
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan={4} style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--color-neutral-500)' }}>
-                        No recent applications found.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            <div className={styles.entityList}>
+              {data?.recentApplications && data.recentApplications.length > 0 ? (
+                data.recentApplications.slice(0, 5).map((app: any) => {
+                  const colors = statusColorMap[app.status] || statusColorMap.draft
+                  return (
+                    <div 
+                      key={app.id} 
+                      className={styles.entityCard}
+                      onClick={() => window.location.href = `/dashboard/applications/${app.id}`}
+                    >
+                      <div className={styles.cardHeader}>
+                        <div className={styles.cardIcon}>
+                          <Briefcase size={20} />
+                        </div>
+                        <span
+                          className={styles.statusBadge}
+                          style={{ 
+                            background: colors.bg, 
+                            color: colors.text,
+                            padding: '2px 10px',
+                            borderRadius: '20px',
+                            fontSize: '10px',
+                            fontWeight: 800,
+                            textTransform: 'uppercase'
+                          }}
+                        >
+                          {app.status.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+
+                      <div className={styles.cardBody}>
+                         <h3>{app.business_name || 'Untitled Business'}</h3>
+                         <p>{app.business_types?.name || 'Standard Formation'}</p>
+                      </div>
+
+                      <div className={styles.cardFooter}>
+                         <div className={styles.cardLink}>
+                            View Dossier <ChevronRight size={14} />
+                         </div>
+                         <div style={{ fontSize: '11px', color: 'var(--color-neutral-400)', fontFamily: 'var(--font-mono)' }}>
+                            {app.tracking_id || app.id.split('-')[0]}
+                         </div>
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <div style={{ textAlign: 'center', padding: 'var(--space-12) 0', color: 'var(--color-neutral-400)' }}>
+                  No active entities found.
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -244,24 +242,42 @@ export default function DashboardPage() {
 
           <div>
             <h2 className={styles.sectionTitle}>Action Items</h2>
-            <div className={styles.insightCards} style={{ gridTemplateColumns: '1fr' }}>
+            <div className={styles.insightCards}>
               {!data?.hasApplications ? (
-                <div className={styles.insightCard} style={{ borderLeft: '3px solid var(--color-primary-500)' }}>
-                  <div className={styles.insightType}>Onboarding</div>
-                  <h4>Complete KYC Profile</h4>
-                  <p style={{ fontSize: '12px', color: 'var(--color-neutral-500)', marginTop: '4px' }}>Verify your identity to unlock all platform features.</p>
+                <div className={styles.actionCard}>
+                  <div className={styles.actionIndicator} style={{ backgroundColor: 'var(--color-primary-500)' }} />
+                  <div className={styles.actionContent}>
+                    <div className={styles.actionHeader}>
+                      <span className={styles.actionType}>Onboarding</span>
+                      <ArrowRight size={14} color="var(--color-neutral-300)" />
+                    </div>
+                    <h4>Complete KYC Profile</h4>
+                    <p>Verify your identity to unlock all platform features and start your first registration.</p>
+                  </div>
                 </div>
               ) : (
                 <>
-                  <div className={styles.insightCard} style={{ borderLeft: '3px solid var(--color-accent-500)' }}>
-                    <div className={styles.insightType}>Action Required</div>
-                    <h4>Provide Beneficial Ownership</h4>
-                    <p style={{ fontSize: '12px', color: 'var(--color-neutral-500)', marginTop: '4px' }}>Due by next week for active companies.</p>
+                  <div className={styles.actionCard}>
+                    <div className={styles.actionIndicator} style={{ backgroundColor: 'var(--color-accent-500)' }} />
+                    <div className={styles.actionContent}>
+                      <div className={styles.actionHeader}>
+                        <span className={styles.actionType} style={{ color: 'var(--color-accent-600)' }}>Action Required</span>
+                        <AlertCircle size={14} color="var(--color-accent-400)" />
+                      </div>
+                      <h4>Provide Beneficial Ownership</h4>
+                      <p>Due by next week for active companies. This is mandatory for ORC compliance.</p>
+                    </div>
                   </div>
-                  <div className={styles.insightCard} style={{ borderLeft: '3px solid var(--color-info-500)' }}>
-                    <div className={styles.insightType}>System Notice</div>
-                    <h4>ORC Portal Maintenance</h4>
-                    <p style={{ fontSize: '12px', color: 'var(--color-neutral-500)', marginTop: '4px' }}>Expect slowness on Friday at 2am.</p>
+                  <div className={styles.actionCard}>
+                    <div className={styles.actionIndicator} style={{ backgroundColor: 'var(--color-info-500)' }} />
+                    <div className={styles.actionContent}>
+                      <div className={styles.actionHeader}>
+                        <span className={styles.actionType} style={{ color: 'var(--color-info-600)' }}>System Notice</span>
+                        <Clock size={14} color="var(--color-info-400)" />
+                      </div>
+                      <h4>ORC Portal Maintenance</h4>
+                      <p>Expect slowness on Friday at 2am due to government portal upgrades.</p>
+                    </div>
                   </div>
                 </>
               )}

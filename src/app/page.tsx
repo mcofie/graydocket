@@ -13,6 +13,7 @@ import {
   FileText,
   UserCheck,
   LockKeyhole,
+  Lock,
   Users,
   Banknote
 } from 'lucide-react'
@@ -28,9 +29,9 @@ const problemPoints = [
 ]
 
 const solutionPoints = [
-  { icon: ShieldCheck, title: 'Compliance on Autopilot', desc: 'Starting is easy; staying official is the hard part. We track your ORC annual returns and GRA filings so you never pay a penalty.' },
-  { icon: LockKeyhole, title: 'Digital Document Vault', desc: 'Access your Certificate of Incorporation, Constitution, and TIN documents anytime from your secure digital glovebox.' },
-  { icon: Zap, title: 'The "Day 2" Bridge', desc: 'Done with registration? We bridge the gap to business bank accounts, SSNIT registration, and tax activation in one click.' }
+  { icon: ShieldCheck, title: 'Compliance on Autopilot', desc: 'Starting is easy; staying official is the hard part. We track your ORC annual returns and GRA filings through our automated corporate calendar.' },
+  { icon: Lock, title: 'DPC Compliant Vault', desc: 'Securely manage your Certificate of Incorporation and TIN. We are a registered Data Controller with the DPC, ensuring your corporate identity is protected.' },
+  { icon: Zap, title: 'The "Day 2" Bridge', desc: 'Registration is just the start. We facilitate seamless introductions to business bank accounts and SSNIT registration through our partner network.' }
 ]
 
 const steps = [
@@ -40,9 +41,9 @@ const steps = [
 ]
 
 const trustItems = [
-  { icon: Users, title: 'Sandbox Réseau Network', desc: 'Every GrayDocket founder gets exclusive access to our elite network of builders and startup perks.' },
-  { icon: ShieldCheck, title: 'Zero Penalty Guarantee', desc: 'Our compliance calendar ensures you never miss an ORC deadline or a GRA filing window.' },
-  { icon: Banknote, title: 'Institutional Banking Bridge', desc: 'Integrated KYC with Ghana’s leading banks to get your corporate account live in record time.' },
+  { icon: Users, title: 'Professional Growth Network', desc: 'Every GrayDocket founder gets exclusive access to our ecosystem of builders, mentors, and institutional startup perks.' },
+  { icon: ShieldCheck, title: 'Institutional Compliance', desc: 'Our administrative infrastructure ensures you never miss an ORC deadline or a GRA filing window through automated reminders.' },
+  { icon: Banknote, title: 'Partner Banking Bridge', desc: 'Consolidated KYC aggregation for Ghana’s leading banks to simplify and accelerate your corporate account onboarding.' },
 ]
 
 const partners = [
@@ -118,7 +119,7 @@ export default function Home() {
               <span className={styles.gradientText}>Zero Compliance Stress.</span>
             </h1>
             <p className={styles.heroSubtitle}>
-              Go from an idea to an officially registered and compliant company in days. We handle the ORC, the TINs, and the automated annual follow-ups so you can focus on building.
+              The digital-first administrative infrastructure for founders in Ghana. Automate your incorporation, tax activation, and compliance through our technology-enabled corporate services.
             </p>
             <div className={styles.heroActions}>
               <Link href="/auth/register" className="btn btn-primary btn-lg">Start My Registration</Link>
@@ -327,9 +328,9 @@ export default function Home() {
                 ))}
               </div>
 
-              <div style={{ textAlign: 'center', marginTop: '40px' }}>
-                <p style={{ fontSize: '13px', color: 'var(--color-neutral-400)', fontStyle: 'italic' }}>
-                  All prices are inclusive of government statutory fees where applicable.
+              <div style={{ textAlign: 'center', marginTop: '40px', maxWidth: '800px', margin: '40px auto 0' }}>
+                <p style={{ fontSize: '13px', color: 'var(--color-neutral-400)', fontStyle: 'italic', lineHeight: '1.6' }}>
+                  All prices are inclusive of government statutory fees where applicable. GrayDocket is a technology-enabled corporate service provider and does not provide legal, tax, or accounting advice.
                 </p>
               </div>
             </div>

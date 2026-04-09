@@ -1,0 +1,253 @@
+.affiliate {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.unregistered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+  padding: var(--space-8);
+}
+
+.unregisteredContent {
+  max-width: 640px;
+  width: 100%;
+  text-align: center;
+}
+
+.unregisteredIcon {
+  background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-700) 100%);
+  color: white;
+  width: 100px;
+  height: 100px;
+  border-radius: 24px;
+  margin: 0 auto 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 20px 40px rgba(var(--color-primary-rgb), 0.2);
+}
+
+.unregisteredTitle {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--color-neutral-900);
+  marginBottom: 16px;
+  letter-spacing: -0.02em;
+}
+
+.unregisteredDesc {
+  color: var(--color-neutral-500);
+  font-size: 18px;
+  line-height: 1.6;
+  margin-bottom: 48px;
+}
+
+.valueGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 24px;
+  text-align: left;
+  margin-bottom: 48px;
+}
+
+.valueCard {
+  padding: 24px;
+  border-radius: 20px;
+  border: 1px solid var(--color-neutral-200);
+  background: white;
+}
+
+.enrollActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+}
+
+/* Dashboard Styles */
+.referralCard {
+  padding: var(--space-8);
+  background: white;
+  border-radius: 24px;
+  border: 1px solid var(--color-neutral-200);
+}
+
+.referralHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.activeBadge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #059669;
+  background: #ecfdf5;
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+.linkContainer {
+  background: var(--color-neutral-50);
+  padding: 16px 20px;
+  border-radius: 16px;
+  border: 1px solid var(--color-neutral-200);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.linkCode {
+  flex: 1;
+  font-size: 13px;
+  color: var(--color-neutral-700);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-all;
+}
+
+.copyBtn {
+  padding: 8px 20px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ledgerCard {
+  background: white;
+  border-radius: 24px;
+  border: 1px solid var(--color-neutral-200);
+  overflow: hidden;
+}
+
+.ledgerHeader {
+  padding: 24px;
+  border-bottom: 1px solid var(--color-neutral-200);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.payoutCard {
+  background: white;
+  border-radius: 24px;
+  padding: 24px;
+  border: 1px solid var(--color-neutral-200);
+}
+
+.payoutDisplay {
+  padding: 20px;
+  background: #fafafa;
+  border-radius: 16px;
+  border: 1px solid var(--color-neutral-100);
+}
+
+.payoutIconBox {
+  width: 48px;
+  height: 48px;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid var(--color-neutral-200);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.protocolNotice {
+  margin-top: 24px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--color-primary-50);
+  border: 1px solid var(--color-primary-100);
+  display: flex;
+  gap: 12px;
+}
+
+.guideCard {
+  background: linear-gradient(135deg, #18181b 0%, #27272a 100%);
+  color: white;
+  border-radius: 24px;
+  padding: 24px;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 1024px) {
+  .unregistered {
+    padding: var(--space-6);
+  }
+}
+
+@media (max-width: 768px) {
+  .unregistered {
+    padding: var(--space-4) var(--space-4);
+  }
+  .unregisteredTitle {
+    font-size: 24px;
+  }
+  .unregisteredDesc {
+    font-size: 16px;
+  }
+  .enrollActions {
+    flex-direction: column;
+  }
+  .enrollActions .btn {
+    width: 100%;
+  }
+  .referralCard {
+    padding: var(--space-5);
+  }
+  .referralHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+  .linkContainer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-4);
+  }
+  .linkCode {
+    text-align: center;
+    border-bottom: 1px solid var(--color-neutral-200);
+    padding-bottom: var(--space-4);
+  }
+  .copyBtn {
+    width: 100%;
+    justify-content: center;
+  }
+  .ledgerHeader {
+     flex-direction: column;
+     align-items: flex-start;
+     gap: var(--space-2);
+  }
+}
+
+@media (max-width: 480px) {
+  .unregisteredIcon {
+    width: 80px;
+    height: 80px;
+  }
+  .valueGrid {
+    grid-template-columns: 1fr;
+  }
+  .table {
+    min-width: 450px;
+  }
+}
