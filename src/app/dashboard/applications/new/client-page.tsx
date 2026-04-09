@@ -1427,22 +1427,14 @@ function NewRegistrationContent() {
             <span className={styles.totalAmount}>GH₵ {totalPrice.toLocaleString()}</span>
           </div>
 
-          <div style={{ 
-            marginTop: 'var(--space-6)', 
-            padding: 'var(--space-6)', 
-            background: '#fffbeb', 
-            borderRadius: '20px', 
-            border: '1px solid #fef3c7',
-            display: 'flex',
-            gap: '16px'
-          }}>
-            <div style={{ padding: '8px', background: '#fef3c7', borderRadius: '12px', alignSelf: 'flex-start' }}>
+          <div className={styles.disclaimerBanner}>
+            <div className={styles.disclaimerIcon}>
               <AlertTriangle size={20} color="#d97706" />
             </div>
             <div>
-              <h4 style={{ fontSize: '14px', fontWeight: 800, color: '#92400e', marginBottom: '4px' }}>Timeline Disclaimer</h4>
-              <p style={{ fontSize: '12px', color: '#b45309', lineHeight: '1.6', margin: 0 }}>
-                Processing estimates (<strong style={{ fontWeight: 800 }}>{selectedBusiness?.timeline}</strong>) are subject to the Registrar General’s Department (ORC) workflow. While rare, external delays can occur due to registry system maintenance or name search queries. 
+              <h4>Timeline Disclaimer</h4>
+              <p>
+                Processing estimates (<strong style={{ fontWeight: 800 }}>{selectedBusiness?.timeline}</strong>) are subject to the Registrar General&apos;s Department (ORC) workflow. While rare, external delays can occur due to registry system maintenance or name search queries.
                 <br /><strong style={{ fontWeight: 800 }}>Our Promise:</strong> GrayDocket will communicate every status shift directly to your dashboard and via SMS.
               </p>
             </div>
