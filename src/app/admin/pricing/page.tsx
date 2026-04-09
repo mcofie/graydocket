@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { 
   getAllBusinessTypes, 
   updateBusinessType,
+  deleteBusinessType,
   getServices,
   updateService,
   createService,
@@ -32,7 +33,12 @@ export default function AdminPricingPage() {
   const [formData, setFormData] = useState({ 
     name: '', 
     price: '0', 
-    serviceFee: '0', // only used for business types
+    serviceFee: '0', // legacy/internal - we will use breakdowns now
+    orc_fee: '0',
+    agent_fee: '0',
+    returns_portion: '0',
+    affiliate_share: '40', // default share
+    timeline: '',    // only used for business types
     description: '',
     category: '' // only used for services
   })
@@ -49,7 +55,13 @@ export default function AdminPricingPage() {
       getServices(),
       getSystemFee('Courier Delivery')
     ])
-    setBusinessTypes(bizRes.business_types || [])
+    
+    // Deduplicate by name to prevent UI clutter if database has redundant rows
+    const uniqueBizTypes = (bizRes.business_types || []).filter((v: any, i: number, a: any[]) => 
+      a.findIndex(t => t.name === v.name) === i
+    )
+
+    setBusinessTypes(uniqueBizTypes)
     setServices(svcRes.services || [])
     setCourierFee(fee)
     setCourierFormValue(fee.toString())
@@ -64,6 +76,11 @@ export default function AdminPricingPage() {
       name: type.name, 
       price: type.base_price?.toString() || '0', 
       serviceFee: type.service_fee?.toString() || '0',
+      orc_fee: type.orc_fee?.toString() || '0',
+      agent_fee: type.agent_fee?.toString() || '0',
+      returns_portion: type.returns_portion?.toString() || '0',
+      affiliate_share: type.affiliate_share_percentage?.toString() || '40',
+      timeline: type.processing_timeline || '',
       description: type.description || '',
       category: ''
     })
@@ -77,6 +94,11 @@ export default function AdminPricingPage() {
       name: service.name, 
       price: service.price?.toString() || '0', 
       serviceFee: '0',
+      orc_fee: '0',
+      agent_fee: '0',
+      returns_portion: '0',
+      affiliate_share: '0',
+      timeline: '',
       description: service.description || '',
       category: service.category || ''
     })
@@ -86,7 +108,18 @@ export default function AdminPricingPage() {
   const openCreateServiceModal = () => {
     setModalMode('create_service')
     setEditingItem(null)
-    setFormData({ name: '', price: '0', serviceFee: '0', description: '', category: 'business_addon' })
+    setFormData({ 
+      name: '', 
+      price: '0', 
+      serviceFee: '0', 
+      orc_fee: '0',
+      agent_fee: '0',
+      returns_portion: '0',
+      affiliate_share: '0',
+      timeline: '', 
+      description: '', 
+      category: 'business_addon' 
+    })
     setIsModalOpen(true)
   }
 
@@ -96,10 +129,20 @@ export default function AdminPricingPage() {
     setIsSubmitting(true)
 
     if (modalMode === 'edit_business') {
+      const orcFee = parseFloat(formData.orc_fee) || 0
+      const agentFee = parseFloat(formData.agent_fee) || 0
+      const returnsPortion = parseFloat(formData.returns_portion) || 0
+      const affShare = parseFloat(formData.affiliate_share) || 0
+
       const { error } = await updateBusinessType(editingItem.id, {
         name: formData.name,
-        base_price: parseFloat(formData.price),
-        service_fee: parseFloat(formData.serviceFee),
+        base_price: orcFee, // Keeping base_price for backward compat (Government portion)
+        service_fee: returnsPortion + agentFee, // Total beyond government fee
+        orc_fee: orcFee,
+        agent_fee: agentFee,
+        returns_portion: returnsPortion,
+        affiliate_share_percentage: affShare,
+        processing_timeline: formData.timeline,
         description: formData.description
       })
       if (error) alert(error)
@@ -133,6 +176,15 @@ export default function AdminPricingPage() {
     const { error } = await updateBusinessType(id, { is_active: !current })
     if (error) alert(error)
     else setBusinessTypes(businessTypes.map(p => p.id === id ? { ...p, is_active: !current } : p))
+  }
+
+  const handleDeleteBusinessType = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to PERMANENTLY delete the business category: ${name}? This action cannot be undone.`)) return
+    const { error } = await deleteBusinessType(id)
+    if (error) alert(error)
+    else {
+      setBusinessTypes(businessTypes.filter(b => b.id !== id))
+    }
   }
 
   const handleSaveCourierFee = async () => {
@@ -188,7 +240,8 @@ export default function AdminPricingPage() {
           <thead>
             <tr>
               <th>Business Type</th>
-              <th>Base Fee (GH₵)</th>
+              <th style={{ minWidth: '220px' }}>Institutional Split (GH₵)</th>
+              <th>Target Timeline</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
@@ -196,17 +249,53 @@ export default function AdminPricingPage() {
           <tbody>
             {businessTypes.map((item) => (
               <tr key={item.id}>
-                <td>
-                  <div style={{ fontWeight: 600, color: 'var(--color-neutral-900)' }}>{item.name}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--color-neutral-500)' }}>
-                    {item.description?.substring(0, 60)}{item.description?.length > 60 ? '...' : ''}
+                <td style={{ verticalAlign: 'top' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--color-neutral-900)' }}>{item.name}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--color-neutral-500)', marginTop: '2px' }}>
+                    {item.description?.substring(0, 80)}{item.description?.length > 80 ? '...' : ''}
                   </div>
                 </td>
-                <td>
-                  <div style={{ fontSize: '12px', color: 'var(--color-neutral-600)' }}>Base: GH₵ {item.base_price.toLocaleString()}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--color-primary-600)', fontWeight: 600 }}>GrayDocket Fee: GH₵ {item.service_fee?.toLocaleString() || 0}</div>
-                  <div style={{ marginTop: '4px', borderTop: '1px solid var(--color-neutral-100)', paddingTop: '4px', fontWeight: 'bold' }}>
-                    Total: GH₵ {(item.base_price + (item.service_fee || 0)).toLocaleString()}
+                <td style={{ verticalAlign: 'top' }}>
+                  {item.returns_portion > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+                        <span style={{ color: 'var(--color-neutral-500)' }}>ORC Gov:</span>
+                        <span style={{ fontWeight: 600 }}>GH₵ {item.orc_fee.toLocaleString()}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+                        <span style={{ color: 'var(--color-neutral-500)' }}>Agent:</span>
+                        <span style={{ fontWeight: 600 }}>GH₵ {item.agent_fee.toLocaleString()}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+                        <span style={{ color: 'var(--color-neutral-500)' }}>Returns (GD/Aff):</span>
+                        <span style={{ fontWeight: 600 }}>GH₵ {item.returns_portion.toLocaleString()}</span>
+                      </div>
+                      <div style={{ marginTop: '4px', borderTop: '1px solid var(--color-neutral-100)', paddingTop: '4px', display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 800, color: 'var(--color-primary-600)' }}>
+                        <span>TOTAL PRICE:</span>
+                        <span>GH₵ {(item.orc_fee + item.agent_fee + item.returns_portion).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: '12px', color: 'var(--color-neutral-600)' }}>Base: GH₵ {item.base_price.toLocaleString()}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--color-primary-600)', fontWeight: 600 }}>GrayDocket Fee: GH₵ {item.service_fee?.toLocaleString() || 0}</div>
+                      <div style={{ marginTop: '4px', borderTop: '1px solid var(--color-neutral-100)', paddingTop: '4px', fontWeight: 'bold' }}>
+                        Total: GH₵ {(item.base_price + (item.service_fee || 0)).toLocaleString()}
+                      </div>
+                    </>
+                  )}
+                </td>
+                <td style={{ verticalAlign: 'top' }}>
+                  <div style={{ 
+                    fontSize: '11px', 
+                    fontWeight: 700, 
+                    color: 'var(--color-primary-700)',
+                    background: 'var(--color-primary-50)',
+                    padding: '4px 10px',
+                    borderRadius: '12px',
+                    display: 'inline-block'
+                  }}>
+                    {item.processing_timeline || 'Not Set'}
                   </div>
                 </td>
                 <td>
@@ -219,12 +308,21 @@ export default function AdminPricingPage() {
                   </button>
                 </td>
                 <td>
-                  <button 
-                    onClick={() => openEditBusinessModal(item)}
-                    className="btn btn-ghost btn-sm"
-                  >
-                    Edit Details
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button 
+                      onClick={() => openEditBusinessModal(item)}
+                      className="btn btn-ghost btn-sm"
+                    >
+                      Edit Details
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteBusinessType(item.id, item.name)}
+                      className="btn btn-ghost btn-sm"
+                      style={{ color: 'var(--color-error)' }}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -355,6 +453,7 @@ export default function AdminPricingPage() {
         }
       >
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+          <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: '8px', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           
           <div className="form-group">
             <label className="form-label">{modalMode === 'edit_business' ? 'Record Name' : 'Service Name'}</label>
@@ -367,28 +466,115 @@ export default function AdminPricingPage() {
             />
           </div>
 
-          <div className="form-group">
-            <label className="form-label">{modalMode === 'edit_business' ? 'Government Base Fee (GH₵)' : 'Service Price (GH₵)'}</label>
-            <input 
-              type="number" 
-              className="form-input" 
-              value={formData.price}
-              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-              required
-            />
-          </div>
-
-          {modalMode === 'edit_business' && (
+          {modalMode !== 'edit_business' && (
             <div className="form-group">
-              <label className="form-label">GrayDocket Service Fee / Commission (GH₵)</label>
+              <label className="form-label">Service Price (GH₵)</label>
               <input 
                 type="number" 
                 className="form-input" 
-                value={formData.serviceFee}
-                onChange={(e) => setFormData({ ...formData, serviceFee: e.target.value })}
+                value={formData.price}
+                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                 required
               />
             </div>
+          )}
+
+          {modalMode === 'edit_business' && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', background: '#f9fafb', padding: '24px', borderRadius: '16px', border: '1px solid #e5e7eb', width: '100%', boxSizing: 'border-box' }}>
+                <div className="form-group" style={{ minWidth: 0 }}>
+                  <label className="form-label" style={{ fontSize: '11px', fontWeight: 800 }}>ORC Government Fee (GH₵)</label>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    style={{ width: '100%' }}
+                    value={formData.orc_fee}
+                    onChange={(e) => setFormData({ ...formData, orc_fee: e.target.value })}
+                    required
+                  />
+                  <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '4px' }}>
+                    {((parseFloat(formData.orc_fee) / (parseFloat(formData.orc_fee) + parseFloat(formData.agent_fee) + parseFloat(formData.returns_portion) || 1)) * 100).toFixed(1)}% of total
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ minWidth: 0 }}>
+                  <label className="form-label" style={{ fontSize: '11px', fontWeight: 800 }}>Registrar Agent Fee (GH₵)</label>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    style={{ width: '100%' }}
+                    value={formData.agent_fee}
+                    onChange={(e) => setFormData({ ...formData, agent_fee: e.target.value })}
+                    required
+                  />
+                  <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '4px' }}>
+                    {((parseFloat(formData.agent_fee) / (parseFloat(formData.orc_fee) + parseFloat(formData.agent_fee) + parseFloat(formData.returns_portion) || 1)) * 100).toFixed(1)}% of total
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ gridColumn: '1 / -1', minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                    <label className="form-label" style={{ fontSize: '11px', fontWeight: 800, margin: 0 }}>Returns Portion (GD + Affiliate) (GH₵)</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'white', padding: '2px 8px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                       <span style={{ fontSize: '10px', fontWeight: 600, color: '#6b7280' }}>Affiliate Cut:</span>
+                       <input 
+                         type="number" 
+                         className="form-input" 
+                         style={{ width: '45px', padding: '2px 4px', fontSize: '11px', textAlign: 'center', border: 'none', background: 'transparent' }}
+                         value={formData.affiliate_share}
+                         onChange={(e) => setFormData({ ...formData, affiliate_share: e.target.value })}
+                       />
+                       <span style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280' }}>%</span>
+                    </div>
+                  </div>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    style={{ width: '100%' }}
+                    value={formData.returns_portion}
+                    onChange={(e) => setFormData({ ...formData, returns_portion: e.target.value })}
+                    required
+                  />
+                  <div style={{ 
+                    marginTop: '12px', 
+                    padding: '12px', 
+                    background: 'white', 
+                    borderRadius: '10px', 
+                    border: '1px dashed #d1d5db',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    width: '100%',
+                    boxSizing: 'border-box'
+                  }}>
+                    <div style={{ fontSize: '11px' }}>
+                      <span style={{ color: '#6b7280' }}>GD ({100 - parseFloat(formData.affiliate_share)}%):</span> <strong style={{ color: 'var(--color-primary-600)' }}>GH₵ {(parseFloat(formData.returns_portion) * (1 - (parseFloat(formData.affiliate_share)/100))).toFixed(2)}</strong>
+                    </div>
+                    <div style={{ fontSize: '11px' }}>
+                      <span style={{ color: '#6b7280' }}>Affiliate ({formData.affiliate_share}%):</span> <strong style={{ color: '#059669' }}>GH₵ {(parseFloat(formData.returns_portion) * (parseFloat(formData.affiliate_share)/100)).toFixed(2)}</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '16px', padding: '16px', background: 'var(--color-primary-50)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 800, fontSize: '13px' }}>TOTAL CLIENT PRICE</span>
+                <span style={{ fontWeight: 900, fontSize: '18px', color: 'var(--color-primary-600)' }}>
+                  GH₵ {(parseFloat(formData.orc_fee) + parseFloat(formData.agent_fee) + parseFloat(formData.returns_portion) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              <div className="form-group" style={{ marginTop: '16px' }}>
+                <label className="form-label">Target Timeline</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={formData.timeline}
+                  onChange={(e) => setFormData({ ...formData, timeline: e.target.value })}
+                  placeholder="e.g. 5-7 working days"
+                />
+              </div>
+            </>
           )}
 
           {(modalMode === 'edit_service' || modalMode === 'create_service') && (
@@ -415,6 +601,8 @@ export default function AdminPricingPage() {
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             />
+          </div>
+
           </div>
 
           <div style={{ marginTop: 'var(--space-4)', display: 'flex', gap: 'var(--space-2)' }}>

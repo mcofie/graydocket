@@ -622,16 +622,32 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
           
           <div style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
             <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: 'var(--space-4)' }}>
-              Payment & Review Status
+              Revenue & Disbursement Split
             </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', fontSize: '13px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--color-neutral-500)' }}>Paid Amount:</span>
-                <span style={{ fontWeight: 600 }}>GH₵ {app.total_amount || 0}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-neutral-500)' }}>
+                <span>ORC Government:</span>
+                <span style={{ fontWeight: 600 }}>GH₵ {app.business_types?.orc_fee || 0}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--color-neutral-500)' }}>Payment Status:</span>
-                <span style={{ fontWeight: 600, color: app.payment_status === 'paid' ? 'var(--color-success)' : 'var(--color-neutral-900)' }}>{app.payment_status?.toUpperCase() || 'UNKNOWN'}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-neutral-500)' }}>
+                <span>Registrar Agent:</span>
+                <span style={{ fontWeight: 600 }}>GH₵ {app.business_types?.agent_fee || 0}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-neutral-500)' }}>
+                <span>Returns (GD/Aff):</span>
+                <span style={{ fontWeight: 600 }}>GH₵ {app.business_types?.returns_portion || 0}</span>
+              </div>
+              
+              <div style={{ margin: '8px 0', borderTop: '1px solid var(--color-neutral-100)', paddingTop: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontWeight: 800 }}>Total Paid:</span>
+                <span style={{ fontWeight: 800, color: 'var(--color-primary-600)' }}>GH₵ {(Number(app.total_amount) || 0).toLocaleString()}</span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                <span style={{ color: 'var(--color-neutral-500)' }}>Status:</span>
+                <span style={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', color: app.payment_status === 'paid' ? 'var(--color-success)' : 'var(--color-neutral-400)' }}>
+                  {app.payment_status || 'Unpaid'}
+                </span>
               </div>
             </div>
           </div>

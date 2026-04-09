@@ -186,13 +186,30 @@ export default function AdminRevenueDashboard() {
                 <tr>
                   <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-neutral-400)', borderBottom: '1px solid var(--color-neutral-100)' }}>Timestamp</th>
                   <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-neutral-400)', borderBottom: '1px solid var(--color-neutral-100)' }}>Business Entity</th>
+                  <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-neutral-400)', borderBottom: '1px solid var(--color-neutral-100)' }}>Financial Split (GH₵)</th>
                   <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-neutral-400)', borderBottom: '1px solid var(--color-neutral-100)' }}>Status</th>
-                  <th style={{ padding: '16px 24px', textAlign: 'right', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-neutral-400)', borderBottom: '1px solid var(--color-neutral-100)' }}>Amount</th>
+                  <th style={{ padding: '16px 24px', textAlign: 'right', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-neutral-400)', borderBottom: '1px solid var(--color-neutral-100)' }}>Total</th>
                 </tr>
               </thead>
               <tbody>
                 {payments.map((p) => {
                   const isPaid = p.payment_status === 'paid'
+                  const bizType = p.business_types
+                  const hasAffiliate = !!p.referred_by_id
+
+                  // Logic for breakdown
+                  const orcFee = Number(bizType?.orc_fee) || 0
+                  const agentFee = Number(bizType?.agent_fee) || 0
+                  const returns = Number(bizType?.returns_portion) || 0
+                  
+                  // If no breakdown found, fall back to simple GD Fee
+                  const gdFeeLegacy = Number(bizType?.service_fee) || 0
+                  
+                  const affiliateRate = (Number(bizType?.affiliate_share_percentage) || 40) / 100
+                  
+                  const gdShare = returns > 0 ? (hasAffiliate ? returns * (1 - affiliateRate) : returns) : gdFeeLegacy
+                  const affiliateShare = (returns > 0 && hasAffiliate) ? returns * affiliateRate : 0
+
                   return (
                     <tr key={p.id} style={{ transition: 'all 0.2s', borderBottom: '1px solid var(--color-neutral-50)' }} className="hover-row">
                       <td style={{ padding: '16px 24px' }}>
@@ -207,6 +224,28 @@ export default function AdminRevenueDashboard() {
                           <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', background: 'var(--color-neutral-100)', padding: '2px 6px', borderRadius: '4px' }}>{p.tracking_id}</span>
                           • {p.profiles?.full_name || 'Anonymous'}
                         </div>
+                      </td>
+                      <td style={{ padding: '16px 24px' }}>
+                         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                             {orcFee > 0 && (
+                               <div style={{ padding: '2px 8px', background: '#f3f4f6', borderRadius: '6px', fontSize: '10px', fontWeight: 700, color: '#4b5563' }} title="ORC Government Fee">
+                                 ORC {orcFee}
+                               </div>
+                             )}
+                             {agentFee > 0 && (
+                               <div style={{ padding: '2px 8px', background: '#fef2f2', borderRadius: '6px', fontSize: '10px', fontWeight: 700, color: '#991b1b' }} title="Registrar Agent Fee">
+                                 AGT {agentFee}
+                               </div>
+                             )}
+                             <div style={{ padding: '2px 8px', background: 'var(--color-primary-50)', borderRadius: '6px', fontSize: '10px', fontWeight: 700, color: 'var(--color-primary-700)' }} title="GrayDocket Operating Profit">
+                               GD {gdShare.toFixed(1)}
+                             </div>
+                             {affiliateShare > 0 && (
+                               <div style={{ padding: '2px 8px', background: '#ecfdf5', borderRadius: '6px', fontSize: '10px', fontWeight: 700, color: '#065f46' }} title="Affiliate Commission">
+                                 AFF {affiliateShare.toFixed(1)}
+                               </div>
+                             )}
+                         </div>
                       </td>
                       <td style={{ padding: '16px 24px' }}>
                         <div style={{ 

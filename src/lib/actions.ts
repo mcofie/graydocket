@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { formatPhoneNumber } from '@/lib/sms'
+import { sendDiscordNotification, DiscordColors } from '@/lib/discord'
 
 function generateTrackingId(): string {
   const prefix = 'GD'
@@ -157,6 +158,32 @@ export async function submitApplication(data: {
       .single()
     application = inserted
     appError = error
+  }
+
+  if (application && !appError) {
+    if (application.payment_status === 'paid') {
+      await sendDiscordNotification({
+        title: '💰 NEW PAID APPLICATION',
+        color: DiscordColors.SUCCESS,
+        fields: [
+          { name: 'Business Name', value: application.business_name, inline: true },
+          { name: 'Type', value: data.businessTypeName, inline: true },
+          { name: 'Amount Paid', value: `GH₵ ${application.total_amount.toLocaleString()}`, inline: true },
+          { name: 'Tracking ID', value: `\`${application.tracking_id}\``, inline: false },
+          { name: 'Ref', value: application.form_data?.paystack_reference || 'N/A', inline: true }
+        ]
+      })
+    } else {
+      await sendDiscordNotification({
+        title: '📥 NEW APPLICATION SUBMITTED (Pending)',
+        color: DiscordColors.WARNING,
+        fields: [
+          { name: 'Business Name', value: application.business_name, inline: true },
+          { name: 'Type', value: data.businessTypeName, inline: true },
+          { name: 'Tracking ID', value: `\`${application.tracking_id}\``, inline: false }
+        ]
+      })
+    }
   }
 
   if (appError) {
@@ -367,6 +394,17 @@ export async function saveApplicationDraft(data: {
       .single()
 
     if (error) return { error: error.message }
+    
+    // Notify on new draft
+    await sendDiscordNotification({
+      title: '📝 NEW DRAFT STARTED',
+      color: DiscordColors.INFO,
+      fields: [
+        { name: 'Business Name', value: payload.business_name, inline: true },
+        { name: 'Tracking (Temp)', value: `\`${trackingId}\``, inline: true }
+      ]
+    })
+    
     return { success: true, applicationId: newDraft.id }
   }
 }
@@ -659,16 +697,18 @@ export async function getAdminApplications() {
 }
 
 export async function getAdminPayments(status: string = 'paid') {
-  const isAdmin = await checkIsAdmin(['admin'])
+  const isAdmin = await checkIsAdmin(['admin', 'registrar'])
   if (!isAdmin) return { payments: [], error: 'Unauthorized' }
 
   const { createAdminClient } = await import('@/lib/supabase/server')
   const adminClient = await createAdminClient()
 
+  const selectQuery = 'id, tracking_id, business_name, total_amount, payment_status, form_data, created_at, updated_at, referred_by_id, profiles:user_id(full_name, email), business_types:business_type_id(name, orc_fee, agent_fee, returns_portion, service_fee)'
+
   let query = adminClient
     .schema('graydocket')
     .from('applications')
-    .select('id, tracking_id, business_name, total_amount, payment_status, form_data, created_at, updated_at, profiles:user_id(full_name, email)')
+    .select(selectQuery)
     .order('updated_at', { ascending: false })
 
   if (status) {
@@ -681,7 +721,7 @@ export async function getAdminPayments(status: string = 'paid') {
      // Fallback to public schema if graydocket doesn't have it yet
      let fallbackQuery = adminClient
        .from('applications')
-       .select('id, tracking_id, business_name, total_amount, payment_status, form_data, created_at, updated_at, profiles:user_id(full_name, email)')
+       .select(selectQuery)
        .order('updated_at', { ascending: false })
      
      if (status) {
@@ -792,6 +832,21 @@ export async function updateBusinessType(id: string, updates: any) {
   return { error: error?.message || null }
 }
 
+export async function deleteBusinessType(id: string) {
+  const isAuthorized = await checkIsAdmin(['admin', 'registrar', 'service_manager'])
+  if (!isAuthorized) return { error: 'Unauthorized: Pricing Manager access required' }
+
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+  const { error } = await adminClient
+    .from('business_types')
+    .delete()
+    .eq('id', id)
+
+  revalidatePath('/admin/pricing')
+  return { error: error?.message || null }
+}
+
 export async function updateBankingPartner(id: string, updates: any) {
   const isAuthorized = await checkIsAdmin(['admin', 'bank_manager'])
   if (!isAuthorized) return { error: 'Unauthorized: Bank Manager access required' }
@@ -850,6 +905,17 @@ export async function updateApplicationStatus(id: string, status: string, adminN
     .eq('id', id)
 
   if (updateErr) return { error: updateErr.message }
+
+  // Notify on Status Change
+  await sendDiscordNotification({
+    title: '🔄 STATUS SHIFT',
+    color: DiscordColors.PURPLE,
+    fields: [
+      { name: 'Track ID', value: `\`${id.substring(0, 8)}...\``, inline: true },
+      { name: 'New Status', value: status.toUpperCase(), inline: true },
+      { name: 'Note', value: adminNotes || 'No specific note', inline: false }
+    ]
+  })
 
   // 2. Fetch full application for history, commission, and SMS (Using Admin Client to bypass RLS)
   const { data: application } = await adminClient
@@ -1133,7 +1199,7 @@ export async function processAffiliateCommission(applicationId: string) {
   // 1. Fetch application with business type context (Service Fee info)
   const { data: app, error: fetchErr } = await adminClient
     .from('applications')
-    .select('id, referred_by_id, payment_status, business_types(service_fee)')
+    .select('id, referred_by_id, payment_status, business_types(service_fee, returns_portion, affiliate_share_percentage)')
     .eq('id', applicationId)
     .single()
 
@@ -1150,10 +1216,19 @@ export async function processAffiliateCommission(applicationId: string) {
 
   if (existing) return { success: true, reason: 'Commission already recorded' }
 
-  // 3. Calculation Logic (Institutional Standard: 20% of THE SERVICE FEE)
+  // 3. Calculation Logic 
+  // Institutional Standard: Dynamic % of the Net Returns Portion
+  // Fallback: 20% of the Service Fee (for legacy categories)
+  const returnsPortion = (app.business_types as any)?.returns_portion || 0
   const serviceFee = (app.business_types as any)?.service_fee || 0
-  const commissionRate = 0.20
-  const commissionAmount = serviceFee * commissionRate
+  const affiliateRate = ((app.business_types as any)?.affiliate_share_percentage || 40) / 100
+  
+  let commissionAmount = 0
+  if (returnsPortion > 0) {
+    commissionAmount = returnsPortion * affiliateRate
+  } else {
+    commissionAmount = serviceFee * 0.20 // 20% of total service fee (legacy fallback)
+  }
 
   if (commissionAmount <= 0) return { success: false, reason: 'Zero value yield' }
 
@@ -1209,6 +1284,17 @@ export async function applyToBeAffiliate() {
       affiliate_code: code 
     })
     .eq('id', user.id)
+
+  if (!error) {
+    await sendDiscordNotification({
+      title: '🤝 NEW PARTNER ONBOARDED',
+      color: DiscordColors.GOLD,
+      description: `New affiliate created for user \`${user.id}\``,
+      fields: [
+        { name: 'Affiliate Code', value: `\`${code}\``, inline: true }
+      ]
+    })
+  }
 
   revalidatePath('/dashboard/affiliate')
   return { error: error?.message || null, code }
@@ -1402,6 +1488,17 @@ export async function uploadApplicationDocument(id: string, formData: FormData) 
     .update({ form_data: currentFormData })
     .eq('id', id)
 
+  if (!updateError) {
+    await sendDiscordNotification({
+      title: '📁 NEW DOCUMENT UPLOADED',
+      color: DiscordColors.WARNING,
+      fields: [
+        { name: 'Document', value: title, inline: true },
+        { name: 'Application', value: `\`${id.substring(0, 8)}...\``, inline: true }
+      ]
+    })
+  }
+
   revalidatePath(`/admin/applications/${id}`)
   revalidatePath(`/dashboard/applications/${id}`)
   return { error: updateError?.message || null, url: data.publicUrl }
@@ -1581,6 +1678,17 @@ export async function assignApplication(applicationId: string, registrarId: stri
     .from('applications') // Admin client is already locked to 'graydocket' in server.ts
     .update({ assigned_to: registrarId })
     .eq('id', applicationId)
+
+  if (!error) {
+    await sendDiscordNotification({
+      title: '👤 CASE ASSIGNED',
+      color: DiscordColors.INFO,
+      fields: [
+        { name: 'Application', value: `\`${applicationId.substring(0, 8)}...\``, inline: true },
+        { name: 'Registrar ID', value: registrarId, inline: true }
+      ]
+    })
+  }
 
   if (error) {
     console.error('Assignment error in graydocket schema:', error)
@@ -1819,6 +1927,17 @@ export async function requestFieldCorrection(applicationId: string, fieldKey: st
     .eq('id', applicationId)
 
   if (updateErr) return { error: updateErr.message }
+
+  // Notify on correction request
+  await sendDiscordNotification({
+    title: '🚩 CORRECTION REQUESTED',
+    color: DiscordColors.DANGER,
+    fields: [
+      { name: 'Field', value: `\`${fieldKey}\``, inline: true },
+      { name: 'Reason', value: reason, inline: false },
+      { name: 'Application', value: `\`${applicationId.substring(0, 8)}...\``, inline: true }
+    ]
+  })
 
   // 4. Log to history
   const { data: { user: adminUser } } = await adminClient.auth.getUser()

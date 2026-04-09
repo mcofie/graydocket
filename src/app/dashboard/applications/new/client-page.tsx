@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { Check, ArrowLeft, ArrowRight, Plus, Trash2 } from 'lucide-react'
+import { Check, ArrowLeft, ArrowRight, Plus, Trash2, Clock, AlertTriangle } from 'lucide-react'
 import { usePaystackPayment } from 'react-paystack'
 import { 
   submitApplication, getBusinessTypes, getSystemFee, 
@@ -58,9 +58,17 @@ function NewRegistrationContent() {
   // Dynamic overrides
   const dynamicBusinessTypes = businessTypes.map(t => {
     const dbMatch = dbBusinessTypes.find(bt => bt.name === t.name)
+    const orcFee = (dbMatch as any)?.orc_fee || 0
+    const agentFee = (dbMatch as any)?.agent_fee || 0
+    const returnsPortion = (dbMatch as any)?.returns_portion || 0
+    const totalFromBreakdown = orcFee + agentFee + returnsPortion
+
     return {
       ...t,
-      price: dbMatch ? dbMatch.base_price + dbMatch.service_fee : t.price
+      price: totalFromBreakdown > 0 
+        ? totalFromBreakdown 
+        : (dbMatch ? dbMatch.base_price + dbMatch.service_fee : t.price),
+      timeline: (dbMatch as any)?.processing_timeline || t.timeline
     }
   })
 
@@ -571,7 +579,14 @@ function NewRegistrationContent() {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div className={styles.typeIcon}>{type.icon}</div>
-                  {type.comingSoon && <span className={styles.comingSoonBadge}>COMING SOON</span>}
+                  {type.comingSoon ? (
+                    <span className={styles.comingSoonBadge}>COMING SOON</span>
+                  ) : (
+                    <div className={styles.timelineBadge}>
+                      <Clock size={12} />
+                      <span>{type.timeline}</span>
+                    </div>
+                  )}
                 </div>
                 <h3>{type.name}</h3>
                 <p>{type.desc}</p>
@@ -1410,6 +1425,27 @@ function NewRegistrationContent() {
           <div className={styles.totalBar}>
             <span className={styles.totalLabel}>Total Amount</span>
             <span className={styles.totalAmount}>GH₵ {totalPrice.toLocaleString()}</span>
+          </div>
+
+          <div style={{ 
+            marginTop: 'var(--space-6)', 
+            padding: 'var(--space-6)', 
+            background: '#fffbeb', 
+            borderRadius: '20px', 
+            border: '1px solid #fef3c7',
+            display: 'flex',
+            gap: '16px'
+          }}>
+            <div style={{ padding: '8px', background: '#fef3c7', borderRadius: '12px', alignSelf: 'flex-start' }}>
+              <AlertTriangle size={20} color="#d97706" />
+            </div>
+            <div>
+              <h4 style={{ fontSize: '14px', fontWeight: 800, color: '#92400e', marginBottom: '4px' }}>Timeline Disclaimer</h4>
+              <p style={{ fontSize: '12px', color: '#b45309', lineHeight: '1.6', margin: 0 }}>
+                Processing estimates (<strong style={{ fontWeight: 800 }}>{selectedBusiness?.timeline}</strong>) are subject to the Registrar General’s Department (ORC) workflow. While rare, external delays can occur due to registry system maintenance or name search queries. 
+                <br /><strong style={{ fontWeight: 800 }}>Our Promise:</strong> GrayDocket will communicate every status shift directly to your dashboard and via SMS.
+              </p>
+            </div>
           </div>
 
           <div className={styles.stepNav}>

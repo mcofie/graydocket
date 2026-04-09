@@ -1,7 +1,7 @@
 export const businessTypes = [
-  { id: 'sole_proprietorship', icon: '🏢', name: 'Sole Proprietorship', desc: 'For individual entrepreneurs. Register under the Registration of Business Names Act (Form A).', price: 350, formRef: 'Form A' },
-  { id: 'limited_by_shares', icon: '🏛️', name: 'Company Limited by Shares', desc: 'For teams and investors. Limited liability with share capital under the Companies Act 2019 (Form 3).', price: 1200, formRef: 'Form 3' },
-  { id: 'limited_by_guarantee', icon: '🤝', name: 'Company Limited by Guarantee', desc: 'For NGOs, associations, and non-profits. No share capital required.', price: 1200, formRef: 'Form 3', comingSoon: true },
+  { id: 'sole_proprietorship', icon: '🏢', name: 'Sole Proprietorship', desc: 'For individual entrepreneurs. Register under the Registration of Business Names Act (Form A).', price: 350, formRef: 'Form A', timeline: '2-3 working days' },
+  { id: 'limited_by_shares', icon: '🏛️', name: 'Company Limited by Shares', desc: 'For teams and investors. Limited liability with share capital under the Companies Act 2019 (Form 3).', price: 1200, formRef: 'Form 3', timeline: '5-10 working days' },
+  { id: 'limited_by_guarantee', icon: '🤝', name: 'Company Limited by Guarantee', desc: 'For NGOs, associations, and non-profits. No share capital required.', price: 1200, formRef: 'Form 3', timeline: '10-15 working days', comingSoon: true },
 ]
 
 export const businessSectors = [
