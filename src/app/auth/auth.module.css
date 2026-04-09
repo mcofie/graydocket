@@ -241,12 +241,41 @@
   }
 }
 
+@media (max-width: 768px) {
+  .authLeft {
+    padding: var(--space-6);
+  }
+  .authCard {
+    max-width: 100%;
+  }
+  .authTitle {
+    font-size: var(--text-xl);
+  }
+  .authLogo {
+    margin-bottom: var(--space-6);
+  }
+  .authForm {
+    gap: var(--space-4);
+  }
+}
+
 @media (max-width: 480px) {
   .authLeft {
     padding: var(--space-4);
+    align-items: stretch;
   }
-
   .authFormRow {
     grid-template-columns: 1fr;
+  }
+  .authTitle {
+    font-size: var(--text-lg);
+  }
+  .authSubtitle {
+    font-size: var(--text-xs);
+    margin-bottom: var(--space-6);
+  }
+  .authError, .authSuccess {
+    font-size: var(--text-xs);
+    padding: var(--space-2) var(--space-3);
   }
 }

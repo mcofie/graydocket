@@ -195,3 +195,45 @@
   font-weight: 600;
   border: 1px solid var(--color-success-200);
 }
+
+@media (max-width: 768px) {
+  .title {
+    font-size: var(--text-2xl);
+  }
+  .contentArea {
+    padding: var(--space-5);
+    border-radius: var(--radius-xl);
+  }
+  .securityCard {
+    flex-direction: column;
+    gap: var(--space-3);
+    align-items: flex-start;
+  }
+  .toggleRow {
+    flex-direction: column;
+    gap: var(--space-2);
+    align-items: flex-start;
+  }
+  .avatarSection {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .contentArea {
+    padding: var(--space-4);
+  }
+  .sidebarNav {
+    flex-direction: row;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: var(--space-1);
+    padding-bottom: var(--space-2);
+  }
+  .navItem {
+    white-space: nowrap;
+    font-size: var(--text-xs);
+    padding: var(--space-2) var(--space-3);
+  }
+}

@@ -84,3 +84,12 @@
   font-size: var(--text-xs);
   color: var(--color-neutral-500);
 }
+
+@media (max-width: 768px) {
+  .docGrid {
+    grid-template-columns: 1fr;
+  }
+  .docCard {
+    padding: var(--space-4);
+  }
+}

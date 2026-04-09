@@ -10,154 +10,72 @@ import styles from './track.module.css'
 
 export default function TrackPage() {
   const [trackingId, setTrackingId] = useState('')
-  const [data, setData] = useState<any>(null)
-  const [searched, setSearched] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!trackingId.trim()) return
-    
-    // Instead of local state fetching, we navigate 
-    // This makes the result shareable via URL
+    setLoading(true)
     window.location.href = `/track/${trackingId.trim().toUpperCase()}`
   }
-
-  const formatStatus = (s: string) => s.replace('_', ' ').toUpperCase()
 
   return (
     <div className={styles.wrapper}>
       <Header />
       <main className={styles.trackPage}>
         <div className={styles.container}>
-          <div className={styles.trackHeader}>
-            <div className={styles.badge}>Institutional Node</div>
-            <h1>Track Application</h1>
-            <p className={styles.subtitle}>
-              Monitor your business registration status via our unified gateway.
+          <div className={styles.trackHeader} style={{ textAlign: 'center', marginBottom: 'var(--space-12)' }}>
+            <span className={styles.idLabel}>Institutional Gateway</span>
+            <h1 className={styles.businessName}>Track Application</h1>
+            <p style={{ color: 'var(--color-neutral-500)', fontSize: '18px', maxWidth: '600px', margin: '0 auto' }}>
+              Monitor your business registration status via our unified registry gateway.
             </p>
           </div>
 
           <div className={styles.searchSection}>
             <div className={styles.searchCard}>
-              <form onSubmit={handleSearch} className={styles.form}>
-                <div className={styles.inputWrapper}>
-                  <Search className={styles.searchIcon} size={20} />
-                  <input
-                    type="text"
-                    placeholder="Enter Tracking ID (e.g. GD-192-X)"
-                    value={trackingId}
-                    onChange={(e) => setTrackingId(e.target.value)}
-                    className={styles.input}
-                    required
-                  />
-                </div>
-                <button 
-                  type="submit" 
-                  className={styles.fetchBtn}
-                  disabled={loading}
-                >
-                  {loading ? 'Decrypting...' : 'View Status'}
-                </button>
-              </form>
-            </div>
-            {!searched && (
-              <div className={styles.subtleTip}>
-                <ShieldQuestion size={14} />
-                <span>Found in your confirmation email or dashboard.</span>
+              <div className={styles.inputWrapper}>
+                <Search className={styles.searchIcon} size={20} />
+                <input
+                  type="text"
+                  placeholder="Enter Tracking ID (e.g. GD-MNM3...)"
+                  value={trackingId}
+                  onChange={(e) => setTrackingId(e.target.value)}
+                  className={styles.input}
+                  required
+                />
               </div>
-            )}
+              <button 
+                type="submit" 
+                className="btn btn-primary"
+                style={{ height: '54px', borderRadius: '12px' }}
+                disabled={loading}
+              >
+                {loading ? 'Connecting...' : 'Track Now'}
+              </button>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', marginTop: 'var(--space-4)', fontSize: '12px', color: 'var(--color-neutral-400)' }}>
+              <ShieldQuestion size={14} />
+              <span>Security verified gateway. ID required.</span>
+            </div>
           </div>
 
-          {searched && data && (
-            <div className={styles.resultContainer}>
-              <div className={styles.summaryCard}>
-                <div className={styles.summaryHeader}>
-                  <div>
-                    <span className={styles.idLabel}>ID: {trackingId.toUpperCase()}</span>
-                    <h2 className={styles.businessName}>{data.application.business_name}</h2>
-                    <div className={styles.metaRow}>
-                      <span><Activity size={14} /> {data.application.business_types?.name}</span>
-                      <span><Calendar size={14} /> Submitted {new Date(data.application.created_at).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                  <div className={styles.statusBadge}>
-                    <span className={styles.pulse} />
-                    {formatStatus(data.application.status)}
-                  </div>
-                </div>
-
-                <div className={styles.timeline}>
-                   {/* If there is history, show it. Otherwise show default "Submitted" */}
-                   {data.history.length > 0 ? (
-                      data.history.map((step: any, i: number) => (
-                        <div key={i} className={`${styles.timelineItem} ${i === 0 ? styles.isActive : styles.isCompleted}`}>
-                          <div className={styles.timelineVisual}>
-                            <div className={styles.dot}>
-                               {i > 0 && <CheckCircle2 size={16} />}
-                            </div>
-                            {i < data.history.length - 1 && <div className={styles.line} />}
-                          </div>
-                          <div className={styles.itemContent}>
-                            <div className={styles.itemHeader}>
-                              <h4>{formatStatus(step.status)}</h4>
-                              <span className={styles.date}>{new Date(step.created_at).toLocaleString()}</span>
-                            </div>
-                            <p>{step.notes || 'No additional details provided.'}</p>
-                          </div>
-                        </div>
-                      ))
-                   ) : (
-                      <div className={`${styles.timelineItem} ${styles.isActive}`}>
-                         <div className={styles.timelineVisual}>
-                            <div className={styles.dot} />
-                         </div>
-                         <div className={styles.itemContent}>
-                            <div className={styles.itemHeader}>
-                               <h4>SUBMITTED</h4>
-                               <span className={styles.date}>{new Date(data.application.created_at).toLocaleString()}</span>
-                            </div>
-                            <p>Application successfully received and queued for initial verification.</p>
-                         </div>
-                      </div>
-                   )}
-                </div>
+          <div className={styles.actionPanel} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
+            <div className={styles.actionCard}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'var(--color-primary-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary-600)', marginBottom: 'var(--space-4)' }}>
+                <Clock size={20} />
               </div>
-
-              <div className={styles.actionPanel}>
-                <div className={styles.actionCard}>
-                  <h3>Official Support</h3>
-                  <p>Speak to the registrar overseeing your business registration process.</p>
-                  <Link href="/contact" className={styles.actionLink}>
-                    Open Support Ticket <ArrowRight size={14} />
-                  </Link>
-                </div>
-                <div className={styles.actionCard}>
-                  <h3>Self-Service Portal</h3>
-                  <p>Log in to your dashboard to upload missing documents or update details.</p>
-                  <Link href="/login" className={styles.actionLink}>
-                    Access Dashboard <ArrowRight size={14} />
-                  </Link>
-                </div>
+              <h3>Real-time Updates</h3>
+              <p>Our nodes synchronize directly with the Office of the Registrar of Companies every 15 minutes.</p>
+            </div>
+            <div className={styles.actionCard}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'var(--color-success-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-success)', marginBottom: 'var(--space-4)' }}>
+                <CheckCircle2 size={20} />
               </div>
+              <h3>Institutional Trust</h3>
+              <p>GrayDocket is the preferred channel for over 1,000+ Ghanaian business owners for compliance.</p>
             </div>
-          )}
-
-          {searched && !data && (
-            <div className={styles.notFound}>
-                 <div className={styles.errorState}>
-                    <Search size={32} style={{ marginBottom: '16px' }} />
-                    <h3>Security Check Failed</h3>
-                    <p>
-                       We could not find an application linked to "<strong>{trackingId.toUpperCase()}</strong>". 
-                       Please verify the ID and ensure there are no trailing spaces.
-                    </p>
-                    <button onClick={() => setSearched(false)} className={styles.retryBtn}>
-                       Try Again
-                    </button>
-                 </div>
-            </div>
-          )}
+          </div>
         </div>
       </main>
       <Footer />

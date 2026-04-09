@@ -54,35 +54,35 @@ export default function DynamicTrackPage({ params }: { params: Promise<{ id: str
           </div>
 
           {loading ? (
-             <div style={{ textAlign: 'center', padding: '100px 0' }}>
-                <div style={{ width: '48px', height: '48px', border: '3px solid var(--color-primary-100)', borderTopColor: 'var(--color-primary-600)', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 24px' }} />
-                <h2 style={{ fontWeight: 800 }}>Decrypting Registry Data...</h2>
-                <p style={{ color: 'var(--color-neutral-400)', marginTop: '8px' }}>Authenticating tracking ID: {idFromUrl.toUpperCase()}</p>
+             <div className={styles.loadingContainer}>
+                <div className={styles.premiumLoader} />
+                <h2>Decrypting Registry Data...</h2>
+                <p>Authenticating tracking ID: <strong>{idFromUrl.toUpperCase()}</strong></p>
              </div>
           ) : error ? (
-            <div className={styles.notFound}>
-                 <div className={styles.errorState}>
-                    <Search size={32} style={{ marginBottom: '16px' }} />
-                    <h3>Security Check Failed</h3>
-                    <p>
-                       We could not find an application linked to "<strong>{idFromUrl.toUpperCase()}</strong>". 
-                       Please verify the ID and ensure there are no trailing spaces.
-                    </p>
-                    <Link href="/track" className={styles.retryBtn} style={{ textDecoration: 'none', display: 'inline-block' }}>
-                       Try New Search
-                    </Link>
-                 </div>
-            </div>
+             <div className={styles.loadingContainer}>
+                  <div style={{ background: '#fff1f1', color: '#ef4444', padding: 'var(--space-10)', borderRadius: 'var(--radius-2xl)', border: '1px solid #fee2e2', maxWidth: '500px', width: '100%' }}>
+                     <Search size={48} style={{ marginBottom: 'var(--space-4)', opacity: 0.5 }} />
+                     <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: 'var(--space-2)' }}>Security Check Failed</h3>
+                     <p style={{ fontSize: '14px', lineHeight: 1.6 }}>
+                        We could not find an application linked to "<strong>{idFromUrl.toUpperCase()}</strong>". 
+                        Please verify the ID and ensure there are no trailing spaces.
+                     </p>
+                     <Link href="/track" style={{ marginTop: 'var(--space-6)', textDecoration: 'none', display: 'inline-block', background: 'white', color: '#ef4444', border: '1px solid #fee2e2', padding: '10px 24px', borderRadius: '12px', fontWeight: 700 }}>
+                        Try New Search
+                     </Link>
+                  </div>
+             </div>
           ) : data && (
             <div className={styles.resultContainer}>
               <div className={styles.summaryCard}>
                 <div className={styles.summaryHeader}>
                   <div>
-                    <span className={styles.idLabel}>ID: {idFromUrl.toUpperCase()}</span>
+                    <span className={styles.idLabel}>TRACKING ID: {idFromUrl.toUpperCase()}</span>
                     <h2 className={styles.businessName}>{data.application.business_name}</h2>
                     <div className={styles.metaRow}>
-                      <span><Activity size={14} /> {data.application.business_types?.name || 'Standard'}</span>
-                      <span><Calendar size={14} /> Submitted {new Date(data.application.created_at).toLocaleDateString()}</span>
+                      <span><Activity size={16} /> {data.application.business_types?.name || 'Standard'}</span>
+                      <span><Calendar size={16} /> Submitted {new Date(data.application.created_at).toLocaleDateString()}</span>
                     </div>
                   </div>
                   <div className={styles.statusBadge}>
@@ -104,7 +104,7 @@ export default function DynamicTrackPage({ params }: { params: Promise<{ id: str
                           <div className={styles.itemContent}>
                             <div className={styles.itemHeader}>
                               <h4>{formatStatus(step.status)}</h4>
-                              <span className={styles.date}>{new Date(step.created_at).toLocaleString()}</span>
+                              <span className={styles.date}>{new Date(step.created_at).toLocaleDateString()} • {new Date(step.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                             </div>
                             <p>{step.notes || `Institutional state transitioned to ${formatStatus(step.status)}.`}</p>
                           </div>
@@ -118,7 +118,7 @@ export default function DynamicTrackPage({ params }: { params: Promise<{ id: str
                          <div className={styles.itemContent}>
                             <div className={styles.itemHeader}>
                                <h4>SUBMITTED</h4>
-                               <span className={styles.date}>{new Date(data.application.created_at).toLocaleString()}</span>
+                               <span className={styles.date}>{new Date(data.application.created_at).toLocaleDateString()}</span>
                             </div>
                             <p>Application successfully received and queued for initial verification.</p>
                          </div>
@@ -136,9 +136,9 @@ export default function DynamicTrackPage({ params }: { params: Promise<{ id: str
                   </Link>
                 </div>
                 <div className={styles.actionCard}>
-                  <h3>Self-Service Portal</h3>
+                  <h3>Founder Dashboard</h3>
                   <p>Log in to your dashboard to upload missing documents or update details.</p>
-                  <Link href="/login" className={styles.actionLink}>
+                  <Link href="/auth/login" className={styles.actionLink}>
                     Access Dashboard <ArrowRight size={14} />
                   </Link>
                 </div>
@@ -148,11 +148,6 @@ export default function DynamicTrackPage({ params }: { params: Promise<{ id: str
         </div>
       </main>
       <Footer />
-      <style jsx global>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   )
 }

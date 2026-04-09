@@ -295,3 +295,58 @@
   color: var(--color-neutral-500);
   max-width: 400px;
 }
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .adminContainer {
+    gap: var(--space-6);
+  }
+  .title {
+    font-size: var(--text-2xl);
+  }
+  .statsGrid {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+  .statCard {
+    padding: var(--space-5);
+  }
+  .statValue {
+    font-size: var(--text-2xl);
+  }
+  .tableWrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table {
+    min-width: 600px;
+  }
+  .table th, .table td {
+    padding: var(--space-3) var(--space-4);
+  }
+  .tableHeader {
+    flex-direction: column;
+    gap: var(--space-3);
+    align-items: flex-start;
+    padding: var(--space-4);
+  }
+}
+
+@media (max-width: 480px) {
+  .statCard {
+    padding: var(--space-4);
+  }
+  .statIconWrapper {
+    width: 36px;
+    height: 36px;
+  }
+  .emptyState {
+    padding: var(--space-10) var(--space-4);
+  }
+}

@@ -535,20 +535,79 @@
   .statsGrid {
     grid-template-columns: repeat(2, 1fr);
   }
+  .mainGrid {
+    grid-template-columns: 1fr;
+  }
+  .quickActions {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (max-width: 768px) {
+  .overview {
+    gap: var(--space-6);
+  }
   .topSection, .mainGrid {
     grid-template-columns: 1fr;
   }
-  
+  .quickActions {
+    grid-template-columns: 1fr 1fr;
+  }
+  .insightCards {
+    grid-template-columns: 1fr;
+  }
+  .healthScoreCard {
+    padding: var(--space-6);
+  }
+  .healthScoreContent {
+    flex-direction: column;
+    text-align: center;
+  }
+  .scoreCircle {
+    width: 100px;
+    height: 100px;
+  }
+  .engineMonitorCard {
+    padding: var(--space-6);
+  }
+  .engineActivity {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
   .table {
     min-width: 500px;
+  }
+  .applicationsTable {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .timelineSection {
+    padding: var(--space-6);
+  }
+  .pageHeader h1 {
+    font-size: 1.5rem;
   }
 }
 
 @media (max-width: 480px) {
   .statsGrid {
     grid-template-columns: 1fr;
+  }
+  .quickActions {
+    grid-template-columns: 1fr;
+  }
+  .statCard {
+    padding: var(--space-4);
+  }
+  .statIcon {
+    width: 44px;
+    height: 44px;
+  }
+  .quickAction {
+    padding: var(--space-4);
+  }
+  .healthScoreCard, .engineMonitorCard {
+    border-radius: var(--radius-xl);
+    padding: var(--space-5);
   }
 }
