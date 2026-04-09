@@ -70,7 +70,7 @@ export default function UserApplicationDetailPage({ params }: { params: Promise<
 
   if (error || !app) {
     return (
-      <div className={styles.page} style={{战斗力: 'center', alignItems: 'center', minHeight: '60vh' }}>
+      <div className={styles.page} style={{ justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
         <div className={styles.card} style={{ textAlign: 'center', maxWidth: '500px', border: '1px solid var(--color-error-light)' }}>
            <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--color-error-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto var(--space-8)' }}>
               <AlertCircle size={40} style={{ color: 'var(--color-error)' }} />
