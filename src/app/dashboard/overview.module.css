@@ -117,21 +117,19 @@
 
 /* ─── Stats Row (Compact / pill-style) ─── */
 .statsGrid {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--space-3);
-  flex-wrap: wrap;
 }
 
 .statCard {
   background: var(--color-neutral-0);
-  padding: var(--space-4) var(--space-5);
+  padding: var(--space-4);
   border-radius: var(--radius-xl);
   border: 1px solid var(--color-neutral-200);
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  flex: 1;
-  min-width: 140px;
   transition: all var(--transition-short);
 }
 
@@ -449,7 +447,12 @@
   .heroCta {
     flex-direction: column;
     align-items: flex-start;
-    padding: var(--space-6);
+    padding: var(--space-5);
+    gap: var(--space-4);
+  }
+
+  .heroContent h2 {
+    font-size: 1.25rem;
   }
 
   .heroBtn {
@@ -459,13 +462,27 @@
   }
 
   .statsGrid {
-    flex-direction: column;
+    grid-template-columns: repeat(2, 1fr);
     gap: var(--space-3);
   }
 
   .statCard {
-    min-width: 0;
-    flex: unset;
+    padding: var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .statIcon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+
+  .statContent h3 {
+    font-size: var(--text-lg);
+  }
+
+  .statContent p {
+    font-size: 9px;
   }
 
   .sectionHeaderRow {

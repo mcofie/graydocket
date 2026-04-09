@@ -162,6 +162,9 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .topBar {
@@ -227,6 +230,9 @@
 .content {
   flex: 1;
   padding: var(--space-8);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /* Mobile Overlay */

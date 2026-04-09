@@ -1,5 +1,8 @@
 .newReg {
   max-width: 880px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .newRegHeader {
@@ -23,6 +26,8 @@
   color: var(--color-neutral-900);
   margin: 0;
   line-height: 1.2;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .newRegHeader p {
@@ -40,6 +45,8 @@
   margin-bottom: var(--space-10);
   padding: 0;
   position: relative;
+  width: 100%;
+  max-width: 100%;
 }
 
 .progressStep {
