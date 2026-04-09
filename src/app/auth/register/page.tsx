@@ -3,8 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { formatPhoneNumber } from '@/lib/sms'
+import { sendZendOtp, verifyZendOtp, checkPhoneExists } from '../zendActions'
 import styles from '../auth.module.css'
 
 export default function RegisterPage() {
@@ -12,42 +11,58 @@ export default function RegisterPage() {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
-  const [password, setPassword] = useState('')
+  const [otp, setOtp] = useState('')
+  const [otpId, setOtpId] = useState('')
+  const [step, setStep] = useState<'phone' | 'otp'>('phone')
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    setSuccess('')
     setLoading(true)
 
     try {
-      const supabase = createClient()
-      const normalizedPhone = formatPhoneNumber(phone)
-      const { error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-            phone: normalizedPhone,
-          },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      })
-
-      if (signUpError) {
-        setError(signUpError.message)
+      // 1. Check if phone already registered
+      const { exists, error: checkError } = await checkPhoneExists(phone)
+      if (checkError) throw new Error(checkError)
+      
+      if (exists) {
+        setError('This phone number is already registered. Please sign in instead.')
+        setLoading(false)
         return
       }
 
-      setSuccess(
-        'Account created! Please check your email to verify your account.'
-      )
-    } catch {
-      setError('An unexpected error occurred. Please try again.')
+      // 2. Send OTP
+      const res = await sendZendOtp(phone)
+      if (res.success && res.id) {
+        setOtpId(res.id)
+        setStep('otp')
+      } else {
+        setError(res.error || 'Failed to send OTP')
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to send OTP. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVerifyOTP = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+
+    try {
+      const res = await verifyZendOtp(otpId, otp, phone, fullName, email)
+      if (res.success) {
+        router.push('/dashboard')
+        router.refresh()
+      } else {
+        setError(res.message || 'Invalid verification code')
+      }
+    } catch (err: any) {
+      setError('Verification failed. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -62,92 +77,120 @@ export default function RegisterPage() {
             <span>GrayDocket</span>
           </Link>
 
-          <h1 className={styles.authTitle}>Create your account</h1>
+          <h1 className={styles.authTitle}>
+            {step === 'phone' ? 'Launch Your Business' : 'Verify Your Identity'}
+          </h1>
           <p className={styles.authSubtitle}>
-            Start your business registration journey today
+            {step === 'phone' 
+              ? 'Complete your details to get started' 
+              : `We've sent a 6-digit code to ${phone}`}
           </p>
 
           {error && <div className={styles.authError}>{error}</div>}
-          {success && <div className={styles.authSuccess}>{success}</div>}
 
-          <form onSubmit={handleSubmit} className={styles.authForm}>
-            <div className="form-group">
-              <label className="form-label" htmlFor="fullName">
-                Full Name
-              </label>
-              <input
-                id="fullName"
-                type="text"
-                className="form-input"
-                placeholder="Kwame Asante"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className={styles.authFormRow}>
+          {step === 'phone' ? (
+            <form onSubmit={handleSendOTP} className={styles.authForm}>
               <div className="form-group">
-                <label className="form-label" htmlFor="reg-email">
+                <label className="form-label" htmlFor="fullName">
+                  Full Name
+                </label>
+                <input
+                  id="fullName"
+                  type="text"
+                  className="form-input"
+                  placeholder="Kwame Asante"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="email">
                   Email Address
                 </label>
                 <input
-                  id="reg-email"
+                  id="email"
                   type="email"
                   className="form-input"
-                  placeholder="you@example.com"
+                  placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
                 />
               </div>
+
               <div className="form-group">
                 <label className="form-label" htmlFor="phone">
                   Phone Number
                 </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    id="phone"
+                    type="tel"
+                    className="form-input"
+                    placeholder="+233 XXX XXX XXX"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    required
+                  />
+                </div>
+                <span className="form-hint">
+                  Use your WhatsApp or primary mobile number
+                </span>
+              </div>
+
+              <button
+                type="submit"
+                className="btn btn-primary btn-lg"
+                disabled={loading}
+                id="send-otp"
+              >
+                {loading ? 'Sending Code...' : 'Register & Continue'}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyOTP} className={styles.authForm}>
+              <div className="form-group">
+                <label className="form-label" htmlFor="otp">
+                  Verification Code
+                </label>
                 <input
-                  id="phone"
-                  type="tel"
+                  id="otp"
+                  type="text"
                   className="form-input"
-                  placeholder="+233 XXX XXX XXX"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="X X X X X X"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  maxLength={6}
+                  required
+                  autoFocus
+                  style={{ letterSpacing: '0.4em', textAlign: 'center', fontSize: '1.5rem' }}
                 />
               </div>
-            </div>
 
-            <div className="form-group">
-              <label className="form-label" htmlFor="reg-password">
-                Password
-              </label>
-              <input
-                id="reg-password"
-                type="password"
-                className="form-input"
-                placeholder="Min. 8 characters"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={8}
-              />
-              <span className="form-hint">
-                Must be at least 8 characters
-              </span>
-            </div>
-
-            <button
-              type="submit"
-              className="btn btn-primary btn-lg"
-              disabled={loading}
-              id="register-submit"
-            >
-              {loading ? 'Creating Account...' : 'Create Account'}
-            </button>
-          </form>
+              <button
+                type="submit"
+                className="btn btn-primary btn-lg"
+                disabled={loading}
+                id="verify-otp"
+              >
+                {loading ? 'Verifying...' : 'Complete Registration'}
+              </button>
+              
+              <button 
+                type="button" 
+                onClick={() => setStep('phone')}
+                className="btn btn-secondary btn-sm"
+                style={{ marginTop: '12px', width: '100%', background: 'transparent' }}
+              >
+                Change Phone Number
+              </button>
+            </form>
+          )}
 
           <div className={styles.authFooter}>
-            Already have an account?{' '}
-            <Link href="/auth/login">Sign in</Link>
+            By continuing, you agree to our <Link href="/terms">Terms</Link> and <Link href="/privacy">Privacy Policy</Link>.
           </div>
         </div>
       </div>

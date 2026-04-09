@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
   Building,
@@ -16,6 +16,7 @@ import {
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import styles from './page.module.css'
+import { getAllBusinessTypes, getServices } from '@/lib/actions'
 
 const problemPoints = [
   { icon: FileText, title: 'Endless Paperwork', desc: 'Confusing government portals and overlapping forms.' },
@@ -35,22 +36,6 @@ const steps = [
   { num: '03', title: 'You’re ready to operate', desc: 'Receive your official registration documents digitally. Now you\'re ready to open a business bank account, sign contracts, and close deals.' },
 ]
 
-const pricingPlans = [
-  {
-    name: 'Business Name (Entry)', desc: 'Perfect for freelancers, creators, and solo founders who want to go official fast.', currency: 'GH₵', price: '350', period: 'one-time', popular: false,
-    features: ['Business Name reservation', 'Basic TIN setup', 'Digital Document Vault'],
-  },
-  {
-    name: 'Company Registration', desc: 'For growing startups that require a Limited Liability Company (LLC) structure.', currency: 'GH₵', price: '1,200', originalPrice: '4,500', period: 'one-time', popular: true,
-    features: ['Full ORC registration', 'Board of Directors setup', 'Standard tax compliance'],
-  },
-  {
-    name: 'Premium / Fast-Track', desc: 'For founders who need to move yesterday.', currency: 'Custom', price: 'Price on request', period: 'one-time', popular: false,
-    features: ['Priority processing', 'Dedicated account manager', 'Complete compliance setup', 'Expedited document delivery'],
-  }
-]
-
-
 const trustItems = [
   { icon: UserCheck, title: 'Built by founders, for founders', desc: 'We felt the stress of the ORC process ourselves, so we built the solution you deserve.' },
   { icon: ShieldCheck, title: 'Clear process, zero surprises', desc: 'Track exactly where your application is at all times. Never wonder what\'s happening behind the scenes.' },
@@ -62,6 +47,60 @@ const partners = [
 ]
 
 export default function Home() {
+  const [dbPrices, setDbPrices] = useState<any[]>([])
+  const [services, setServices] = useState<any[]>([])
+
+  useEffect(() => {
+    async function fetchData() {
+      const [pricingRes, servicesRes] = await Promise.all([
+        getAllBusinessTypes(),
+        getServices()
+      ])
+      if (pricingRes.business_types) setDbPrices(pricingRes.business_types)
+      if (servicesRes.services) setServices(servicesRes.services)
+    }
+    fetchData()
+  }, [])
+
+  // Helper to get total price
+  const getPriceFor = (name: string, fallback: string) => {
+    const type = dbPrices.find(t => t.name.toLowerCase().includes(name.toLowerCase()))
+    if (!type) return fallback
+    const total = (Number(type.orc_fee) || 0) + (Number(type.agent_fee) || 0) + (Number(type.returns_portion) || 0)
+    if (total === 0) return (Number(type.base_price || 0) + Number(type.service_fee || 0)).toLocaleString()
+    return total.toLocaleString()
+  }
+
+  const pricingPlans = [
+    {
+      name: 'Sole Proprietorship', 
+      desc: 'Perfect for freelancers, creators, and solo founders who want to go official fast.', 
+      currency: 'GH₵', 
+      price: getPriceFor('Sole Proprietorship', '625'), 
+      period: 'one-time', 
+      popular: false,
+      features: ['ORC Form 3 Registration', 'TIN Generation', 'Digital Document Vault'],
+    },
+    {
+      name: 'Company (Shares)', 
+      desc: 'For growing startups and businesses requiring a Limited Liability (LLC) structure.', 
+      currency: 'GH₵', 
+      price: getPriceFor('Company Limited by Shares', '1,200'), 
+      originalPrice: '4,500', 
+      period: 'one-time', 
+      popular: true,
+      features: ['Full ORC incorporation', 'Board of Directors setup', 'Tax & Compliance setup'],
+    },
+    {
+      name: 'Company (Guarantee)', 
+      desc: 'Designed for NGOs, charities, and non-profit organizations in Ghana.', 
+      currency: 'GH₵', 
+      price: getPriceFor('Company Limited by Guarantee', '1,500'), 
+      period: 'one-time', 
+      popular: false,
+      features: ['NGO legal structure', 'Commissioner for Oaths verification', 'Tax exemption assistance'],
+    }
+  ]
 
   return (
     <div className={styles.main}>
@@ -248,6 +287,50 @@ export default function Home() {
               </div>
             ))}
           </div>
+
+          {/* Precision Services List */}
+          {services.length > 0 && (
+            <div style={{ marginTop: '80px', paddingTop: '60px', borderTop: '1px solid var(--color-neutral-100)' }}>
+              <div style={{ textAlign: 'center', marginBottom: '48px' }}>
+                <h3 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-neutral-900)' }}>Precision Corporate Services</h3>
+                <p style={{ color: 'var(--color-neutral-500)', fontSize: '15px', marginTop: '8px' }}>Itemized solutions for specific administrative needs.</p>
+              </div>
+              
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', 
+                gap: '16px' 
+              }}>
+                {services.map((s, idx) => (
+                  <div key={idx} style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    padding: '20px 24px', 
+                    background: 'white', 
+                    borderRadius: '16px', 
+                    border: '1px solid var(--color-neutral-200)',
+                    transition: 'all 0.2s',
+                    cursor: 'default'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                       <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--color-primary-500)' }} />
+                       <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--color-neutral-800)' }}>{s.name}</span>
+                    </div>
+                    <div style={{ fontWeight: 800, fontSize: '16px', color: 'var(--color-primary-600)' }}>
+                       GH₵ {Number(s.price).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ textAlign: 'center', marginTop: '40px' }}>
+                <p style={{ fontSize: '13px', color: 'var(--color-neutral-400)', fontStyle: 'italic' }}>
+                  All prices are inclusive of government statutory fees where applicable.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

@@ -10,17 +10,12 @@ import styles from '../auth.module.css'
 function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [method, setMethod] = useState<'otp' | 'email'>('otp')
   
   // OTP State
   const [phone, setPhone] = useState('')
   const [otpSent, setOtpSent] = useState(false)
   const [otpId, setOtpId] = useState('')
   const [code, setCode] = useState('')
-  
-  // Email State (Fallback)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -53,9 +48,6 @@ function LoginContent() {
     try {
       const res = await verifyZendOtp(otpId, code, phone)
       if (res.success) {
-        // Here we simulate successful routing. 
-        // NOTE: In a real Supabase setup, you need to issue a custom JWT from the server 
-        // to authenticate the @supabase/ssr client. 
         const redirectTo = searchParams.get('redirect')
         router.push(redirectTo || '/dashboard')
         router.refresh()
@@ -65,42 +57,6 @@ function LoginContent() {
     } catch {
       setError('An unexpected error occurred during verification.')
     } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-
-    try {
-      const supabase = createClient()
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (signInError) {
-        setError(signInError.message)
-        setLoading(false)
-        return
-      }
-
-      // Check auth profile but don't redirect to admin since we are separating it
-      const redirectTo = searchParams.get('redirect')
-      
-      // If a standard user was trying to access an admin page and somehow got to this login, 
-      // we still drop them safely in dashboard instead. Only /admin/login handles admin routing now.
-      if (redirectTo && !redirectTo.startsWith('/admin')) {
-        router.push(redirectTo)
-      } else {
-        router.push('/dashboard')
-      }
-      
-      router.refresh()
-    } catch {
-      setError('An unexpected error occurred. Please try again.')
       setLoading(false)
     }
   }
@@ -116,31 +72,12 @@ function LoginContent() {
 
           <h1 className={styles.authTitle}>Welcome back</h1>
           <p className={styles.authSubtitle}>
-            Sign in to manage your business applications
+            Sign in with your mobile number
           </p>
 
           {error && <div className={styles.authError}>{error}</div>}
 
-          {/* Toggle between OTP and Email */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', background: 'var(--color-neutral-100)', padding: '4px', borderRadius: '8px' }}>
-            <button 
-              type="button"
-              onClick={() => { setMethod('otp'); setError(''); setOtpSent(false); }}
-              style={{ flex: 1, padding: '8px', borderRadius: '6px', border: 'none', background: method === 'otp' ? 'white' : 'transparent', fontWeight: method === 'otp' ? 600 : 400, boxShadow: method === 'otp' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', cursor: 'pointer', transition: 'all 0.2s' }}
-            >
-              Phone (OTP)
-            </button>
-            <button 
-              type="button"
-              onClick={() => { setMethod('email'); setError(''); }}
-              style={{ flex: 1, padding: '8px', borderRadius: '6px', border: 'none', background: method === 'email' ? 'white' : 'transparent', fontWeight: method === 'email' ? 600 : 400, boxShadow: method === 'email' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', cursor: 'pointer', transition: 'all 0.2s' }}
-            >
-              Email & Password
-            </button>
-          </div>
-
-          {method === 'otp' ? (
-            !otpSent ? (
+          {!otpSent ? (
                <form onSubmit={handleSendOtp} className={styles.authForm}>
                 <div className="form-group">
                   <label className="form-label" htmlFor="phone">Phone Number</label>
@@ -185,42 +122,7 @@ function LoginContent() {
                 </div>
               </form>
             )
-          ) : (
-            <form onSubmit={handleEmailSubmit} className={styles.authForm}>
-              <div className="form-group">
-                <label className="form-label" htmlFor="email">Email Address</label>
-                <input
-                  id="email"
-                  type="email"
-                  className="form-input"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="password">Password</label>
-                <input
-                  id="password"
-                  type="password"
-                  className="form-input"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-                <div className={styles.authForgotLink}>
-                  <Link href="/auth/forgot-password">Forgot password?</Link>
-                </div>
-              </div>
-
-              <button type="submit" className="btn btn-primary btn-lg" disabled={loading} id="login-submit">
-                {loading ? 'Signing in...' : 'Sign In'}
-              </button>
-            </form>
-          )}
+          }
 
           <div className={styles.authFooter}>
             Don&apos;t have an account?{' '}

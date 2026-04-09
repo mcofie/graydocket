@@ -5,6 +5,26 @@ import { createClient as createSupabaseServerClient } from '@/lib/supabase/serve
 import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js'
 import { formatPhoneNumber } from '@/lib/sms'
 
+export async function checkPhoneExists(phone: string) {
+  const normalizedPhone = formatPhoneNumber(phone)
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const supabase = await createAdminClient()
+  
+  const { data, error } = await supabase
+    .schema('graydocket')
+    .from('profiles')
+    .select('id')
+    .eq('phone', normalizedPhone)
+    .limit(1)
+
+  if (error) {
+    console.error('Check phone error:', error)
+    return { exists: false, error: error.message }
+  }
+
+  return { exists: data && data.length > 0 }
+}
+
 export async function sendZendOtp(phone: string) {
   if (!process.env.ZEND_API_KEY) {
     console.warn('Missing ZEND_API_KEY environment variable. Mocking OTP send.')
@@ -51,7 +71,7 @@ export async function sendZendOtp(phone: string) {
   }
 }
 
-export async function verifyZendOtp(id: string, code: string, phone: string) {
+export async function verifyZendOtp(id: string, code: string, phone: string, fullName?: string, providedEmail?: string) {
   let isVerified = false
   
   if (!process.env.ZEND_API_KEY) {
@@ -91,30 +111,62 @@ export async function verifyZendOtp(id: string, code: string, phone: string) {
   }
 
   // --- SUPABASE SESSION BRIDGE ---
-  // Now that Zend verified the phone, we securely create a Supabase session.
   if (isVerified) {
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       console.error("SUPABASE_SERVICE_ROLE_KEY missing in environment.")
-      return { success: false, message: 'Server configuration error (Service Role Key missing). Please contact support.' }
+      return { success: false, message: 'Server configuration error.' }
     }
 
-    // 1. Init Admin client to bypass RLS and lookup user
-    const adminSupabase = createSupabaseAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const { createAdminClient } = await import('@/lib/supabase/server')
+    const adminSupabase = await createAdminClient()
 
-    // 2. Lookup the user's profile by their phone number (could be slightly formatted differently)
-    // We normalize to ensure we match the format stored in DB
     const normalizedPhone = formatPhoneNumber(phone)
-    const { data: profiles, error: lookupError } = await adminSupabase
+    let { data: profiles, error: lookupError } = await adminSupabase
+      .schema('graydocket')
       .from('profiles')
       .select('id, email')
       .eq('phone', normalizedPhone)
       .limit(1)
 
-    if (lookupError || !profiles || profiles.length === 0) {
-      return { success: false, message: 'No account found with this phone number. Please register first.' }
+    // Bridge for Registration: If no account exists, create one!
+    if (!profiles || profiles.length === 0) {
+      const emailToUse = providedEmail || `${normalizedPhone.replace('+', '')}@graydocket.user`
+      
+      // Create the Auth User via Admin
+      const { data: newUser, error: createError } = await adminSupabase.auth.admin.createUser({
+        phone: normalizedPhone,
+        email: emailToUse,
+        password: crypto.randomBytes(16).toString('hex'), 
+        phone_confirm: true,
+        email_confirm: true,
+        user_metadata: { 
+          phone: normalizedPhone,
+          full_name: fullName,
+          app_id: 'graydocket'
+        }
+      })
+
+      if (createError) {
+        console.error('Auto-registration error:', createError)
+        return { success: false, message: 'Failed to create your account: ' + createError.message }
+      }
+
+      if (!newUser?.user) {
+        return { success: false, message: 'Failed to provision user profile.' }
+      }
+
+      // Profile is likely created via DB Trigger (handle_new_user), 
+      // but let's re-fetch or ensure it exists
+      profiles = [{ id: newUser.user.id, email: emailToUse }]
+    }
+
+    // Tag this user as a GrayDocket user (works for both new and returning users)
+    const userId = profiles[0].id
+    const authUserResp = await adminSupabase.auth.admin.getUserById(userId)
+    if (authUserResp.data?.user && authUserResp.data.user.user_metadata?.app_id !== 'graydocket') {
+      await adminSupabase.auth.admin.updateUserById(userId, {
+        user_metadata: { ...authUserResp.data.user.user_metadata, app_id: 'graydocket' }
+      })
     }
 
     const { email } = profiles[0]

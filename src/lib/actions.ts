@@ -772,21 +772,68 @@ export async function getAdminUsers() {
   const isAdmin = await checkIsAdmin()
   if (!isAdmin) return { users: [], error: 'Unauthorized' }
 
-  const supabase = await createClient()
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminSupabase = await createAdminClient()
 
-  const { data, error } = await supabase
+  // 1. Get all profiles from graydocket schema
+  const { data: profiles, error } = await adminSupabase
+    .schema('graydocket')
     .from('profiles')
-    .select('*, applications!user_id(id)')
+    .select('*')
     .order('created_at', { ascending: false })
 
   if (error) return { users: [], error: error.message }
 
-  // Restrict list to users who are actively engaged with GrayDocket (Staff, Partners, or Applicants)
-  const appUsers = (data || []).filter((u: any) => 
-    (u.applications && u.applications.length > 0) || 
-    u.role !== 'user' || 
+  // 2. Get auth users to check app_id metadata and phone verification status
+  const { data: { users: authUsers } } = await adminSupabase.auth.admin.listUsers({ perPage: 1000 })
+  const authMap = new Map((authUsers || []).map(u => [u.id, u]))
+  
+  // GrayDocket users are identified by:
+  // - Explicit app_id tag in metadata, OR
+  // - Having a confirmed phone (GrayDocket is the only app that sets phone_confirm:true)
+  const gdAuthIds = new Set(
+    (authUsers || [])
+      .filter(u => 
+        u.user_metadata?.app_id === 'graydocket' ||
+        u.phone_confirmed_at
+      )
+      .map(u => u.id)
+  )
+
+  // 3. Get user IDs with GrayDocket applications or drafts
+  const [{ data: appRows }, { data: draftRows }] = await Promise.all([
+    adminSupabase.schema('graydocket').from('applications').select('user_id'),
+    adminSupabase.schema('graydocket').from('application_drafts').select('user_id'),
+  ])
+  const activityIds = new Set([
+    ...(appRows || []).map((r: any) => r.user_id),
+    ...(draftRows || []).map((r: any) => r.user_id),
+  ])
+
+  // 4. A user belongs to GrayDocket if ANY of these are true:
+  //    - They registered via GrayDocket phone OTP (app_id or phone_confirmed_at)
+  //    - They have a GrayDocket application or draft
+  //    - They have a non-default role (admin, registrar, etc.)
+  //    - They are a GrayDocket affiliate partner
+  const appUsers = (profiles || []).filter((u: any) =>
+    gdAuthIds.has(u.id) ||
+    activityIds.has(u.id) ||
+    (u.role && u.role !== 'user') ||
     u.is_affiliate
   )
+
+  // 5. Self-healing: retroactively tag any identified GrayDocket users
+  //    who are missing the app_id in their auth metadata. Fire-and-forget.
+  for (const user of appUsers) {
+    if (!gdAuthIds.has(user.id)) {
+      const authUser = authMap.get(user.id)
+      if (authUser) {
+        adminSupabase.auth.admin.updateUserById(user.id, {
+          user_metadata: { ...authUser.user_metadata, app_id: 'graydocket' }
+        }).catch(() => {}) // silent — best effort
+      }
+    }
+  }
 
   return { users: appUsers, error: null }
 }
@@ -1529,7 +1576,7 @@ export async function createAdminUser(userData: {
       email: userData.email,
       phone: userData.phone,
       email_confirm: true,
-      user_metadata: { full_name: userData.full_name, phone: userData.phone },
+      user_metadata: { full_name: userData.full_name, phone: userData.phone, app_id: 'graydocket' },
       password: 'GrayDocketPartner@2026' 
     })
 
