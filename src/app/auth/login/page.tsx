@@ -7,6 +7,8 @@ import { createClient } from '@/lib/supabase/client'
 import { sendZendOtp, verifyZendOtp } from '../zendActions'
 import styles from '../auth.module.css'
 
+import PhoneInput from '@/components/ui/PhoneInput'
+
 function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -81,13 +83,9 @@ function LoginContent() {
                <form onSubmit={handleSendOtp} className={styles.authForm}>
                 <div className="form-group">
                   <label className="form-label" htmlFor="phone">Phone Number</label>
-                  <input
-                    id="phone"
-                    type="tel"
-                    className="form-input"
-                    placeholder="+233 XXX XXX XXX"
+                  <PhoneInput
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={setPhone}
                     required
                   />
                 </div>

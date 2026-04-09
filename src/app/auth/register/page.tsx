@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { sendZendOtp, verifyZendOtp, checkPhoneExists } from '../zendActions'
 import styles from '../auth.module.css'
+import PhoneInput from '@/components/ui/PhoneInput'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -124,17 +125,11 @@ export default function RegisterPage() {
                 <label className="form-label" htmlFor="phone">
                   Phone Number
                 </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    id="phone"
-                    type="tel"
-                    className="form-input"
-                    placeholder="+233 XXX XXX XXX"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    required
-                  />
-                </div>
+                <PhoneInput
+                  value={phone}
+                  onChange={setPhone}
+                  required
+                />
                 <span className="form-hint">
                   Use your WhatsApp or primary mobile number
                 </span>

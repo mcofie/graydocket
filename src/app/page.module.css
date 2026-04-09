@@ -322,73 +322,127 @@
 }
 
 .focusIcon {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
-  background: var(--color-neutral-100);
-  border-radius: var(--radius-lg);
+  background: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-primary-900);
+  color: var(--color-primary-600);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
 
 .focusItem strong {
   display: block;
-  font-size: var(--text-base);
+  font-size: 1.125rem;
+  font-weight: 700;
   margin-bottom: 4px;
+  color: var(--color-neutral-900);
 }
 
 .focusItem p {
-  font-size: var(--text-sm);
+  font-size: 0.9375rem;
   color: var(--color-neutral-500);
-  line-height: var(--line-height-relaxed);
+  line-height: 1.6;
 }
 
 .focusVisual {
   position: relative;
-  height: 400px;
   display: flex;
   justify-content: center;
   align-items: center;
+  padding: var(--space-8);
 }
 
 .focusCardStack {
   position: relative;
   width: 100%;
-  max-width: 320px;
+  max-width: 400px;
+  perspective: 1000px;
 }
 
 .focusCard {
-  background: white;
-  border: 1px solid var(--color-neutral-200);
-  border-radius: var(--radius-xl);
-  padding: var(--space-8);
-  box-shadow: var(--shadow-xl);
-  transition: transform 0.3s var(--transition-spring);
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 24px;
+  padding: var(--space-10);
+  box-shadow: 
+    0 25px 50px -12px rgba(0, 0, 0, 0.5),
+    inset 0 1px 1px rgba(255,255,255,0.1);
+  position: relative;
+  overflow: hidden;
+  color: white;
+}
+
+.focusCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.05) 0%, transparent 100%);
+  pointer-events: none;
 }
 
 .focusCardHeader {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--color-neutral-400);
-  margin-bottom: var(--space-6);
+  letter-spacing: 0.2em;
+  color: var(--color-primary-400);
+  margin-bottom: var(--space-8);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .focusCardBody {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-6);
 }
 
 .focusActionItem {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  font-size: 14px;
+  gap: var(--space-4);
+  font-size: 15px;
   font-weight: 600;
+  color: rgba(255,255,255,0.9);
+}
+
+.focusActionItem svg {
+  color: var(--color-primary-400);
+}
+
+.focusCardFooter {
+  margin-top: var(--space-10);
+  padding-top: var(--space-6);
+  border-top: 1px solid rgba(255,255,255,0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.focusCardStat {
+  display: flex;
+  flex-direction: column;
+}
+
+.focusCardStat span {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.4);
+}
+
+.focusCardStat strong {
+  font-size: 14px;
+  color: white;
 }
 
 .section { padding: var(--space-20) 0; }

@@ -533,24 +533,34 @@ export async function getServices() {
 
 
 async function checkIsAdmin(requiredRoles: string[] = ['admin', 'registrar', 'bank_manager', 'service_manager']) {
-  const { createClient } = await import('@/lib/supabase/server')
+  const { createClient, createAdminClient } = await import('@/lib/supabase/server')
+  
+  // Try to get the current user session
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return false
 
-  // Impenetrable Founder Override
-  if (user.email === 'maxcofie@gmail.com') return true
+  // Impenetrable Founder Override (email, phone, or metadata)
+  const founderEmails = ['maxcofie@gmail.com', 'sandbox@gmail.com']
+  const founderPhones = ['+233558508306']
+  
+  if (
+    (user.email && founderEmails.includes(user.email)) ||
+    (user.phone && founderPhones.includes(user.phone)) ||
+    (user.user_metadata?.phone && founderPhones.includes(user.user_metadata.phone))
+  ) return true
 
-  const { createAdminClient } = await import('@/lib/supabase/server')
   const adminClient = await createAdminClient()
 
   // 1. Check Graydocket Schema
-  let { data: profile } = await adminClient
+  const { data } = await adminClient
     .schema('graydocket')
     .from('profiles')
     .select('role')
     .eq('id', user.id)
-    .maybeSingle()
+    .limit(1)
+  
+  let profile = data?.[0] || null
 
   if (!profile) {
     // 2. Fallback to public
@@ -559,25 +569,31 @@ async function checkIsAdmin(requiredRoles: string[] = ['admin', 'registrar', 'ba
       .from('profiles')
       .select('role')
       .eq('id', user.id)
-      .maybeSingle()
-    profile = pubProf
+      .limit(1)
+    
+    profile = pubProf?.[0] || null
   }
 
   const role = profile?.role || user.app_metadata?.role || user.user_metadata?.role
   return role && requiredRoles.includes(role)
 }
 
+
 export async function getAdminStats() {
   const isAuthorized = await checkIsAdmin()
   if (!isAuthorized) return null
 
-  const { createAdminClient } = await import('@/lib/supabase/server')
-  const client = await createAdminClient()
-  const { data: { user } } = await client.auth.getUser()
+  // Use regular client for session, admin client for data
+  const { createClient, createAdminClient } = await import('@/lib/supabase/server')
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
+  const client = await createAdminClient()
+
   // Resolve role
-  const { data: profile } = await client.schema('graydocket').from('profiles').select('role').eq('id', user.id).maybeSingle()
+  const { data: profData } = await client.schema('graydocket').from('profiles').select('role').eq('id', user.id).limit(1)
+  const profile = profData?.[0] || null
   const role = profile?.role || 'registrar'
 
   // Standard filters
@@ -585,8 +601,8 @@ export async function getAdminStats() {
   const unassignedFilter = role === 'registrar' ? `assigned_to.is.null` : null
 
   // 1. Core Counts (Role-aware)
-  let appQuery = client.from('applications').select('id', { count: 'exact', head: true })
-  let completedQuery = client.from('applications').select('id', { count: 'exact', head: true }).eq('status', 'completed')
+  let appQuery = client.schema('graydocket').from('applications').select('id', { count: 'exact', head: true })
+  let completedQuery = client.schema('graydocket').from('applications').select('id', { count: 'exact', head: true }).eq('status', 'completed')
   
   if (role === 'registrar') {
     appQuery = appQuery.or(`assigned_to.eq.${user.id},assigned_to.is.null`)
@@ -599,6 +615,7 @@ export async function getAdminStats() {
   // 2. Pulse: Stale/Urgent (Unassigned > 6 hours) - Registrars only see unassigned urgent
   const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
   const { count: urgentCount } = await client
+    .schema('graydocket')
     .from('applications')
     .select('id', { count: 'exact', head: true })
     .is('assigned_to', null)
@@ -608,7 +625,7 @@ export async function getAdminStats() {
   let monthlyRevenue = 0
   if (role === 'admin') {
      const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-     const { data: revenueData } = await client.from('applications').select('total_amount').eq('payment_status', 'paid').gt('created_at', firstOfMonth)
+     const { data: revenueData } = await client.schema('graydocket').from('applications').select('total_amount').eq('payment_status', 'paid').gt('created_at', firstOfMonth)
      monthlyRevenue = revenueData?.reduce((acc: any, curr: any) => acc + (Number(curr.total_amount) || 0), 0) || 0
   }
 
@@ -620,14 +637,16 @@ export async function getAdminStats() {
     activeCases: (r as any).applications?.length || 0
   })) || [] : []
 
-  // 5. User Data
-  let totalUsers: any = { data: null, count: 0 }
+  // 5. User Data (Synchronized with getAdminUsers logic)
+  let userCount = 0
   if (role === 'admin') {
-     totalUsers = await client.from('profiles').select('id', { count: 'exact', head: true }).or('role.neq.user,is_affiliate.eq.true')
+     const { users } = await getAdminUsers()
+     userCount = users.length
   }
 
   // 6. Recent Apps (Filtered for Registrars)
   let recentQuery = client
+    .schema('graydocket')
     .from('applications')
     .select('*, profiles:user_id(full_name)')
     .order('created_at', { ascending: false })
@@ -642,7 +661,7 @@ export async function getAdminStats() {
   return {
     role,
     totalApplications: appCount || 0,
-    totalUsers: (totalUsers as any)?.count || 0,
+    totalUsers: userCount || 0,
     completedApplications: completedCount || 0,
     urgentCount: urgentCount || 0,
     monthlyRevenue,

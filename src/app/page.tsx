@@ -11,7 +11,10 @@ import {
   Zap,
   ShieldCheck,
   FileText,
-  UserCheck
+  UserCheck,
+  LockKeyhole,
+  Users,
+  Banknote
 } from 'lucide-react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
@@ -25,21 +28,21 @@ const problemPoints = [
 ]
 
 const solutionPoints = [
-  { icon: Zap, title: 'Simpler', desc: 'No legal jargon or confusing forms. Tell us about your business in a plain-English form, and we do the rest.' },
-  { icon: Clock, title: 'Faster', desc: 'We know exactly what the ORC requires. We submit the right things the first time, preventing annoying delays.' },
-  { icon: ShieldCheck, title: 'Done-For-You', desc: 'From business name searches to TIN registration and tax compliance, we handle the entire process from start to finish.' }
+  { icon: ShieldCheck, title: 'Compliance on Autopilot', desc: 'Starting is easy; staying official is the hard part. We track your ORC annual returns and GRA filings so you never pay a penalty.' },
+  { icon: LockKeyhole, title: 'Digital Document Vault', desc: 'Access your Certificate of Incorporation, Constitution, and TIN documents anytime from your secure digital glovebox.' },
+  { icon: Zap, title: 'The "Day 2" Bridge', desc: 'Done with registration? We bridge the gap to business bank accounts, SSNIT registration, and tax activation in one click.' }
 ]
 
 const steps = [
-  { num: '01', title: 'Tell us about your business', desc: 'Fill out our simple, 5-minute digital form with your business details and founder information.' },
-  { num: '02', title: 'We handle the bureaucracy', desc: "Our experts prepare your documents, file with the ORC, and process your tax IDs. You don't have to lift a finger or stand in a single queue." },
-  { num: '03', title: 'You’re ready to operate', desc: 'Receive your official registration documents digitally. Now you\'re ready to open a business bank account, sign contracts, and close deals.' },
+  { num: '01', title: 'Start with Ease', desc: 'Fill out our 5-minute form. We handle the ORC bureaucracy, business name searches, and document prep.' },
+  { num: '02', title: 'Go Official', desc: "We file your incorporation and generate your TIN. You receive your certified digital documents in your secure vault." },
+  { num: '03', title: 'Scale with Confidence', desc: 'Setup your corporate bank account and stay compliant with automated reminders for annual returns and tax dates.' },
 ]
 
 const trustItems = [
-  { icon: UserCheck, title: 'Built by founders, for founders', desc: 'We felt the stress of the ORC process ourselves, so we built the solution you deserve.' },
-  { icon: ShieldCheck, title: 'Clear process, zero surprises', desc: 'Track exactly where your application is at all times. Never wonder what\'s happening behind the scenes.' },
-  { icon: Zap, title: 'No back-and-forth', desc: 'We verify your details on day one so you aren\'t bothered with endless corrections or rejected applications.' },
+  { icon: Users, title: 'Sandbox Réseau Network', desc: 'Every GrayDocket founder gets exclusive access to our elite network of builders and startup perks.' },
+  { icon: ShieldCheck, title: 'Zero Penalty Guarantee', desc: 'Our compliance calendar ensures you never miss an ORC deadline or a GRA filing window.' },
+  { icon: Banknote, title: 'Institutional Banking Bridge', desc: 'Integrated KYC with Ghana’s leading banks to get your corporate account live in record time.' },
 ]
 
 const partners = [
@@ -79,7 +82,7 @@ export default function Home() {
       price: getPriceFor('Sole Proprietorship', '625'), 
       period: 'one-time', 
       popular: false,
-      features: ['ORC Form 3 Registration', 'TIN Generation', 'Digital Document Vault'],
+      features: ['ORC Form 3 Registration', 'TIN Generation', 'Digital Document Vault (Lifetime)'],
     },
     {
       name: 'Company (Shares)', 
@@ -89,7 +92,7 @@ export default function Home() {
       originalPrice: '4,500', 
       period: 'one-time', 
       popular: true,
-      features: ['Full ORC incorporation', 'Board of Directors setup', 'Tax & Compliance setup'],
+      features: ['Full ORC incorporation', 'Board of Directors setup', 'Tax & Annual Compliance Tracker'],
     },
     {
       name: 'Company (Guarantee)', 
@@ -111,11 +114,11 @@ export default function Home() {
         <div className={styles.heroLayout}>
           <div className={styles.heroContent}>
             <h1 className={styles.heroTitle}>
-              Launch Your Business in Days.<br />
-              <span className={styles.gradientText}>Zero Stress Included.</span>
+              Launch & Scale Your Business.<br />
+              <span className={styles.gradientText}>Zero Compliance Stress.</span>
             </h1>
             <p className={styles.heroSubtitle}>
-              We handle the paperwork, TINs, and government bureaucracy so you can focus on building your business. No queues, no confusion, just a registered company ready to operate.
+              Go from an idea to an officially registered and compliant company in days. We handle the ORC, the TINs, and the automated annual follow-ups so you can focus on building.
             </p>
             <div className={styles.heroActions}>
               <Link href="/auth/register" className="btn btn-primary btn-lg">Start My Registration</Link>
@@ -354,13 +357,22 @@ export default function Home() {
             </div>
             <div className={styles.focusVisual}>
               <div className={styles.focusCardStack}>
-                 {/* Some visual representation of trust */}
-                 <div className={styles.focusCard} style={{ transform: 'none', background: 'var(--color-primary-900)', color: 'white', border: 'none' }}>
-                    <div className={styles.focusCardHeader} style={{ color: 'rgba(255,255,255,0.6)' }}>OUR GUARANTEE</div>
+                  <div className={styles.focusCard}>
+                    <div className={styles.focusCardHeader}>
+                      <ShieldCheck size={14} />
+                      OUR GUARANTEE
+                    </div>
                     <div className={styles.focusCardBody}>
-                      <div className={styles.focusActionItem}><Check size={16} /> Fast Processing</div>
-                      <div className={styles.focusActionItem}><Check size={16} /> Transparent Pricing</div>
-                      <div className={styles.focusActionItem}><Check size={16} /> 100% Compliant</div>
+                      <div className={styles.focusActionItem}><Check size={18} /> Fast Processing</div>
+                      <div className={styles.focusActionItem}><Check size={18} /> Transparent Pricing</div>
+                      <div className={styles.focusActionItem}><Check size={18} /> 100% Compliant</div>
+                    </div>
+                    <div className={styles.focusCardFooter}>
+                       <div className={styles.focusCardStat}>
+                          <span>SLA COMMITMENT</span>
+                          <strong>24h Turnaround</strong>
+                       </div>
+                       <LockKeyhole size={20} style={{ opacity: 0.3 }} />
                     </div>
                   </div>
               </div>
@@ -373,7 +385,7 @@ export default function Home() {
       <section className={styles.section} style={{ textAlign: 'center' }}>
         <div className={styles.containerSmall}>
           <h2 className={styles.sectionTitle}>Stop waiting. Start building.</h2>
-          <p className={styles.sectionSubtitle} style={{ marginBottom: '32px' }}>Join the founders who skipped the queue and registered their businesses the smart way.</p>
+          <p className={styles.sectionSubtitle} style={{ marginBottom: '32px' }}>Join the founders who skipped the queue and secured their business future with GrayDocket.</p>
           <Link href="/auth/register" className="btn btn-primary btn-lg">Get Started Now <ArrowRight size={18} /></Link>
         </div>
       </section>

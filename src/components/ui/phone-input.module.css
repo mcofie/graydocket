@@ -1,0 +1,52 @@
+.phoneInputContainer {
+  display: flex;
+  align-items: center;
+  background: white;
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius-lg);
+  padding: 0 var(--space-4);
+  background: var(--color-neutral-0);
+  transition: all 0.2s;
+}
+
+.phoneInputContainer:focus-within {
+  border-color: var(--color-primary-600);
+  box-shadow: 0 0 0 4px rgba(var(--color-primary-500-rgb), 0.1);
+}
+
+.countrySelect {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-right: var(--space-3);
+  margin-right: var(--space-3);
+  border-right: 1px solid var(--color-neutral-100);
+  user-select: none;
+}
+
+.flag {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.prefix {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-neutral-400);
+}
+
+.input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 12px 0;
+  font-size: 16px; /* Prevents zoom on iOS */
+  font-weight: 500;
+  color: var(--color-neutral-900);
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--color-neutral-300);
+  letter-spacing: normal;
+}
