@@ -63,6 +63,7 @@
   cursor: pointer;
   text-align: left;
   transition: all var(--transition-short);
+  position: relative;
 }
 
 .navItem:hover {
@@ -71,8 +72,21 @@
 }
 
 .navItem.active {
-  background: var(--color-primary-50);
-  color: var(--color-primary-700);
+  background: white;
+  color: var(--color-primary-600);
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.navItem.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: var(--space-4);
+  right: var(--space-4);
+  height: 2px;
+  background: var(--color-primary-600);
+  border-radius: 2px;
 }
 
 /* Main Content Area */
@@ -248,8 +262,19 @@
   }
   .navItem {
     white-space: nowrap;
-    padding: var(--space-2) var(--space-4);
+    padding: var(--space-3) var(--space-4);
     font-size: 13px;
+    border-radius: var(--radius-md);
+  }
+  
+  .navItem.active {
+    background: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  }
+  
+  .navItem.active::after {
+    left: var(--space-2);
+    right: var(--space-2);
   }
   .actionRow {
     flex-direction: column-reverse;

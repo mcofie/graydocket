@@ -534,6 +534,22 @@
 
 .price { font-size: 3.5rem; font-weight: 800; color: var(--color-primary-900); letter-spacing: -0.05em; }
 
+.pricingEta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-neutral-500);
+  background: var(--color-neutral-50);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  margin-bottom: var(--space-4);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid var(--color-neutral-200);
+}
+
 /* CONTACT/FAQ */
 .faqList { display: flex; flex-direction: column; gap: var(--space-4); }
 .faqItem { background: white; border: 1px solid var(--color-neutral-200); border-radius: var(--radius-xl); overflow: hidden; }
@@ -719,4 +735,83 @@
   .problemIcon { width: 48px; height: 48px; margin-bottom: var(--space-4); }
   .problemCard h3 { font-size: 1.1rem; }
   .focusCard { padding: var(--space-5); }
+}
+/* Precision Services */
+.precisionSection {
+  margin-top: var(--space-20);
+  padding-top: var(--space-20);
+  border-top: 1px solid var(--color-neutral-100);
+}
+
+.precisionHeader {
+  text-align: center;
+  margin-bottom: var(--space-12);
+}
+
+.sectionTitleSmall {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--color-neutral-900);
+  margin-bottom: var(--space-2);
+}
+
+.sectionSubtitleSmall {
+  font-size: 0.9375rem;
+  color: var(--color-neutral-500);
+}
+
+.precisionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+}
+
+.precisionCard {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-5) var(--space-6);
+  background: white;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-neutral-200);
+  transition: all var(--transition-base);
+  cursor: default;
+}
+
+.precisionCard:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-primary-400);
+  box-shadow: var(--shadow-md);
+}
+
+.precisionTitleWrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.precisionIcon {
+  color: var(--color-primary-600);
+}
+
+.precisionName {
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--color-neutral-800);
+}
+
+.precisionPrice {
+  font-weight: 800;
+  font-size: var(--text-base);
+  color: var(--color-primary-600);
+}
+
+.precisionDisclaimer {
+  text-align: center;
+  margin: var(--space-10) auto 0;
+  max-width: 800px;
+  font-size: var(--text-xs);
+  color: var(--color-neutral-400);
+  font-style: italic;
+  line-height: 1.6;
 }

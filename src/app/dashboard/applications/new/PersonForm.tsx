@@ -35,7 +35,7 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
   }
 
   return (
-    <div className={styles.personFormContainer} style={{ background: 'var(--color-neutral-0)', border: '1px solid var(--color-neutral-200)', borderRadius: 'var(--radius-xl)', padding: 'var(--space-5)', marginBottom: 'var(--space-6)' }}>
+    <div className={styles.personFormContainer}>
       <div className={styles.personFormHeader}>
         <h3 className={styles.personFormTitle}>{title}</h3>
         {!scanned ? (
@@ -50,12 +50,17 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
       </div>
 
       {/* Accordion 1: Personal Info */}
-      <div style={{ border: '1px solid var(--color-neutral-200)', borderRadius: 'var(--radius-lg)', marginBottom: 'var(--space-3)', overflow: 'hidden' }}>
-        <button type="button" onClick={() => setOpenSection(openSection === 'personal' ? 'personal' : 'personal')} style={{ width: '100%', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: openSection === 'personal' ? 'var(--color-neutral-50)' : 'var(--color-neutral-0)', border: 'none', cursor: 'pointer', fontWeight: 750, color: 'var(--color-neutral-900)' }}>
+      <div className={styles.accordion}>
+        <button 
+          type="button" 
+          onClick={() => setOpenSection(openSection === 'personal' ? 'personal' : 'personal')} 
+          className={styles.accordionTrigger}
+          style={{ background: openSection === 'personal' ? 'var(--color-neutral-50)' : 'var(--color-neutral-0)' }}
+        >
           <span>1. Personal Information</span> {openSection === 'personal' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
         {openSection === 'personal' && (
-          <div style={{ padding: 'var(--space-5)', background: 'var(--color-neutral-0)', borderTop: '1px solid var(--color-neutral-100)' }}>
+          <div className={styles.accordionContent}>
             <div className={styles.formGrid}>
                <div className="form-group">
                 <label className="form-label">Title</label>
@@ -102,12 +107,17 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
       </div>
 
       {/* Accordion 2: Identification */}
-      <div style={{ border: '1px solid var(--color-neutral-200)', borderRadius: 'var(--radius-lg)', marginBottom: 'var(--space-3)', overflow: 'hidden' }}>
-        <button type="button" onClick={() => setOpenSection(openSection === 'id' ? 'personal' : 'id')} style={{ width: '100%', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: openSection === 'id' ? 'var(--color-neutral-50)' : 'var(--color-neutral-0)', border: 'none', cursor: 'pointer', fontWeight: 750, color: 'var(--color-neutral-900)' }}>
+      <div className={styles.accordion}>
+        <button 
+          type="button" 
+          onClick={() => setOpenSection(openSection === 'id' ? 'personal' : 'id')} 
+          className={styles.accordionTrigger}
+          style={{ background: openSection === 'id' ? 'var(--color-neutral-50)' : 'var(--color-neutral-0)' }}
+        >
           <span>2. Identification</span> {openSection === 'id' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
         {openSection === 'id' && (
-          <div style={{ padding: 'var(--space-5)', background: 'var(--color-neutral-0)', borderTop: '1px solid var(--color-neutral-100)' }}>
+          <div className={styles.accordionContent}>
             <div className={styles.formGrid}>
                <div className="form-group">
                 <label className="form-label">Ghana Card Number *</label>
@@ -126,12 +136,17 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
       </div>
 
       {/* Accordion 3: Contact & Address */}
-      <div style={{ border: '1px solid var(--color-neutral-200)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        <button type="button" onClick={() => setOpenSection(openSection === 'address' ? 'id' : 'address')} style={{ width: '100%', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: openSection === 'address' ? 'var(--color-neutral-50)' : 'var(--color-neutral-0)', border: 'none', cursor: 'pointer', fontWeight: 750, color: 'var(--color-neutral-900)' }}>
+      <div className={styles.accordion}>
+        <button 
+          type="button" 
+          onClick={() => setOpenSection(openSection === 'address' ? 'id' : 'address')} 
+          className={styles.accordionTrigger}
+          style={{ background: openSection === 'address' ? 'var(--color-neutral-50)' : 'var(--color-neutral-0)' }}
+        >
           <span>3. Address & Contact</span> {openSection === 'address' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
         {openSection === 'address' && (
-          <div style={{ padding: 'var(--space-5)', background: 'var(--color-neutral-0)', borderTop: '1px solid var(--color-neutral-100)' }}>
+          <div className={styles.accordionContent}>
             <div className={styles.formGrid}>
               <div className={`form-group ${styles.formFull}`}>
                 <label className="form-label">Street / House Address *</label>

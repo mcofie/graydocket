@@ -18,20 +18,44 @@ export default function Footer() {
         <div className={styles.footerColumn}>
           <h4>Foundation</h4>
           <ul>
-            <li><Link href="#services">Limited Company</Link></li>
-            <li><Link href="#services">Sole Proprietorship</Link></li>
-            <li><Link href="#services">Company Guarantee</Link></li>
-            <li><Link href="/track">Track Application</Link></li>
+            <li><Link href="/services/limited-company">Limited Company</Link></li>
+            <li><Link href="/services/sole-proprietorship">Sole Proprietorship</Link></li>
+            <li><Link href="/services/company-guarantee">Company Guarantee</Link></li>
+            <li><Link href="/services/partnership">Partnership</Link></li>
+            <li><Link href="/services/subsidiary">External Company</Link></li>
+          </ul>
+        </div>
+
+        <div className={styles.footerColumn}>
+          <h4>Compliance</h4>
+          <ul>
+            <li><Link href="/compliance/annual-returns">Annual Returns</Link></li>
+            <li><Link href="/compliance/tin">TIN Generation</Link></li>
+            <li><Link href="/compliance/ssnit">SSNIT Registration</Link></li>
+            <li><Link href="/compliance/gra">GRA Tax Activation</Link></li>
+            <li><Link href="/compliance/renewal">Business Renewal</Link></li>
           </ul>
         </div>
 
         <div className={styles.footerColumn}>
           <h4>Platform</h4>
           <ul>
-            <li><Link href="#pricing">Pricing Plans</Link></li>
-            <li><Link href="/auth/register">Become an Affiliate</Link></li>
-            <li><Link href="/contact">Support Center</Link></li>
-            <li><Link href="/privacy">Privacy & Terms</Link></li>
+            <li><Link href="/pricing">Pricing Plans</Link></li>
+            <li><Link href="/affiliate">Affiliate Program</Link></li>
+            <li><Link href="/track">Track Application</Link></li>
+            <li><Link href="/support">Support Center</Link></li>
+            <li><Link href="/banking">Partner Banking</Link></li>
+          </ul>
+        </div>
+
+        <div className={styles.footerColumn}>
+          <h4>Legal</h4>
+          <ul>
+            <li><Link href="/terms">Terms of Service</Link></li>
+            <li><Link href="/privacy">Privacy Policy</Link></li>
+            <li><Link href="/security">Security</Link></li>
+            <li><Link href="/dpc">DPC Compliance</Link></li>
+            <li><Link href="/cookies">Cookie Policy</Link></li>
           </ul>
         </div>
       </div>

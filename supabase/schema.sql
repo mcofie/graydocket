@@ -69,18 +69,19 @@ CREATE TABLE IF NOT EXISTS graydocket.business_types (
   required_fields JSONB DEFAULT '[]',
   base_price DECIMAL(10,2) NOT NULL DEFAULT 0,
   service_fee DECIMAL(10,2) NOT NULL DEFAULT 0,
+  eta TEXT DEFAULT '5-7 business days',
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Seed default business types
-INSERT INTO graydocket.business_types (name, description, base_price, required_fields) VALUES
+INSERT INTO graydocket.business_types (name, description, base_price, required_fields, eta) VALUES
   ('Sole Proprietorship', 'For individual entrepreneurs. Register under the Registration of Business Names Act (Form A).', 350.00, 
-   '["business_name", "owner_name", "ghana_card", "tin", "email", "phone", "address", "digital_address", "description", "sector", "date_of_commencement"]'),
+   '["business_name", "owner_name", "ghana_card", "tin", "email", "phone", "address", "digital_address", "description", "sector", "date_of_commencement"]', '3-5 business days'),
   ('Company Limited by Shares', 'For teams and investors. Limited liability with share capital under the Companies Act 2019 (Form 3).', 1200.00,
-   '["business_name", "directors", "secretary", "shareholders", "stated_capital", "auditor", "beneficial_owner", "constitution", "registered_office"]'),
+   '["business_name", "directors", "secretary", "shareholders", "stated_capital", "auditor", "beneficial_owner", "constitution", "registered_office"]', '5-7 business days'),
   ('Company Limited by Guarantee', 'For NGOs, associations, and non-profits. No share capital required (Form 3).', 1200.00,
-   '["business_name", "directors", "secretary", "members", "auditor", "beneficial_owner", "constitution", "registered_office"]')
+   '["business_name", "directors", "secretary", "members", "auditor", "beneficial_owner", "constitution", "registered_office"]', '10-14 business days')
 ON CONFLICT DO NOTHING;
 
 -- =====================================================

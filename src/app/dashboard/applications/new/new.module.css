@@ -604,14 +604,63 @@
   margin-bottom: 4px;
 }
 
-.disclaimerBanner p {
-  font-size: 12px;
-  color: #b45309;
-  line-height: 1.6;
+.personFormContainer {
+  background: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  margin-bottom: var(--space-6);
+}
+
+.personFormHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-4);
+  gap: var(--space-4);
+}
+
+.personFormTitle {
+  font-size: var(--text-lg);
+  font-weight: 750;
+  color: var(--color-neutral-900);
   margin: 0;
 }
 
+.accordion {
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-3);
+  overflow: hidden;
+}
+
+.accordion:last-child {
+  margin-bottom: 0;
+}
+
+.accordionTrigger {
+  width: 100%;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  font-weight: 750;
+  color: var(--color-neutral-900);
+  transition: background 0.2s ease;
+}
+
+.accordionContent {
+  padding: var(--space-5);
+  background: var(--color-neutral-0);
+  border-top: 1px solid var(--color-neutral-100);
+}
+
 @media (max-width: 768px) {
+  .newRegHeader {
+     margin-bottom: var(--space-4);
+  }
   .newRegHeaderTop {
      flex-direction: column;
      gap: var(--space-3);
@@ -624,6 +673,13 @@
   .stepCard {
     padding: var(--space-5);
     border-radius: var(--radius-xl);
+  }
+
+  @media (max-width: 480px) {
+    .stepCard {
+      padding: var(--space-4) var(--space-4);
+      border-radius: var(--radius-lg);
+    }
   }
 
   .typeGrid,
@@ -721,6 +777,22 @@
 
   .totalAmount {
     font-size: var(--text-xl);
+  }
+
+  .personFormContainer {
+    padding: 0;
+    border: none;
+    background: transparent;
+    margin-bottom: var(--space-4);
+  }
+
+  .accordionTrigger {
+    padding: 14px 16px;
+    font-size: 13px;
+  }
+
+  .accordionContent {
+    padding: var(--space-3);
   }
 
   .disclaimerBanner {

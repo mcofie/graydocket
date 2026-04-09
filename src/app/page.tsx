@@ -15,7 +15,10 @@ import {
   LockKeyhole,
   Lock,
   Users,
-  Banknote
+  Banknote,
+  Mail,
+  Globe,
+  Link as LinkIcon
 } from 'lucide-react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
@@ -75,6 +78,11 @@ export default function Home() {
     return total.toLocaleString()
   }
 
+  const getEtaFor = (name: string, fallback: string) => {
+    const type = dbPrices.find(t => t.name.toLowerCase().includes(name.toLowerCase()))
+    return type?.eta || fallback
+  }
+
   const pricingPlans = [
     {
       name: 'Sole Proprietorship', 
@@ -83,6 +91,7 @@ export default function Home() {
       price: getPriceFor('Sole Proprietorship', '625'), 
       period: 'one-time', 
       popular: false,
+      eta: getEtaFor('Sole Proprietorship', '3-5 business days'),
       features: ['ORC Form 3 Registration', 'TIN Generation', 'Digital Document Vault (Lifetime)'],
     },
     {
@@ -93,6 +102,7 @@ export default function Home() {
       originalPrice: '4,500', 
       period: 'one-time', 
       popular: true,
+      eta: getEtaFor('Company Limited by Shares', '5-7 business days'),
       features: ['Full ORC incorporation', 'Board of Directors setup', 'Tax & Annual Compliance Tracker'],
     },
     {
@@ -102,6 +112,7 @@ export default function Home() {
       price: getPriceFor('Company Limited by Guarantee', '1,500'), 
       period: 'one-time', 
       popular: false,
+      eta: getEtaFor('Company Limited by Guarantee', '10-14 business days'),
       features: ['NGO legal structure', 'Commissioner for Oaths verification', 'Tax exemption assistance'],
     }
   ]
@@ -273,6 +284,9 @@ export default function Home() {
             {pricingPlans.map((plan, i) => (
               <div key={i} className={`${styles.pricingCard} ${plan.popular ? styles.popularCard : ''}`}>
                 <div className={styles.pricingHeader}>
+                  <div className={styles.pricingEta}>
+                    <Clock size={12} strokeWidth={2.5} /> {plan.eta}
+                  </div>
                   <h3>{plan.name}</h3>
                   <p>{plan.desc}</p>
                 </div>
@@ -294,44 +308,40 @@ export default function Home() {
 
           {/* Precision Services List */}
           {services.length > 0 && (
-            <div style={{ marginTop: '80px', paddingTop: '60px', borderTop: '1px solid var(--color-neutral-100)' }}>
-              <div style={{ textAlign: 'center', marginBottom: '48px' }}>
-                <h3 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-neutral-900)' }}>Precision Corporate Services</h3>
-                <p style={{ color: 'var(--color-neutral-500)', fontSize: '15px', marginTop: '8px' }}>Itemized solutions for specific administrative needs.</p>
+            <div className={styles.precisionSection}>
+              <div className={styles.precisionHeader}>
+                <h3 className={styles.sectionTitleSmall}>Precision Corporate Services</h3>
+                <p className={styles.sectionSubtitleSmall}>Itemized solutions for specific administrative needs.</p>
               </div>
               
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', 
-                gap: '16px' 
-              }}>
-                {services.map((s, idx) => (
-                  <div key={idx} style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    alignItems: 'center', 
-                    padding: '20px 24px', 
-                    background: 'white', 
-                    borderRadius: '16px', 
-                    border: '1px solid var(--color-neutral-200)',
-                    transition: 'all 0.2s',
-                    cursor: 'default'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                       <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--color-primary-500)' }} />
-                       <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--color-neutral-800)' }}>{s.name}</span>
-                    </div>
-                    <div style={{ fontWeight: 800, fontSize: '16px', color: 'var(--color-primary-600)' }}>
-                       GH₵ {Number(s.price).toLocaleString()}
-                    </div>
-                  </div>
-                ))}
+              <div className={styles.precisionGrid}>
+                {services
+                  .filter(s => !s.name.toLowerCase().includes('courier'))
+                  .map((s, idx) => {
+                    const iconMap: Record<string, any> = {
+                      'Bank Account Setup': Banknote,
+                      'Business Email Setup': Mail,
+                      'Business Website': Globe,
+                      'Domain Name Purchase': LinkIcon
+                    }
+                    const Icon = iconMap[s.name] || Check
+                    
+                    return (
+                      <div key={idx} className={styles.precisionCard}>
+                        <div className={styles.precisionTitleWrapper}>
+                          <Icon className={styles.precisionIcon} size={20} strokeWidth={1.5} />
+                          <span className={styles.precisionName}>{s.name}</span>
+                        </div>
+                        <div className={styles.precisionPrice}>
+                          GH₵ {Number(s.price).toLocaleString()}
+                        </div>
+                      </div>
+                    )
+                  })}
               </div>
 
-              <div style={{ textAlign: 'center', marginTop: '40px', maxWidth: '800px', margin: '40px auto 0' }}>
-                <p style={{ fontSize: '13px', color: 'var(--color-neutral-400)', fontStyle: 'italic', lineHeight: '1.6' }}>
-                  All prices are inclusive of government statutory fees where applicable. GrayDocket is a technology-enabled corporate service provider and does not provide legal, tax, or accounting advice.
-                </p>
+              <div className={styles.precisionDisclaimer}>
+                All prices are inclusive of government statutory fees where applicable. GrayDocket is a technology-enabled corporate service provider and does not provide legal, tax, or accounting advice.
               </div>
             </div>
           )}
