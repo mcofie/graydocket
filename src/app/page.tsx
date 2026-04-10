@@ -36,19 +36,19 @@ const solutionPoints = [
     icon: Calendar, 
     title: 'Compliance on Autopilot', 
     desc: 'Starting is easy; staying official is the hard part. We track your ORC annual returns and GRA filings through our automated corporate calendar.',
-    image: '/compliance_automation_visual_1775790265833.png'
+    image: '/compliance_on_autopilot_visual_1775813416373.png'
   },
   { 
     icon: Database, 
     title: 'DPC Compliant Vault', 
     desc: 'Securely manage your Certificate of Incorporation and TIN. We are a registered Data Controller with the DPC, ensuring your corporate identity is protected.',
-    image: '/secure_vault_visual_1775790279699.png'
+    image: '/secure_vault_visual_1775814096065.png'
   },
   { 
     icon: Handshake, 
     title: 'The "Day 2" Bridge', 
     desc: 'Registration is just the start. We facilitate seamless introductions to business bank accounts and SSNIT registration through our partner network.',
-    image: '/banking_bridge_visual_1775790295971.png'
+    image: '/banking_bridge_visual_1775813749904.jpg'
   },
 ]
 
