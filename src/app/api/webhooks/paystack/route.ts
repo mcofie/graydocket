@@ -51,6 +51,18 @@ export async function POST(req: Request) {
       // 4. Integrity Check (Security fallback)
       const expectedAmountPesewas = Math.round(app.total_amount * 100);
       if (actualAmountPesewas < expectedAmountPesewas || currency !== 'GHS') {
+        const { sendDiscordNotification, DiscordColors } = await import('@/lib/discord');
+        await sendDiscordNotification({
+          title: '🚨 WEBHOOK INTEGRITY ALERT',
+          color: DiscordColors.DANGER,
+          description: 'A Paystack webhook reported success, but the amount or currency is incorrect.',
+          fields: [
+            { name: 'Expt Pesewas', value: expectedAmountPesewas.toString(), inline: true },
+            { name: 'Got Pesewas', value: actualAmountPesewas.toString(), inline: true },
+            { name: 'Currency', value: currency || 'N/A', inline: true },
+            { name: 'App ID', value: `\`${app.id}\``, inline: false }
+          ]
+        });
         console.warn(`Paystack Webhook: Integrity violation for reference ${reference}. Expected ${expectedAmountPesewas} GHS, got ${actualAmountPesewas} ${currency}`);
         return NextResponse.json({ received: true });
       }

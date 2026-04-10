@@ -1,0 +1,66 @@
+.loadingContainer {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  background-image: radial-gradient(var(--color-neutral-200) 1px, transparent 1px);
+  background-size: 40px 40px;
+  z-index: 9999;
+}
+
+.logoWrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  animation: loadingFadeIn 0.8s ease-out forwards;
+}
+
+.logoIcon {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-xl);
+  background: linear-gradient(135deg, var(--color-primary-400) 0%, var(--color-primary-600) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 32px;
+  font-weight: var(--font-weight-black);
+  box-shadow: 
+    0 20px 40px rgba(var(--color-primary-rgb), 0.15),
+    0 0 0 8px rgba(var(--color-primary-rgb), 0.03);
+  animation: logoPulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+.brandName {
+  font-size: 24px;
+  font-weight: var(--font-weight-black);
+  color: var(--color-neutral-900);
+  letter-spacing: -0.04em;
+}
+
+@keyframes logoPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.95);
+    opacity: 0.9;
+  }
+}
+
+@keyframes loadingFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

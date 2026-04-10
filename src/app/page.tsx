@@ -32,9 +32,24 @@ import Footer from '@/components/Footer'
 import styles from './page.module.css'
 import { getAllBusinessTypes, getServices } from '@/lib/actions'
 const solutionPoints = [
-  { icon: Calendar, title: 'Compliance on Autopilot', desc: 'Starting is easy; staying official is the hard part. We track your ORC annual returns and GRA filings through our automated corporate calendar.' },
-  { icon: Database, title: 'DPC Compliant Vault', desc: 'Securely manage your Certificate of Incorporation and TIN. We are a registered Data Controller with the DPC, ensuring your corporate identity is protected.' },
-  { icon: Handshake, title: 'The "Day 2" Bridge', desc: 'Registration is just the start. We facilitate seamless introductions to business bank accounts and SSNIT registration through our partner network.' },
+  { 
+    icon: Calendar, 
+    title: 'Compliance on Autopilot', 
+    desc: 'Starting is easy; staying official is the hard part. We track your ORC annual returns and GRA filings through our automated corporate calendar.',
+    image: '/compliance_automation_visual_1775790265833.png'
+  },
+  { 
+    icon: Database, 
+    title: 'DPC Compliant Vault', 
+    desc: 'Securely manage your Certificate of Incorporation and TIN. We are a registered Data Controller with the DPC, ensuring your corporate identity is protected.',
+    image: '/secure_vault_visual_1775790279699.png'
+  },
+  { 
+    icon: Handshake, 
+    title: 'The "Day 2" Bridge', 
+    desc: 'Registration is just the start. We facilitate seamless introductions to business bank accounts and SSNIT registration through our partner network.',
+    image: '/banking_bridge_visual_1775790295971.png'
+  },
 ]
 
 
@@ -170,14 +185,15 @@ export default function Home() {
           </div>
           <div className={styles.grid3}>
             {solutionPoints.map((service, i) => {
-              const Icon = service.icon
               return (
                 <div key={i} className={styles.serviceCard}>
-                  <div className={styles.serviceHeader}>
-                    <div className={styles.serviceIcon}><Icon strokeWidth={1.5} size={28} /></div>
+                  <div className={styles.serviceVisual}>
+                    <img src={service.image} alt={service.title} />
                   </div>
-                  <h3>{service.title}</h3>
-                  <p>{service.desc}</p>
+                  <div className={styles.serviceContent}>
+                    <h3>{service.title}</h3>
+                    <p>{service.desc}</p>
+                  </div>
                 </div>
               )
             })}

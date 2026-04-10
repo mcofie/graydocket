@@ -101,8 +101,18 @@ export async function submitApplication(data: {
         const currencyMatch = verifyData.data.currency === 'GHS'
 
         if (actualAmountPesewas < expectedAmountPesewas || !currencyMatch) {
-             console.warn(`Payment integrity violation: Expected ${expectedAmountPesewas} GHS, got ${actualAmountPesewas} ${verifyData.data.currency}`)
-             return { error: 'Payment integrity check failed. Amount or currency mismatch detected.' }
+              console.warn(`Payment integrity violation: Expected ${expectedAmountPesewas} GHS, got ${actualAmountPesewas} ${verifyData.data.currency}`)
+              await sendDiscordNotification({
+                title: '🚨 PAYMENT INTEGRITY ALERT',
+                color: DiscordColors.DANGER,
+                description: 'A payment was detected that does not match the expected amount or currency.',
+                fields: [
+                  { name: 'Expected', value: `${data.totalAmount} GHS`, inline: true },
+                  { name: 'Actual', value: `${actualAmountPesewas / 100} ${verifyData.data.currency}`, inline: true },
+                  { name: 'Reference', value: `\`${data.paystackReference}\``, inline: false }
+                ]
+              })
+              return { error: 'Payment integrity check failed. Amount or currency mismatch detected.' }
         }
       } else {
         return { error: 'Payment verification failed. Please contact support.' }
@@ -894,6 +904,17 @@ export async function updateBusinessType(id: string, updates: any) {
     .update(updates)
     .eq('id', id)
 
+  if (!error) {
+    await sendDiscordNotification({
+      title: '🏷️ PRICING STRATEGY UPDATED',
+      color: DiscordColors.WARNING,
+      description: `Business type \`${id}\` updated.`,
+      fields: [
+        { name: 'Updates', value: `\`\`\`json\n${JSON.stringify(updates, null, 2)}\n\`\`\``, inline: false }
+      ]
+    })
+  }
+
   revalidatePath('/admin/pricing')
   return { error: error?.message || null }
 }
@@ -909,6 +930,14 @@ export async function deleteBusinessType(id: string) {
     .delete()
     .eq('id', id)
 
+  if (!error) {
+    await sendDiscordNotification({
+      title: '🗑️ BUSINESS TYPE REMOVED',
+      color: DiscordColors.DANGER,
+      fields: [{ name: 'ID', value: id, inline: true }]
+    })
+  }
+
   revalidatePath('/admin/pricing')
   return { error: error?.message || null }
 }
@@ -920,9 +949,19 @@ export async function updateBankingPartner(id: string, updates: any) {
   const { createAdminClient } = await import('@/lib/supabase/server')
   const adminClient = await createAdminClient()
   const { error } = await adminClient
-    .from('banking_partners')
     .update(updates)
     .eq('id', id)
+
+  if (!error) {
+    await sendDiscordNotification({
+      title: '🏦 BANKING PARTNER UPDATED',
+      color: DiscordColors.INFO,
+      fields: [
+        { name: 'Partner', value: updates.name || id, inline: true },
+        { name: 'Status', value: updates.is_active ? 'Active' : 'Inactive', inline: true }
+      ]
+    })
+  }
 
   revalidatePath('/admin/banking')
   return { error: error?.message || null }
@@ -1101,9 +1140,20 @@ export async function updateUserRole(id: string, role: 'user' | 'admin' | 'regis
 
   const supabase = await createClient()
   const { error } = await supabase
-    .from('profiles')
     .update({ role })
     .eq('id', id)
+
+  if (!error) {
+    await sendDiscordNotification({
+      title: '🛡️ ROLE ESCALATION',
+      color: DiscordColors.PURPLE,
+      description: `User role modified.`,
+      fields: [
+        { name: 'User ID', value: id, inline: true },
+        { name: 'New Role', value: role.toUpperCase(), inline: true }
+      ]
+    })
+  }
 
   revalidatePath('/admin/users')
   return { error: error?.message || null }
@@ -1141,9 +1191,16 @@ export async function deleteService(id: string) {
 
   const supabase = await createClient()
   const { error } = await supabase
-    .from('services')
     .delete()
     .eq('id', id)
+
+  if (!error) {
+    await sendDiscordNotification({
+      title: '🗑️ SERVICE REMOVED',
+      color: DiscordColors.DANGER,
+      fields: [{ name: 'Service ID', value: id, inline: true }]
+    })
+  }
 
   revalidatePath('/admin/services')
   return { error: error?.message || null }
@@ -1155,9 +1212,16 @@ export async function deleteBankingPartner(id: string) {
 
   const supabase = await createClient()
   const { error } = await supabase
-    .from('banking_partners')
     .delete()
     .eq('id', id)
+
+  if (!error) {
+    await sendDiscordNotification({
+      title: '🗑️ BANKING PARTNER REMOVED',
+      color: DiscordColors.DANGER,
+      fields: [{ name: 'Partner ID', value: id, inline: true }]
+    })
+  }
 
   revalidatePath('/admin/banking')
   return { error: error?.message || null }
@@ -1212,6 +1276,14 @@ export async function setSystemFee(feeName: string, price: number) {
       category: 'system' 
     })
     if (error) return { error: error.message }
+    await sendDiscordNotification({
+      title: '🏷️ SYSTEM FEE UPDATED',
+      color: DiscordColors.WARNING,
+      fields: [
+        { name: 'Fee', value: feeName, inline: true },
+        { name: 'New Price', value: `GH₵ ${price}`, inline: true }
+      ]
+    })
   }
 
   revalidatePath('/admin/pricing')
@@ -1313,6 +1385,16 @@ export async function processAffiliateCommission(applicationId: string) {
     return { error: insertErr.message }
   }
 
+  await sendDiscordNotification({
+    title: '💸 COMMISSION LOGGED',
+    color: DiscordColors.GOLD,
+    fields: [
+      { name: 'Affiliate ID', value: `\`${app.referred_by_id}\``, inline: true },
+      { name: 'Amount', value: `GH₵ ${commissionAmount.toFixed(2)}`, inline: true },
+      { name: 'Application', value: `\`${applicationId.substring(0, 8)}...\``, inline: false }
+    ]
+  })
+
   return { success: true }
 }
 
@@ -1378,6 +1460,17 @@ export async function updatePayoutInfo(method: string, address: string) {
       payout_address: address 
     })
     .eq('id', user.id)
+
+  if (!error) {
+    await sendDiscordNotification({
+      title: '💳 PAYOUT INFO UPDATED',
+      color: DiscordColors.INFO,
+      fields: [
+        { name: 'Method', value: method, inline: true },
+        { name: 'User', value: user.id, inline: true }
+      ]
+    })
+  }
 
   revalidatePath('/dashboard/affiliate')
   return { error: error?.message || null }
@@ -2080,6 +2173,15 @@ export async function resubmitApplication(applicationId: string, formData: Recor
     .eq('id', applicationId)
 
   if (updateErr) return { error: updateErr.message }
+
+  await sendDiscordNotification({
+    title: '🔁 APPLICATION RESUBMITTED',
+    color: DiscordColors.INFO,
+    fields: [
+      { name: 'Tracking ID', value: `\`${applicationId.substring(0, 8)}...\``, inline: true },
+      { name: 'Business', value: (app as any).business_name || 'N/A', inline: true }
+    ]
+  })
 
   // 4. Log to history
   await supabase.from('application_status_history').insert({

@@ -4,6 +4,7 @@ import crypto from 'crypto'
 import { createClient as createSupabaseServerClient } from '@/lib/supabase/server'
 import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js'
 import { formatPhoneNumber } from '@/lib/sms'
+import { sendDiscordNotification, DiscordColors } from '@/lib/discord'
 
 export async function checkPhoneExists(phone: string) {
   const normalizedPhone = formatPhoneNumber(phone)
@@ -155,6 +156,18 @@ export async function verifyZendOtp(id: string, code: string, phone: string, ful
         return { success: false, message: 'Failed to provision user profile.' }
       }
 
+      // Notify on new account
+      await sendDiscordNotification({
+        title: '🆕 NEW ACCOUNT CREATED',
+        color: DiscordColors.SUCCESS,
+        description: `New user registered via Phone OTP.`,
+        fields: [
+          { name: 'Phone', value: normalizedPhone, inline: true },
+          { name: 'Full Name', value: fullName || 'N/A', inline: true },
+          { name: 'User ID', value: `\`${newUser.user.id}\``, inline: false }
+        ]
+      })
+
       // Profile is likely created via DB Trigger (handle_new_user), 
       // but let's re-fetch or ensure it exists
       profiles = [{ id: newUser.user.id, email: emailToUse }]
@@ -199,6 +212,16 @@ export async function verifyZendOtp(id: string, code: string, phone: string, ful
       console.error('Failed to verify internal session:', sessionError)
       return { success: false, message: 'Failed to establish browser session.' }
     }
+
+    // Notify on successful login
+    await sendDiscordNotification({
+      title: '🔑 USER LOGIN',
+      color: DiscordColors.INFO,
+      fields: [
+        { name: 'User', value: fullName || email || 'Unknown', inline: true },
+        { name: 'Identifier', value: normalizedPhone || email || 'N/A', inline: true }
+      ]
+    })
 
     return { success: true }
   }
