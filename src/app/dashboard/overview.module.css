@@ -20,7 +20,7 @@
 
 .pageHeader h1 {
   font-size: clamp(1.6rem, 5vw, 2.2rem);
-  font-weight: 850;
+  font-weight: var(--font-weight-black);
   letter-spacing: -0.025em;
   color: var(--color-neutral-900);
   line-height: 1.15;
@@ -35,7 +35,7 @@
 
 /* ─── Hero CTA (Primary Action Banner) ─── */
 .heroCta {
-  background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-500) 50%, #4f46e5 100%);
+  background: linear-gradient(135deg, var(--color-primary-900) 0%, #1a1a1a 50%, var(--color-primary-600) 100%);
   border-radius: var(--radius-2xl);
   padding: var(--space-8) var(--space-8);
   display: flex;
@@ -80,7 +80,7 @@
 
 .heroContent h2 {
   font-size: clamp(1.1rem, 3vw, 1.4rem);
-  font-weight: 800;
+  font-weight: var(--font-weight-heavy);
   margin-bottom: 4px;
   line-height: 1.2;
 }
@@ -95,8 +95,8 @@
 .heroBtn {
   padding: var(--space-3) var(--space-6);
   background: white;
-  color: var(--color-primary-700);
-  font-weight: 800;
+  color: var(--color-neutral-950);
+  font-weight: var(--font-weight-heavy);
   font-size: var(--text-sm);
   border-radius: var(--radius-xl);
   display: flex;
@@ -155,7 +155,7 @@
 
 .statContent h3 {
   font-size: var(--text-xl);
-  font-weight: 850;
+  font-weight: var(--font-weight-black);
   color: var(--color-neutral-900);
   line-height: 1;
   margin-bottom: 1px;
@@ -186,7 +186,7 @@
 
 .sectionTitle {
   font-size: var(--text-lg);
-  font-weight: 850;
+  font-weight: var(--font-weight-black);
   color: var(--color-neutral-900);
   letter-spacing: -0.01em;
 }
@@ -245,7 +245,7 @@
 
 .cardBody h3 {
   font-size: 16px;
-  font-weight: 800;
+  font-weight: var(--font-weight-heavy);
   color: var(--color-neutral-900);
   margin: 0;
 }
