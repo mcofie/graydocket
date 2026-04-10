@@ -266,7 +266,7 @@ export default function Home() {
                           <span className={styles.precisionName}>{s.name}</span>
                         </div>
                         <div className={styles.precisionPrice}>
-                          GH₵ {Number(s.price).toLocaleString()}
+                          Coming Soon
                         </div>
                       </div>
                     )

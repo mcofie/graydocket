@@ -174,7 +174,7 @@
 .problemVisualContainer {
   width: 100%;
   max-width: 900px;
-  margin: 0 auto var(--space-12);
+  margin: 0 auto var(--space-8);
   display: flex;
   justify-content: center;
 }
@@ -190,9 +190,9 @@
   line-height: 1.6;
   color: var(--color-neutral-500);
   max-width: 700px;
-  margin: 0 auto var(--space-8);
+  margin: 0 auto var(--space-6);
   text-align: center;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .problemCard {
@@ -351,7 +351,7 @@
 .solutionVisualContainer {
   width: 100%;
   max-width: 1000px;
-  margin: 0 auto var(--space-12);
+  margin: 0 auto var(--space-8);
   display: flex;
   justify-content: center;
 }
@@ -367,9 +367,9 @@
   line-height: 1.6;
   color: var(--color-neutral-600);
   max-width: 800px;
-  margin: 0 auto 48px;
+  margin: 0 auto var(--space-8);
   text-align: center;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .focusLayout {
@@ -652,13 +652,16 @@
 }
 
 .precisionPrice {
-  font-weight: var(--font-weight-black);
-  font-size: 18px;
-  color: var(--color-neutral-900);
-  letter-spacing: -0.01em;
+  font-weight: var(--font-weight-heavy);
+  font-size: 11px;
+  color: var(--color-neutral-400);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   text-align: right;
   white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+  background: var(--color-neutral-100);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
 }
 
 .precisionDisclaimer {
@@ -856,7 +859,9 @@
 .ctaOverlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(10, 10, 10, 0.9) 0%, rgba(30, 41, 59, 0.7) 100%);
+  background: linear-gradient(135deg, rgba(10, 10, 10, 0.95) 0%, rgba(30, 41, 59, 0.8) 100%);
+  backdrop-filter: grayscale(100%) contrast(120%);
+  -webkit-backdrop-filter: grayscale(100%) contrast(120%);
   z-index: 1;
 }
 
@@ -872,6 +877,7 @@
 .ctaSection .sectionTitle {
   color: white;
   margin-bottom: var(--space-6);
+  font-weight: var(--font-weight-black);
 }
 
 .ctaSection .sectionSubtitle {
