@@ -43,9 +43,9 @@ function getGreeting(): string {
 }
 
 const quickActions = [
-  { icon: <PlusCircle size={18} />, title: 'Register a Business', desc: 'Start a new sole proprietorship or limited company.', href: '/dashboard/applications/new' },
-  { icon: <FileText size={18} />, title: 'Track Your Applications', desc: 'See real-time updates on all your filings.', href: '/dashboard/applications' },
-  { icon: <Building2 size={18} />, title: 'Open a Business Account', desc: 'Get matched with a banking partner.', href: '/dashboard/banking' },
+  { icon: <PlusCircle size={22} />, title: 'Register a Business', desc: 'Start a new sole proprietorship or limited company.', href: '/dashboard/applications/new' },
+  { icon: <FileText size={22} />, title: 'Track Your Applications', desc: 'See real-time updates on all your filings.', href: '/dashboard/applications' },
+  { icon: <Building2 size={22} />, title: 'Open a Business Account', desc: 'Get matched with a banking partner.', href: '/dashboard/banking' },
 ]
 
 export default function DashboardPage() {

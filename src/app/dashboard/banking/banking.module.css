@@ -60,7 +60,21 @@
 }
 
 .logo {
-  font-size: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.logoImage {
+  height: 100%;
+  width: auto;
+  object-fit: contain;
+  max-width: 140px;
+}
+
+.logoPlaceholder {
+  font-size: 40px;
   line-height: 1;
 }
 

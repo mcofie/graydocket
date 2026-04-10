@@ -27,6 +27,17 @@ export default function BankingPage() {
     setSubmitted(true)
   }
 
+  const LOCAL_LOGOS: Record<string, string> = {
+    'Zenith Bank': '/zenith_bank_logo_1775816604477.png',
+    'Ecobank': '/ecobank_logo_1775816622675.png',
+    'GCB Bank': '/gcb_bank_logo_1775816642314.png',
+  }
+
+  const getPartnerLogo = (name: string, url: string | null) => {
+    const key = Object.keys(LOCAL_LOGOS).find(k => name.includes(k))
+    return key ? LOCAL_LOGOS[key] : url
+  }
+
   const getPartnerLabel = (name: string) => {
     if (name.includes('Zenith')) return 'Preferred'
     if (name.includes('Ecobank')) return 'Regional Giant'
@@ -63,7 +74,13 @@ export default function BankingPage() {
         {partners.filter(p => p.is_active).map((bank, index) => (
           <div key={bank.id} className={styles.card}>
             <div className={styles.cardTop}>
-              <div className={styles.logo}>{bank.logo_url || '🏦'}</div>
+              <div className={styles.logo}>
+                {getPartnerLogo(bank.name, bank.logo_url) ? (
+                  <img src={getPartnerLogo(bank.name, bank.logo_url)!} alt={bank.name} className={styles.logoImage} />
+                ) : (
+                  <span className={styles.logoPlaceholder}>🏦</span>
+                )}
+              </div>
               <span className={styles.badge}>{getPartnerLabel(bank.name)}</span>
             </div>
             
@@ -98,11 +115,10 @@ export default function BankingPage() {
       {submitted && (
         <div className={styles.successOverlay}>
           <div className={styles.successContent}>
-            <div className={styles.successIcon}>🎉</div>
-            <h2>Request Transmitted</h2>
+            <div className={styles.successIcon}>🚀</div>
+            <h2>Coming Soon</h2>
             <p>
-              Your interest in opening a corporate account with <strong>{partners.find(b => b.id === selectedBank)?.name}</strong> has been shared with their institutional team. 
-              Once your business registration is finalized, our banking partners will reach out to complete your onboarding.
+              Direct banking applications for <strong>{partners.find(b => b.id === selectedBank)?.name}</strong> are not yet available, but this service will be coming up soon as we finalize our institutional integrations with the bank.
             </p>
             <div style={{ display: 'flex', gap: 'var(--space-4)', justifyContent: 'center' }}>
               <button 

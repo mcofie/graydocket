@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { forceFetchProfile } from '@/lib/actions'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'

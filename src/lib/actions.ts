@@ -1536,35 +1536,41 @@ export async function getApplicationDetails(id: string) {
 
   // 3. Hydration (Pinned to graydocket schema based on provided SQL)
   try {
-    // Submitter
-    const { data: creator } = await adminClient.schema('graydocket').from('profiles').select('full_name, email, phone').eq('id', appData.user_id).maybeSingle()
+    const [
+      { data: creator },
+      { data: reg },
+      { data: bType },
+      { data: history },
+      { data: dbDocs }
+    ] = await Promise.all([
+      adminClient.schema('graydocket').from('profiles').select('full_name, email, phone').eq('id', appData.user_id).maybeSingle(),
+      appData.assigned_to 
+        ? adminClient.schema('graydocket').from('profiles').select('id, full_name').eq('id', appData.assigned_to).maybeSingle() 
+        : Promise.resolve({ data: null }),
+      adminClient.schema('graydocket').from('business_types').select('name').eq('id', appData.business_type_id).maybeSingle(),
+      adminClient.schema('graydocket').from('application_status_history').select('*').eq('application_id', appData.id).order('created_at', { ascending: false }),
+      adminClient.schema('graydocket').from('documents').select('*').eq('application_id', appData.id)
+    ])
+
     appData.profiles = creator
-
-    // Registrar
-    if (appData.assigned_to) {
-      const { data: reg } = await adminClient.schema('graydocket').from('profiles').select('id, full_name').eq('id', appData.assigned_to).maybeSingle()
-      appData.assigned_registrar = reg
-    }
-
-    // Business Type
-    const { data: bType } = await adminClient.schema('graydocket').from('business_types').select('name').eq('id', appData.business_type_id).maybeSingle()
+    appData.assigned_registrar = reg
     appData.business_types = bType
 
-    // Timeline
-    const { data: history } = await adminClient.schema('graydocket').from('application_status_history').select('*').eq('application_id', appData.id)
-    if (history) {
-      const hydratedHistory = await Promise.all(history.map(async (h: any) => {
-        if (h.updated_by) {
-          const { data: updaterProfile } = await adminClient.schema('graydocket').from('profiles').select('full_name').eq('id', h.updated_by).maybeSingle()
-          h.updater = updaterProfile
-        }
-        return h
+    // Timeline Updaters (Secondary Parallel Phase)
+    if (history && history.length > 0) {
+      const updaterIds = [...new Set(history.map(h => h.updated_by).filter(Boolean))]
+      const { data: updaters } = await adminClient.schema('graydocket').from('profiles').select('id, full_name').in('id', updaterIds)
+      
+      const updaterMap = Object.fromEntries(updaters?.map(u => [u.id, u]) || [])
+      appData.application_status_history = history.map(h => ({
+        ...h,
+        updater: h.updated_by ? (updaterMap[h.updated_by] || null) : null
       }))
-      appData.application_status_history = hydratedHistory.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    } else {
+      appData.application_status_history = []
     }
 
     // Docs (Mapping SQL name/file_url to UI title/url)
-    const { data: dbDocs } = await adminClient.schema('graydocket').from('documents').select('*').eq('application_id', appData.id)
     const mappedDbDocs = (dbDocs || []).map(d => ({
        id: d.id,
        title: d.name,

@@ -65,8 +65,8 @@ export default function RootLayout({
       <body suppressHydrationWarning>
         <Suspense fallback={null}>
           <ReferralTracker />
+          {children}
         </Suspense>
-        {children}
       </body>
     </html>
   );
