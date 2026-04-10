@@ -949,6 +949,7 @@ export async function updateBankingPartner(id: string, updates: any) {
   const { createAdminClient } = await import('@/lib/supabase/server')
   const adminClient = await createAdminClient()
   const { error } = await adminClient
+    .from('banking_partners')
     .update(updates)
     .eq('id', id)
 
@@ -1140,6 +1141,7 @@ export async function updateUserRole(id: string, role: 'user' | 'admin' | 'regis
 
   const supabase = await createClient()
   const { error } = await supabase
+    .from('profiles')
     .update({ role })
     .eq('id', id)
 
@@ -1191,6 +1193,7 @@ export async function deleteService(id: string) {
 
   const supabase = await createClient()
   const { error } = await supabase
+    .from('services')
     .delete()
     .eq('id', id)
 
@@ -1212,6 +1215,7 @@ export async function deleteBankingPartner(id: string) {
 
   const supabase = await createClient()
   const { error } = await supabase
+    .from('banking_partners')
     .delete()
     .eq('id', id)
 
