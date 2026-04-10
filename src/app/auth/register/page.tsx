@@ -184,46 +184,13 @@ export default function RegisterPage() {
             </form>
           )}
 
-          <div className={styles.authFooter}>
-            By continuing, you agree to our <Link href="/terms">Terms</Link> and <Link href="/privacy">Privacy Policy</Link>. 
-            <br />
-            <span style={{ fontSize: '11px', display: 'block', marginTop: '8px', color: 'var(--color-neutral-400)' }}>
-              GrayDocket is an administrative automation platform, not a law firm, and does not provide legal advice.
-            </span>
-          </div>
-        </div>
-      </div>
 
-      <div className={styles.authRight}>
-        <div className={styles.authRightOverlay} />
-        <div className={styles.authRightContent}>
-          <h2>Join 500+ Entrepreneurs</h2>
-          <p>
-            Create your account and register your business in Ghana in just 15
-            minutes. No paperwork, no hassle.
-          </p>
-          <div className={styles.authRightFeatures}>
-            <div className={styles.authRightFeature}>
-              <div className={styles.authRightFeatureIcon}>🏢</div>
-              <div>
-                <h4>Multiple Business Types</h4>
-                <p>Sole Proprietorship, Limited Company, and more</p>
-              </div>
-            </div>
-            <div className={styles.authRightFeature}>
-              <div className={styles.authRightFeatureIcon}>📄</div>
-              <div>
-                <h4>Digital Certificates</h4>
-                <p>Receive all documents digitally</p>
-              </div>
-            </div>
-            <div className={styles.authRightFeature}>
-              <div className={styles.authRightFeatureIcon}>🔔</div>
-              <div>
-                <h4>Smart Reminders</h4>
-                <p>Annual renewal and compliance alerts</p>
-              </div>
-            </div>
+          <div className={styles.authFooter}>
+            Already have an account? <Link href="/auth/login">Sign in</Link>
+            <br />
+            <span style={{ fontSize: '11px', display: 'block', marginTop: '24px', color: 'var(--color-neutral-400)', textAlign: 'center' }}>
+              GrayDocket is an administrative automation platform and does not provide legal advice. By continuing, you agree to our <Link href="/terms">Terms</Link> and <Link href="/privacy">Privacy Policy</Link>.
+            </span>
           </div>
         </div>
       </div>

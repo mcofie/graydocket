@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   Building,
   Check,
+  CheckCircle2,
   ArrowRight,
   Clock,
   AlertTriangle,
@@ -18,40 +19,24 @@ import {
   Banknote,
   Mail,
   Globe,
+  Building2,
+  Layout,
+  Cloud,
+  Calendar,
+  Database,
+  Handshake,
   Link as LinkIcon
 } from 'lucide-react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import styles from './page.module.css'
 import { getAllBusinessTypes, getServices } from '@/lib/actions'
-
-const problemPoints = [
-  { icon: FileText, title: 'Endless Paperwork', desc: 'Confusing government portals and overlapping forms.' },
-  { icon: Clock, title: 'Weeks of Waiting', desc: 'Sitting in the dark, not knowing your application status.' },
-  { icon: AlertTriangle, title: 'Unclear Requirements', desc: 'Constant back-and-forth and rejected applications.' }
-]
-
 const solutionPoints = [
-  { icon: ShieldCheck, title: 'Compliance on Autopilot', desc: 'Starting is easy; staying official is the hard part. We track your ORC annual returns and GRA filings through our automated corporate calendar.' },
-  { icon: Lock, title: 'DPC Compliant Vault', desc: 'Securely manage your Certificate of Incorporation and TIN. We are a registered Data Controller with the DPC, ensuring your corporate identity is protected.' },
-  { icon: Zap, title: 'The "Day 2" Bridge', desc: 'Registration is just the start. We facilitate seamless introductions to business bank accounts and SSNIT registration through our partner network.' }
+  { icon: Calendar, title: 'Compliance on Autopilot', desc: 'Starting is easy; staying official is the hard part. We track your ORC annual returns and GRA filings through our automated corporate calendar.' },
+  { icon: Database, title: 'DPC Compliant Vault', desc: 'Securely manage your Certificate of Incorporation and TIN. We are a registered Data Controller with the DPC, ensuring your corporate identity is protected.' },
+  { icon: Handshake, title: 'The "Day 2" Bridge', desc: 'Registration is just the start. We facilitate seamless introductions to business bank accounts and SSNIT registration through our partner network.' },
 ]
 
-const steps = [
-  { num: '01', title: 'Start with Ease', desc: 'Fill out our 5-minute form. We handle the ORC bureaucracy, business name searches, and document prep.' },
-  { num: '02', title: 'Go Official', desc: "We file your incorporation and generate your TIN. You receive your certified digital documents in your secure vault." },
-  { num: '03', title: 'Scale with Confidence', desc: 'Setup your corporate bank account and stay compliant with automated reminders for annual returns and tax dates.' },
-]
-
-const trustItems = [
-  { icon: Users, title: 'Professional Growth Network', desc: 'Every GrayDocket founder gets exclusive access to our ecosystem of builders, mentors, and institutional startup perks.' },
-  { icon: ShieldCheck, title: 'Institutional Compliance', desc: 'Our administrative infrastructure ensures you never miss an ORC deadline or a GRA filing window through automated reminders.' },
-  { icon: Banknote, title: 'Partner Banking Bridge', desc: 'Consolidated KYC aggregation for Ghana’s leading banks to simplify and accelerate your corporate account onboarding.' },
-]
-
-const partners = [
-  { name: 'ORC' }, { name: 'GRA' }, { name: 'Banking Partners' }, { name: 'NIC' },
-]
 
 export default function Home() {
   const [dbPrices, setDbPrices] = useState<any[]>([])
@@ -139,55 +124,12 @@ export default function Home() {
           </div>
 
           <div className={styles.heroVisual}>
-            <div className={styles.certificateMockup}>
-              <div className={styles.certBorderOuter}>
-                <div className={styles.certBorderInner}>
-                  <div className={styles.certHeader}>
-                    <div className={styles.certCoatOfArms}>
-                      <Building size={24} strokeWidth={1.5} />
-                    </div>
-                    <div className={styles.certHeaderText}>
-                      <span>REPUBLIC OF GHANA</span>
-                      <strong>CERTIFICATE OF INCORPORATION</strong>
-                    </div>
-                  </div>
-
-                  <div className={styles.certBody}>
-                    <p className={styles.certMainText}>
-                      This is to certify that
-                    </p>
-                    <h3 className={styles.certCompanyName}>MODERN VENTURES LTD</h3>
-                    <p className={styles.certDetailText}>
-                      is this day incorporated under the Companies Act, 2019 (Act 992) and that the liability of its members is limited.
-                    </p>
-
-                    <div className={styles.certMetadata}>
-                      <div className={styles.certMetaItem}>
-                        <span>REGISTRATION NO.</span>
-                        <strong>CS123452026</strong>
-                      </div>
-                      <div className={styles.certMetaItem}>
-                        <span>GIVEN UNDER MY HAND BY</span>
-                        <strong>ACCRA, GHANA</strong>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className={styles.certFooter}>
-                    <div className={styles.certSeal}>
-                      <div className={styles.sealInner}>
-                        <Check size={16} />
-                      </div>
-                    </div>
-                    <div className={styles.certSignatures}>
-                      <div className={styles.signatureLine}>
-                        <div className={styles.signature}>Mrs. Jemima Oware</div>
-                        <span>REGISTRAR OF COMPANIES</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div className={styles.heroImageWrapper}>
+              <img 
+                src="/hero-illustration-v2.png" 
+                alt="Overwhelmed founder with GOV Portals" 
+                className={styles.heroImage}
+              />
             </div>
             {/* Background decorative elements */}
             <div className={styles.heroGlow} />
@@ -195,18 +137,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* PARTNERS */}
-      <section className={styles.partners}>
-        <div className={styles.partnersInner}>
-          <div className={styles.partnersList}>
-            {partners.map((p, i) => (
-              <span key={i} className={styles.partnerItem} style={{ fontSize: '14px', color: 'var(--color-neutral-400)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                {p.name}
-              </span>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* PROBLEM SECTION */}
       <section className={styles.sectionAlt} id="problem">
@@ -217,38 +147,40 @@ export default function Home() {
             <p className={styles.sectionSubtitle}>
               You have a great idea, or maybe you’re already making money. But the process of becoming a formal business stands in your way.
             </p>
-          </div>
-          <div className={styles.grid3}>
-            {problemPoints.map((point, i) => (
-              <div key={i} className={styles.problemCard}>
-                <div className={styles.problemIcon}><point.icon size={24} strokeWidth={1.5} /></div>
-                <h3>{point.title}</h3>
-                <p>{point.desc}</p>
-              </div>
-            ))}
+            <div className={styles.problemVisualContainer}>
+              <img 
+                src="/problem-illustration.png" 
+                alt="Obstacles to formalizing a business" 
+                className={styles.problemVisual}
+              />
+            </div>
+            <p className={styles.problemDetailText}>
+              Confusing government portals and overlapping forms. Sitting in the dark, not knowing your application status. Constant back-and-forth and rejected applications.
+            </p>
           </div>
           <p className={styles.problemClosingText}>You shouldn't have to be a legal expert just to start a legitimate business in Ghana.</p>
         </div>
-      </section>
-
-      {/* SOLUTION SECTION */}
+      </section>      {/* SOLUTION SECTION */}
       <section className={styles.section} id="solution">
         <div className={styles.container}>
           <div className={styles.sectionHeader}>
-             <span className={styles.sectionKicker} style={{color: 'var(--color-primary-600)'}}>GO OFFICIAL, EFFORTLESSLY</span>
+             <span className={styles.sectionKicker} style={{color: 'var(--color-neutral-900)'}}>GO OFFICIAL, EFFORTLESSLY</span>
             <h2 className={styles.sectionTitle}>We make compliance the easiest part of your startup journey.</h2>
             <p className={styles.sectionSubtitle}>GrayDocket is your done-for-you corporate compliance team. We've removed the friction from business setup.</p>
           </div>
           <div className={styles.grid3}>
-            {solutionPoints.map((Service, i) => (
-              <div key={i} className={styles.serviceCard}>
-                <div className={styles.serviceHeader}>
-                  <div className={styles.serviceIcon}><Service.icon strokeWidth={1.5} size={28} /></div>
+            {solutionPoints.map((service, i) => {
+              const Icon = service.icon
+              return (
+                <div key={i} className={styles.serviceCard}>
+                  <div className={styles.serviceHeader}>
+                    <div className={styles.serviceIcon}><Icon strokeWidth={1.5} size={28} /></div>
+                  </div>
+                  <h3>{service.title}</h3>
+                  <p>{service.desc}</p>
                 </div>
-                <h3>{Service.title}</h3>
-                <p>{Service.desc}</p>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       </section>
@@ -259,17 +191,16 @@ export default function Home() {
            <div className={styles.sectionHeader}>
             <h2 className={styles.sectionTitle}>From an idea to officially registered in 3 simple steps.</h2>
           </div>
-          <div className={styles.stepsContainer}>
-            {steps.map((step, i) => (
-              <div key={i} className={styles.stepItem}>
-                <div className={styles.stepNumber}>{step.num}</div>
-                <div className={styles.stepContent}>
-                  <h3>{step.title}</h3>
-                  <p>{step.desc}</p>
-                </div>
-              </div>
-            ))}
+          <div className={styles.solutionVisualContainer}>
+            <img 
+              src="/solution-illustration.png" 
+              alt="How it works: 3 simple steps" 
+              className={styles.solutionVisual}
+            />
           </div>
+          <p className={styles.solutionDetailText}>
+            Fill out our 5-minute form. We handle the ORC bureaucracy, business name searches, and document prep. We file your incorporation and generate your TIN. You receive your certified digital documents in your secure vault. Setup your corporate bank account and stay compliant with automated reminders for annual returns and tax dates.
+          </p>
         </div>
       </section>
 
@@ -319,17 +250,19 @@ export default function Home() {
                   .filter(s => !s.name.toLowerCase().includes('courier'))
                   .map((s, idx) => {
                     const iconMap: Record<string, any> = {
-                      'Bank Account Setup': Banknote,
+                      'Bank Account Setup': Building2,
                       'Business Email Setup': Mail,
-                      'Business Website': Globe,
-                      'Domain Name Purchase': LinkIcon
+                      'Business Website': Layout,
+                      'Domain Name Purchase': Globe
                     }
-                    const Icon = iconMap[s.name] || Check
+                    const Icon = iconMap[s.name] || CheckCircle2
                     
                     return (
                       <div key={idx} className={styles.precisionCard}>
                         <div className={styles.precisionTitleWrapper}>
-                          <Icon className={styles.precisionIcon} size={20} strokeWidth={1.5} />
+                          <div className={styles.precisionIconWrapper}>
+                            <Icon className={styles.precisionIcon} size={16} strokeWidth={2} />
+                          </div>
                           <span className={styles.precisionName}>{s.name}</span>
                         </div>
                         <div className={styles.precisionPrice}>
@@ -348,56 +281,34 @@ export default function Home() {
         </div>
       </section>
 
-      {/* TRUST SECTION */}
-      <section className={styles.sectionAlt} id="trust">
+
+
+      {/* FOUNDERS FOCUS SECTION */}
+      <section className={styles.infrastructureSection}>
         <div className={styles.container}>
-           <div className={styles.focusLayout}>
-            <div className={styles.focusContent}>
-              <h2 className={styles.sectionTitle} style={{ textAlign: 'left' }}>Built for founders in Ghana who value their time.</h2>
-              <div className={styles.focusList}>
-                {trustItems.map((item, i) => (
-                  <div key={i} className={styles.focusItem}>
-                    <div className={styles.focusIcon}><item.icon size={20} /></div>
-                    <div>
-                      <strong>{item.title}</strong>
-                      <p>{item.desc}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className={styles.focusVisual}>
-              <div className={styles.focusCardStack}>
-                  <div className={styles.focusCard}>
-                    <div className={styles.focusCardHeader}>
-                      <ShieldCheck size={14} />
-                      OUR GUARANTEE
-                    </div>
-                    <div className={styles.focusCardBody}>
-                      <div className={styles.focusActionItem}><Check size={18} /> Fast Processing</div>
-                      <div className={styles.focusActionItem}><Check size={18} /> Transparent Pricing</div>
-                      <div className={styles.focusActionItem}><Check size={18} /> 100% Compliant</div>
-                    </div>
-                    <div className={styles.focusCardFooter}>
-                       <div className={styles.focusCardStat}>
-                          <span>SLA COMMITMENT</span>
-                          <strong>24h Turnaround</strong>
-                       </div>
-                       <LockKeyhole size={20} style={{ opacity: 0.3 }} />
-                    </div>
-                  </div>
-              </div>
-            </div>
-           </div>
+          <div className={styles.sectionHeader} style={{ marginBottom: '40px' }}>
+            <h2 className={styles.sectionTitle}>Built for founders in Ghana who value their time.</h2>
+          </div>
+          <div className={styles.infrastructureVisualContainer}>
+            <img 
+              src="/infrastructure-illustration.png" 
+              alt="GrayDocket Infrastructure: From Paperwork to Partner Banking" 
+              className={styles.infrastructureVisual}
+            />
+          </div>
         </div>
       </section>
 
-      {/* FINAL CTA SECTION */}
-      <section className={styles.section} style={{ textAlign: 'center' }}>
-        <div className={styles.containerSmall}>
+      <section className={styles.ctaSection}>
+        <div className={styles.ctaOverlay} />
+        <div className={styles.ctaContent}>
           <h2 className={styles.sectionTitle}>Stop waiting. Start building.</h2>
-          <p className={styles.sectionSubtitle} style={{ marginBottom: '32px' }}>Join the founders who skipped the queue and secured their business future with GrayDocket.</p>
-          <Link href="/auth/register" className="btn btn-primary btn-lg">Get Started Now <ArrowRight size={18} /></Link>
+          <p className={styles.sectionSubtitle} style={{ marginBottom: '32px' }}>
+            Join the founders who skipped the queue and secured their business future with GrayDocket.
+          </p>
+          <Link href="/auth/register" className="btn btn-accent btn-lg">
+            Get Started Now <ArrowRight size={18} />
+          </Link>
         </div>
       </section>
 

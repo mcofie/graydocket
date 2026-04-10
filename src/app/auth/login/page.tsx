@@ -122,46 +122,13 @@ function LoginContent() {
             )
           }
 
+
           <div className={styles.authFooter}>
             Don&apos;t have an account?{' '}
             <Link href="/auth/register">Create one</Link>
-            <span style={{ fontSize: '11px', display: 'block', marginTop: '16px', color: 'var(--color-neutral-400)' }}>
+            <span style={{ fontSize: '11px', display: 'block', marginTop: '24px', color: 'var(--color-neutral-400)', textAlign: 'center' }}>
               GrayDocket is an administrative automation platform and does not provide legal advice.
             </span>
-          </div>
-        </div>
-      </div>
-
-      <div className={styles.authRight}>
-        <div className={styles.authRightOverlay} />
-        <div className={styles.authRightContent}>
-          <h2>Business Formation Made Simple</h2>
-          <p>
-            Register your business in Ghana in minutes. Track progress, manage
-            documents, and get your certificate — all from one platform.
-          </p>
-          <div className={styles.authRightFeatures}>
-            <div className={styles.authRightFeature}>
-              <div className={styles.authRightFeatureIcon}>⚡</div>
-              <div>
-                <h4>15-Minute Setup</h4>
-                <p>Complete your registration in a single session</p>
-              </div>
-            </div>
-            <div className={styles.authRightFeature}>
-              <div className={styles.authRightFeatureIcon}>📊</div>
-              <div>
-                <h4>Real-Time Tracking</h4>
-                <p>Monitor your application status 24/7</p>
-              </div>
-            </div>
-            <div className={styles.authRightFeature}>
-              <div className={styles.authRightFeatureIcon}>🏦</div>
-              <div>
-                <h4>Bank Account Setup</h4>
-                <p>Open accounts with partner banks seamlessly</p>
-              </div>
-            </div>
           </div>
         </div>
       </div>
