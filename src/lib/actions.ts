@@ -507,7 +507,11 @@ export async function submitApplication(data: {
 
       if (registrars && registrars.length > 0) {
         const adminMsg = `New Case: ${data.businessName} has submitted an application. Log in to the dashboard to claim it.`
-        const uniquePhones = [...new Set((registrars as PhoneContact[]).map((r) => r.phone).filter(Boolean))]
+        const uniquePhones = [...new Set(
+          (registrars as PhoneContact[])
+            .map((r) => r.phone)
+            .filter((phone): phone is string => Boolean(phone))
+        )]
 
         await Promise.all(uniquePhones.map(async (phone) => {
           const normalizedAdminPhone = formatPhoneNumber(phone)

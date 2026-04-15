@@ -176,11 +176,19 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
     setSavingNotes(true)
     const res = await updateApplicationNotes(appId, notes)
     if (res.error) alert(res.error)
-    else setApp({ ...app, notes })
+    else {
+      setApp((currentApp) => (
+        currentApp
+          ? { ...currentApp, notes }
+          : currentApp
+      ))
+    }
     setSavingNotes(false)
   }
 
   const handleStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    if (!app) return
+
     const newStatus = e.target.value
     const currentStatus = app.status
 
@@ -337,6 +345,8 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
   }
 
   const handlePrintPDF = () => {
+    if (!app) return
+
     const printWindow = window.open('', '_blank')
     if (!printWindow) {
       alert('Pop-up blocked. Please allow pop-ups to print PDF.')
@@ -376,7 +386,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
     if (!obj) return null
     if (typeof obj !== 'object') return <span style={{ fontWeight: 500 }}>{String(obj)}</span>
     
-    const corrections = app.form_data?.corrections || {}
+    const corrections = app?.form_data?.corrections || {}
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -469,7 +479,9 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
   }
 
   const fd = (app.form_data || {}) as ApplicationFormData
+  const directors = Array.isArray(fd.directors) ? fd.directors : []
   const docs = Array.isArray(fd.documents) ? fd.documents : []
+  const history = Array.isArray(app.application_status_history) ? app.application_status_history : []
 
   return (
     <div className={styles.overview}>
@@ -531,7 +543,11 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
             <button 
                className="btn btn-primary" 
                style={{ background: '#f59e0b', borderColor: '#f59e0b' }}
-               onClick={() => handleAssignAction(currentUser?.id)}
+               onClick={() => {
+                 if (currentUser?.id) {
+                   void handleAssignAction(currentUser.id)
+                 }
+               }}
                disabled={assigning || !currentUser}
             >
                {assigning ? 'Claiming...' : 'Pick Up Application'}
@@ -567,13 +583,13 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
             </div>
           </div>
 
-          {Array.isArray(fd.directors) && fd.directors.length > 0 && (
+          {directors.length > 0 && (
              <div style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
                <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: 'var(--space-4)', paddingBottom: 'var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)' }}>
-                 Directors ({fd.directors.length})
+                 Directors ({directors.length})
                </h3>
-               {fd.directors.map((d, idx) => (
-                 <div key={idx} style={{ marginBottom: idx < fd.directors.length - 1 ? 'var(--space-4)' : 0, paddingBottom: idx < fd.directors.length - 1 ? 'var(--space-4)' : 0, borderBottom: idx < fd.directors.length - 1 ? '1px dashed var(--color-neutral-200)' : 'none' }}>
+               {directors.map((d, idx) => (
+                 <div key={idx} style={{ marginBottom: idx < directors.length - 1 ? 'var(--space-4)' : 0, paddingBottom: idx < directors.length - 1 ? 'var(--space-4)' : 0, borderBottom: idx < directors.length - 1 ? '1px dashed var(--color-neutral-200)' : 'none' }}>
                    <div style={{ fontWeight: 600 }}>{d.firstName} {d.surname}</div>
                    <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>Ghana Card: {d.ghanaCardNumber} | TIN: {d.tinNumber}</div>
                    <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>{d.email} | {d.phone}</div>
@@ -760,11 +776,11 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
             </h3>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-              {app.application_status_history && app.application_status_history.length > 0 ? (
-                app.application_status_history.map((hist, i) => (
+              {history.length > 0 ? (
+                history.map((hist, i) => (
                   <div key={hist.id} style={{ display: 'flex', gap: '12px', position: 'relative' }}>
                     {/* Timeline Line */}
-                    {i < app.application_status_history.length - 1 && (
+                    {i < history.length - 1 && (
                       <div style={{ position: 'absolute', top: '20px', bottom: '-16px', left: '5px', width: '2px', background: 'var(--color-neutral-200)' }} />
                     )}
                     

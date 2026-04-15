@@ -166,6 +166,11 @@ export default function AdminPricingPage() {
     setIsSubmitting(true)
 
     if (modalMode === 'edit_business') {
+      if (!editingItem) {
+        setIsSubmitting(false)
+        return
+      }
+
       const orcFee = parseFloat(formData.orc_fee) || 0
       const agentFee = parseFloat(formData.agent_fee) || 0
       const returnsPortion = parseFloat(formData.returns_portion) || 0
@@ -185,6 +190,11 @@ export default function AdminPricingPage() {
       if (error) alert(error)
     } 
     else if (modalMode === 'edit_service') {
+      if (!editingItem) {
+        setIsSubmitting(false)
+        return
+      }
+
       const { error } = await updateService(editingItem.id, {
         name: formData.name,
         price: parseFloat(formData.price),
@@ -284,40 +294,47 @@ export default function AdminPricingPage() {
             </tr>
           </thead>
           <tbody>
-            {businessTypes.map((item) => (
+            {businessTypes.map((item) => {
+              const basePrice = item.base_price || 0
+              const serviceFee = item.service_fee || 0
+              const orcFee = item.orc_fee || 0
+              const agentFee = item.agent_fee || 0
+              const returnsPortion = item.returns_portion || 0
+
+              return (
               <tr key={item.id}>
                 <td style={{ verticalAlign: 'top' }}>
                   <div style={{ fontWeight: 700, color: 'var(--color-neutral-900)' }}>{item.name}</div>
                   <div style={{ fontSize: '11px', color: 'var(--color-neutral-500)', marginTop: '2px' }}>
-                    {item.description?.substring(0, 80)}{item.description?.length > 80 ? '...' : ''}
+                    {item.description?.substring(0, 80)}{(item.description?.length || 0) > 80 ? '...' : ''}
                   </div>
                 </td>
                 <td style={{ verticalAlign: 'top' }}>
-                  {item.returns_portion > 0 ? (
+                  {returnsPortion > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
                         <span style={{ color: 'var(--color-neutral-500)' }}>ORC Gov:</span>
-                        <span style={{ fontWeight: 600 }}>GH₵ {item.orc_fee.toLocaleString()}</span>
+                        <span style={{ fontWeight: 600 }}>GH₵ {orcFee.toLocaleString()}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
                         <span style={{ color: 'var(--color-neutral-500)' }}>Agent:</span>
-                        <span style={{ fontWeight: 600 }}>GH₵ {item.agent_fee.toLocaleString()}</span>
+                        <span style={{ fontWeight: 600 }}>GH₵ {agentFee.toLocaleString()}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
                         <span style={{ color: 'var(--color-neutral-500)' }}>Returns (GD/Aff):</span>
-                        <span style={{ fontWeight: 600 }}>GH₵ {item.returns_portion.toLocaleString()}</span>
+                        <span style={{ fontWeight: 600 }}>GH₵ {returnsPortion.toLocaleString()}</span>
                       </div>
                       <div style={{ marginTop: '4px', borderTop: '1px solid var(--color-neutral-100)', paddingTop: '4px', display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 800, color: 'var(--color-primary-600)' }}>
                         <span>TOTAL PRICE:</span>
-                        <span>GH₵ {(item.orc_fee + item.agent_fee + item.returns_portion).toLocaleString()}</span>
+                        <span>GH₵ {(orcFee + agentFee + returnsPortion).toLocaleString()}</span>
                       </div>
                     </div>
                   ) : (
                     <>
-                      <div style={{ fontSize: '12px', color: 'var(--color-neutral-600)' }}>Base: GH₵ {item.base_price.toLocaleString()}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--color-primary-600)', fontWeight: 600 }}>GrayDocket Fee: GH₵ {item.service_fee?.toLocaleString() || 0}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--color-neutral-600)' }}>Base: GH₵ {basePrice.toLocaleString()}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--color-primary-600)', fontWeight: 600 }}>GrayDocket Fee: GH₵ {serviceFee.toLocaleString()}</div>
                       <div style={{ marginTop: '4px', borderTop: '1px solid var(--color-neutral-100)', paddingTop: '4px', fontWeight: 'bold' }}>
-                        Total: GH₵ {(item.base_price + (item.service_fee || 0)).toLocaleString()}
+                        Total: GH₵ {(basePrice + serviceFee).toLocaleString()}
                       </div>
                     </>
                   )}
@@ -362,7 +379,7 @@ export default function AdminPricingPage() {
                   </div>
                 </td>
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
       </div>
@@ -436,16 +453,19 @@ export default function AdminPricingPage() {
             </tr>
           </thead>
           <tbody>
-            {services.map((svc) => (
+            {services.map((svc) => {
+              const svcPrice = svc.price || 0
+
+              return (
               <tr key={svc.id}>
                 <td>
                   <div style={{ fontWeight: 600, color: 'var(--color-neutral-900)' }}>{svc.name}</div>
                   <div style={{ fontSize: '11px', color: 'var(--color-neutral-500)' }}>
-                    {svc.description?.substring(0, 60)}{svc.description?.length > 60 ? '...' : ''}
+                    {svc.description?.substring(0, 60)}{(svc.description?.length || 0) > 60 ? '...' : ''}
                   </div>
                 </td>
                 <td style={{ fontWeight: 600, color: 'var(--color-primary-600)' }}>
-                  {svc.price === 0 ? 'FREE' : svc.price.toLocaleString()}
+                  {svcPrice === 0 ? 'FREE' : svcPrice.toLocaleString()}
                 </td>
                 <td>
                   <span className="badge badge-info" style={{ textTransform: 'uppercase', fontSize: '10px' }}>
@@ -468,7 +488,7 @@ export default function AdminPricingPage() {
                   </button>
                 </td>
               </tr>
-            ))}
+            )})}
             {services.length === 0 && (
               <tr>
                 <td colSpan={4} style={{ textAlign: 'center', padding: 'var(--space-6)' }}>

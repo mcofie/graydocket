@@ -63,6 +63,7 @@ export default function DynamicTrackPage({ params }: { params: Promise<{ id: str
   }, [idFromUrl])
 
   const formatStatus = (s: string) => s.replace(/_/g, ' ').toUpperCase()
+  const history = data?.history || []
 
   return (
     <div className={styles.wrapper}>
@@ -114,14 +115,14 @@ export default function DynamicTrackPage({ params }: { params: Promise<{ id: str
                 </div>
 
                 <div className={styles.timeline}>
-                   {data.history && data.history.length > 0 ? (
-                      data.history.map((step, i) => (
+                   {history.length > 0 ? (
+                      history.map((step, i) => (
                         <div key={i} className={`${styles.timelineItem} ${i === 0 ? styles.isActive : styles.isCompleted}`}>
                           <div className={styles.timelineVisual}>
                             <div className={styles.dot}>
                                {i > 0 && <CheckCircle2 size={16} />}
                             </div>
-                            {i < data.history.length - 1 && <div className={styles.line} />}
+                            {i < history.length - 1 && <div className={styles.line} />}
                           </div>
                           <div className={styles.itemContent}>
                             <div className={styles.itemHeader}>
