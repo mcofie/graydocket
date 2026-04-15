@@ -14,8 +14,6 @@ export default function ReferralTracker() {
   useEffect(() => {
     const ref = searchParams.get('ref');
     if (ref) {
-      console.log(`[GrayDocket] Referral detected: ${ref}`);
-      
       // 1. Persist to LocalStorage for application form pre-fill
       localStorage.setItem('graydocket_referral', ref.toUpperCase());
 

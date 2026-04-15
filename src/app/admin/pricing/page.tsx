@@ -16,9 +16,45 @@ import Modal from '../components/Modal'
 import styles from '../../dashboard/overview.module.css'
 import Skeleton from '@/components/ui/Skeleton'
 
+type BusinessTypeRow = {
+  id: string
+  name: string
+  description?: string | null
+  base_price?: number | null
+  service_fee?: number | null
+  orc_fee?: number | null
+  agent_fee?: number | null
+  returns_portion?: number | null
+  affiliate_share_percentage?: number | null
+  processing_timeline?: string | null
+  is_active: boolean
+}
+
+type ServiceRow = {
+  id: string
+  name: string
+  description?: string | null
+  category?: string | null
+  price?: number | null
+  is_active?: boolean
+}
+
+type PricingFormState = {
+  name: string
+  price: string
+  serviceFee: string
+  orc_fee: string
+  agent_fee: string
+  returns_portion: string
+  affiliate_share: string
+  timeline: string
+  description: string
+  category: string
+}
+
 export default function AdminPricingPage() {
-  const [businessTypes, setBusinessTypes] = useState<any[]>([])
-  const [services, setServices] = useState<any[]>([])
+  const [businessTypes, setBusinessTypes] = useState<BusinessTypeRow[]>([])
+  const [services, setServices] = useState<ServiceRow[]>([])
   const [courierFee, setCourierFee] = useState<number>(50)
   const [isEditingCourier, setIsEditingCourier] = useState(false)
   const [courierFormValue, setCourierFormValue] = useState('50')
@@ -27,10 +63,10 @@ export default function AdminPricingPage() {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'edit_business' | 'edit_service' | 'create_service'>('edit_business')
-  const [editingItem, setEditingItem] = useState<any>(null)
+  const [editingItem, setEditingItem] = useState<BusinessTypeRow | ServiceRow | null>(null)
   
   // Generic form data that can handle both entity types
-  const [formData, setFormData] = useState({ 
+  const [formData, setFormData] = useState<PricingFormState>({ 
     name: '', 
     price: '0', 
     serviceFee: '0', // legacy/internal - we will use breakdowns now
@@ -45,10 +81,6 @@ export default function AdminPricingPage() {
   
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  useEffect(() => {
-    fetchData()
-  }, [])
-
   const fetchData = async () => {
     const [bizRes, svcRes, fee] = await Promise.all([
       getAllBusinessTypes(),
@@ -57,19 +89,24 @@ export default function AdminPricingPage() {
     ])
     
     // Deduplicate by name to prevent UI clutter if database has redundant rows
-    const uniqueBizTypes = (bizRes.business_types || []).filter((v: any, i: number, a: any[]) => 
+    const uniqueBizTypes = ((bizRes.business_types as BusinessTypeRow[] | undefined) || []).filter((v, i, a) => 
       a.findIndex(t => t.name === v.name) === i
     )
 
     setBusinessTypes(uniqueBizTypes)
-    setServices(svcRes.services || [])
+    setServices((svcRes.services as ServiceRow[] | undefined) || [])
     setCourierFee(fee)
     setCourierFormValue(fee.toString())
     setLoading(false)
   }
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData()
+  }, [])
+
   // ---- Modal Handlers ----
-  const openEditBusinessModal = (type: any) => {
+  const openEditBusinessModal = (type: BusinessTypeRow) => {
     setModalMode('edit_business')
     setEditingItem(type)
     setFormData({ 
@@ -87,7 +124,7 @@ export default function AdminPricingPage() {
     setIsModalOpen(true)
   }
 
-  const openEditServiceModal = (service: any) => {
+  const openEditServiceModal = (service: ServiceRow) => {
     setModalMode('edit_service')
     setEditingItem(service)
     setFormData({ 

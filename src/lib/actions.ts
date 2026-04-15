@@ -1,15 +1,223 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import crypto from 'crypto'
+import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { formatPhoneNumber } from '@/lib/sms'
 import { sendDiscordNotification, DiscordColors } from '@/lib/discord'
+
+type JsonPrimitive = string | number | boolean | null
+type JsonValue = JsonPrimitive | JsonObject | JsonValue[]
+type JsonObject = { [key: string]: JsonValue | undefined }
+
+type DeliveryAddress = Record<string, unknown> | null
+
+type ApplicationPayload = {
+  user_id: string
+  business_type_id: string
+  tracking_id: string
+  business_name: string
+  status: string
+  form_data: Record<string, unknown>
+  total_amount: number
+  paystack_reference?: string
+  payment_status: string
+  referred_by_id: string | null
+  updated_at: string
+}
+
+type DraftPayload = {
+  user_id: string
+  business_type_id: string
+  business_name: string
+  status: string
+  form_data: Record<string, unknown>
+  total_amount: number
+  updated_at: string
+}
+
+type PhoneContact = {
+  phone?: string | null
+}
+
+type AmountRow = {
+  total_amount?: number | string | null
+}
+
+type ProfileApplicationsRow = {
+  full_name?: string | null
+  applications?: { id: string }[] | null
+}
+
+type UserIdRow = {
+  user_id: string | null
+}
+
+type AdminApplicationRow = {
+  assigned_to?: string | null
+}
+
+type ServiceMutation = {
+  name?: string
+  price?: number
+  description?: string
+  category?: string
+  is_active?: boolean
+}
+
+type BusinessTypeMutation = {
+  name?: string
+  base_price?: number
+  service_fee?: number
+  orc_fee?: number
+  agent_fee?: number
+  returns_portion?: number
+  affiliate_share_percentage?: number
+  processing_timeline?: string
+  description?: string
+  is_active?: boolean
+}
+
+type BankingPartnerMutation = {
+  name?: string
+  description?: string
+  logo_url?: string
+  is_active?: boolean
+}
+
+type ProfileAffiliateUpdate = {
+  is_affiliate: boolean
+  affiliate_code?: string | null
+}
+
+type RoleMetadata = {
+  role?: string
+}
+
+type ApplicationFormDocument = {
+  url?: string
+  file_url?: string
+  name?: string
+  title?: string
+  verification_status?: string
+  admin_notes?: string
+  verifiedAt?: string
+}
+
+type ApplicationFormData = JsonObject & {
+  mobilePhone?: string
+  documents?: ApplicationFormDocument[]
+  corrections?: Record<string, string>
+}
 
 function generateTrackingId(): string {
   const prefix = 'GD'
   const timestamp = Date.now().toString(36).toUpperCase()
   const random = Math.random().toString(36).substring(2, 6).toUpperCase()
   return `${prefix}-${timestamp}-${random}`
+}
+
+function normalizePaystackReference(reference?: string) {
+  const normalized = reference?.trim()
+  return normalized ? normalized : undefined
+}
+
+function hasValidPaystackSecretKey() {
+  return Boolean(process.env.PAYSTACK_SECRET_KEY?.startsWith('sk_'))
+}
+
+async function generateUniqueAffiliateCode() {
+  const adminClient = await createAdminClient()
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase()
+    const { data: existing } = await adminClient
+      .from('profiles')
+      .select('id')
+      .eq('affiliate_code', code)
+      .maybeSingle()
+
+    if (!existing) return code
+  }
+
+  throw new Error('Unable to generate a unique affiliate code')
+}
+
+async function reservePaystackReference(reference: string, draftId?: string) {
+  const adminClient = await createAdminClient()
+  let query = adminClient
+    .from('applications')
+    .select('id, tracking_id')
+    .eq('paystack_reference', reference)
+
+  if (draftId) {
+    query = query.neq('id', draftId)
+  }
+
+  const { data: existing } = await query.maybeSingle()
+  if (existing) return existing
+
+  let fallbackQuery = adminClient
+    .from('applications')
+    .select('id, tracking_id')
+    .filter('form_data->>paystack_reference', 'eq', reference)
+
+  if (draftId) {
+    fallbackQuery = fallbackQuery.neq('id', draftId)
+  }
+
+  const { data: fallbackExisting } = await fallbackQuery.maybeSingle()
+  if (fallbackExisting) return fallbackExisting
+
+  let legacyFallbackQuery = adminClient
+    .from('applications')
+    .select('id, tracking_id')
+    .filter('form_data->>paystackReference', 'eq', reference)
+
+  if (draftId) {
+    legacyFallbackQuery = legacyFallbackQuery.neq('id', draftId)
+  }
+
+  const { data: legacyFallbackExisting } = await legacyFallbackQuery.maybeSingle()
+  return legacyFallbackExisting
+}
+
+async function reconcileStoredPaystackEvents(reference: string, applicationId: string) {
+  const adminClient = await createAdminClient()
+
+  await adminClient
+    .from('paystack_webhook_events')
+    .update({
+      application_id: applicationId,
+      processed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('reference', reference)
+    .is('application_id', null)
+}
+
+type AffiliateCommissionContext = {
+  referred_by_id: string | null
+  payment_status: string | null
+  business_types?: {
+    service_fee?: number | string | null
+    returns_portion?: number | string | null
+    affiliate_share_percentage?: number | string | null
+  } | null
+}
+
+function calculateAffiliateCommissionAmount(app: AffiliateCommissionContext) {
+  if (!app.referred_by_id || app.payment_status !== 'paid') return 0
+
+  const returnsPortion = Number(app.business_types?.returns_portion || 0)
+  const serviceFee = Number(app.business_types?.service_fee || 0)
+  const affiliateRate = Number(app.business_types?.affiliate_share_percentage ?? 40) / 100
+
+  if (returnsPortion > 0) {
+    return returnsPortion * affiliateRate
+  }
+
+  return serviceFee * 0.2
 }
 
 export async function submitApplication(data: {
@@ -20,11 +228,12 @@ export async function submitApplication(data: {
   selectedAddOns: string[]
   totalAmount: number
   deliveryMethod: string
-  deliveryAddress: any
+  deliveryAddress: DeliveryAddress
   affiliateCode?: string
   paystackReference?: string
 }) {
   const supabase = await createClient()
+  const paystackReference = normalizePaystackReference(data.paystackReference)
 
   let referredById = null
   if (data.affiliateCode) {
@@ -58,7 +267,26 @@ export async function submitApplication(data: {
 
   const trackingId = generateTrackingId()
 
-  const applicationPayload: any = {
+  // Check for existing draft to promote early so we can safely exclude it
+  // from unique payment reference checks.
+  const { data: existingDraft } = await supabase
+    .from('applications')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('business_type_id', data.businessTypeId)
+    .eq('status', 'draft')
+    .single()
+
+  if (paystackReference) {
+    const existingPayment = await reservePaystackReference(paystackReference, existingDraft?.id)
+    if (existingPayment) {
+      return {
+        error: `This payment reference has already been used on application ${existingPayment.tracking_id}. Please contact support if you need help.`
+      }
+    }
+  }
+
+  const applicationPayload: ApplicationPayload = {
     user_id: user.id,
     business_type_id: data.businessTypeId,
     tracking_id: trackingId,
@@ -69,23 +297,24 @@ export async function submitApplication(data: {
       delivery_method: data.deliveryMethod,
       delivery_address: data.deliveryAddress,
       total_amount: data.totalAmount,
-      paystack_reference: data.paystackReference
+      paystack_reference: paystackReference
     },
     total_amount: data.totalAmount,
+    paystack_reference: paystackReference,
     payment_status: 'pending', // Default to pending
     referred_by_id: referredById,
     updated_at: new Date().toISOString()
   }
 
   // --- Server-side Paystack Verification ---
-  if (data.paystackReference) {
-    if (!process.env.PAYSTACK_SECRET_KEY) {
+  if (paystackReference) {
+    if (!hasValidPaystackSecretKey()) {
       console.error('PAYSTACK_SECRET_KEY is not configured.')
       return { error: 'Payment verification failed (Configuration Error).' }
     }
 
     try {
-      const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${data.paystackReference}`, {
+      const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${paystackReference}`, {
         headers: {
           Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
           'Content-Type': 'application/json'
@@ -109,7 +338,7 @@ export async function submitApplication(data: {
                 fields: [
                   { name: 'Expected', value: `${data.totalAmount} GHS`, inline: true },
                   { name: 'Actual', value: `${actualAmountPesewas / 100} ${verifyData.data.currency}`, inline: true },
-                  { name: 'Reference', value: `\`${data.paystackReference}\``, inline: false }
+                  { name: 'Reference', value: `\`${paystackReference}\``, inline: false }
                 ]
               })
               return { error: 'Payment integrity check failed. Amount or currency mismatch detected.' }
@@ -122,31 +351,6 @@ export async function submitApplication(data: {
       return { error: 'Technical error during payment verification.' }
     }
   }
-
-  // We add these conditionally because they might not exist in older app schemas
-  // but if they do, we want them searchable. If they don't, Supabase might error 
-  // unless we remove them if the schema cache is stale.
-  // Given the error reported, we'll stick to form_data as the source of truth.
-  // (Alternatively, we keep them but wrap in try/catch or suppress errors, 
-  // but Supabase JS doesn't make that easy without a schema check.)
-  
-  // For now, we'll try to include them but the primary data is now in form_data.
-  // If the user hasn't run the migration, this might still error, so we'll 
-  // If the user hasn't run the migration, this might still error, so we'll 
-  // actually remove them if we are certain they are missing.
-  // Let's remove 'delivery_address' and 'delivery_method' since they are in form_data.
-  // applicationPayload.delivery_method = data.deliveryMethod;
-  // applicationPayload.delivery_address = data.deliveryAddress; // confirmed missing
-
-
-  // Check for existing draft to promote
-  const { data: existingDraft } = await supabase
-    .from('applications')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('business_type_id', data.businessTypeId)
-    .eq('status', 'draft')
-    .single()
 
   let application;
   let appError;
@@ -171,6 +375,10 @@ export async function submitApplication(data: {
   }
 
   if (application && !appError) {
+    if (application.paystack_reference) {
+      await reconcileStoredPaystackEvents(application.paystack_reference, application.id)
+    }
+
     if (application.payment_status === 'paid') {
       await sendDiscordNotification({
         title: '💰 NEW PAID APPLICATION',
@@ -180,7 +388,7 @@ export async function submitApplication(data: {
           { name: 'Type', value: data.businessTypeName, inline: true },
           { name: 'Amount Paid', value: `GH₵ ${application.total_amount.toLocaleString()}`, inline: true },
           { name: 'Tracking ID', value: `\`${application.tracking_id}\``, inline: false },
-          { name: 'Ref', value: application.form_data?.paystack_reference || 'N/A', inline: true }
+          { name: 'Ref', value: application.paystack_reference || application.form_data?.paystack_reference || 'N/A', inline: true }
         ]
       })
     } else {
@@ -257,7 +465,7 @@ export async function submitApplication(data: {
   }
 
   // --- Send SMS Notification ---
-  if (data.paystackReference && process.env.ZEND_API_KEY) {
+  if (paystackReference && process.env.ZEND_API_KEY) {
     const phoneNumber = data.formData.mobilePhone as string
     if (phoneNumber) {
       const trackingLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://graydocket.com'}/track/${trackingId}`
@@ -285,7 +493,7 @@ export async function submitApplication(data: {
   }
 
   // --- Alert All Registrars via SMS ---
-  if (data.paystackReference && process.env.ZEND_API_KEY) {
+  if (paystackReference && process.env.ZEND_API_KEY) {
     try {
       const { createAdminClient } = await import('@/lib/supabase/server')
       const adminClient = await createAdminClient()
@@ -299,7 +507,7 @@ export async function submitApplication(data: {
 
       if (registrars && registrars.length > 0) {
         const adminMsg = `New Case: ${data.businessName} has submitted an application. Log in to the dashboard to claim it.`
-        const uniquePhones = [...new Set(registrars.map((r: any) => r.phone).filter(Boolean))]
+        const uniquePhones = [...new Set((registrars as PhoneContact[]).map((r) => r.phone).filter(Boolean))]
 
         await Promise.all(uniquePhones.map(async (phone) => {
           const normalizedAdminPhone = formatPhoneNumber(phone)
@@ -336,7 +544,7 @@ export async function saveApplicationDraft(data: {
   selectedAddOns: string[]
   totalAmount: number
   deliveryMethod: string
-  deliveryAddress: any
+  deliveryAddress: DeliveryAddress
   step: number
 }) {
   const supabase = await createClient()
@@ -367,7 +575,7 @@ export async function saveApplicationDraft(data: {
     .eq('status', 'draft')
     .single()
 
-  const payload: any = {
+  const payload: DraftPayload = {
     user_id: user.id,
     business_type_id: data.businessTypeId,
     business_name: data.businessName || 'Untitled Business',
@@ -550,16 +758,6 @@ async function checkIsAdmin(requiredRoles: string[] = ['admin', 'registrar', 'ba
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return false
 
-  // Impenetrable Founder Override (email, phone, or metadata)
-  const founderEmails = ['maxcofie@gmail.com', 'sandbox@gmail.com']
-  const founderPhones = ['+233558508306']
-  
-  if (
-    (user.email && founderEmails.includes(user.email)) ||
-    (user.phone && founderPhones.includes(user.phone)) ||
-    (user.user_metadata?.phone && founderPhones.includes(user.user_metadata.phone))
-  ) return true
-
   const adminClient = await createAdminClient()
 
   // 1. Check Graydocket Schema
@@ -606,10 +804,6 @@ export async function getAdminStats() {
   const profile = profData?.[0] || null
   const role = profile?.role || 'registrar'
 
-  // Standard filters
-  const registrarFilter = role === 'registrar' ? `assigned_to.eq.${user.id}` : null
-  const unassignedFilter = role === 'registrar' ? `assigned_to.is.null` : null
-
   // 1. Core Counts (Role-aware)
   let appQuery = client.schema('graydocket').from('applications').select('id', { count: 'exact', head: true })
   let completedQuery = client.schema('graydocket').from('applications').select('id', { count: 'exact', head: true }).eq('status', 'completed')
@@ -636,15 +830,15 @@ export async function getAdminStats() {
   if (role === 'admin') {
      const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
      const { data: revenueData } = await client.schema('graydocket').from('applications').select('total_amount').eq('payment_status', 'paid').gt('created_at', firstOfMonth)
-     monthlyRevenue = revenueData?.reduce((acc: any, curr: any) => acc + (Number(curr.total_amount) || 0), 0) || 0
+     monthlyRevenue = (revenueData as AmountRow[] | null)?.reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0) || 0
   }
 
   // 4. Pulse: Registrar Performance (Admins see global, Registrars only see themselves?)
   // Actually, keeping the "Radar" might be good for transparency, but let's make it admin-only info
   const { data: performance } = await client.schema('graydocket').from('profiles').select('id, full_name, applications!assigned_to(id)').eq('role', 'registrar')
-  const registrarStats = role === 'admin' ? performance?.map(r => ({
+  const registrarStats = role === 'admin' ? (performance as ProfileApplicationsRow[] | null)?.map(r => ({
     name: r.full_name,
-    activeCases: (r as any).applications?.length || 0
+    activeCases: r.applications?.length || 0
   })) || [] : []
 
   // 5. User Data (Synchronized with getAdminUsers logic)
@@ -699,11 +893,8 @@ export async function getAdminApplications() {
     role = pubProf?.role || 'registrar' // Default to least privilege if they made it here
   }
   
-  // Always grant root founder pure admin role dynamically
-  if (user.email === 'maxcofie@gmail.com') role = 'admin'
-
   // Build the query
-  let query = supabase
+  const query = supabase
     .from('applications')
     .select(`
       *,
@@ -716,7 +907,7 @@ export async function getAdminApplications() {
 
   // Client-side array filtering ensures deterministic evaluation based on the resolved role context
   // This circumvents RLS/Schema quirks while maintaining strictly secure constraints within this trusted server action
-  const finalApps = (data || []).filter((app: any) => {
+  const finalApps = ((data as AdminApplicationRow[] | null) || []).filter((app) => {
     if (role === 'admin') return true; // Admins view global unconstrained
     // Registrars only see unassigned, or ones assigned exactly to them
     return !app.assigned_to || app.assigned_to === user.id;
@@ -732,7 +923,7 @@ export async function getAdminPayments(status: string = 'paid') {
   const { createAdminClient } = await import('@/lib/supabase/server')
   const adminClient = await createAdminClient()
 
-  const selectQuery = 'id, tracking_id, business_name, total_amount, payment_status, form_data, created_at, updated_at, referred_by_id, profiles:user_id(full_name, email), business_types:business_type_id(name, orc_fee, agent_fee, returns_portion, service_fee)'
+  const selectQuery = 'id, tracking_id, business_name, total_amount, payment_status, form_data, created_at, updated_at, referred_by_id, profiles:user_id(full_name, email), business_types:business_type_id(name, orc_fee, agent_fee, returns_portion, service_fee, affiliate_share_percentage)'
 
   let query = adminClient
     .schema('graydocket')
@@ -794,7 +985,28 @@ export async function getAdminAffiliates() {
     return { affiliates: [], error: error.message }
   }
 
-  return { affiliates: profiles || [], error: null }
+  const { data: referralRows, error: referralError } = await supabase
+    .from('applications')
+    .select('referred_by_id')
+    .not('referred_by_id', 'is', null)
+
+  if (referralError) {
+    return { affiliates: [], error: referralError.message }
+  }
+
+  const referralCounts = (referralRows || []).reduce<Record<string, number>>((acc, row: { referred_by_id: string | null }) => {
+    if (row.referred_by_id) {
+      acc[row.referred_by_id] = (acc[row.referred_by_id] || 0) + 1
+    }
+    return acc
+  }, {})
+
+  const affiliates = (profiles || []).map((profile) => ({
+    ...profile,
+    referral_count: referralCounts[profile.id] || 0,
+  }))
+
+  return { affiliates, error: null }
 }
 
 export async function getAdminUsers() {
@@ -835,8 +1047,8 @@ export async function getAdminUsers() {
     adminSupabase.schema('graydocket').from('application_drafts').select('user_id'),
   ])
   const activityIds = new Set([
-    ...(appRows || []).map((r: any) => r.user_id),
-    ...(draftRows || []).map((r: any) => r.user_id),
+    ...((appRows as UserIdRow[] | null) || []).map((r) => r.user_id),
+    ...((draftRows as UserIdRow[] | null) || []).map((r) => r.user_id),
   ])
 
   // 4. A user belongs to GrayDocket if ANY of these are true:
@@ -844,7 +1056,7 @@ export async function getAdminUsers() {
   //    - They have a GrayDocket application or draft
   //    - They have a non-default role (admin, registrar, etc.)
   //    - They are a GrayDocket affiliate partner
-  const appUsers = (profiles || []).filter((u: any) =>
+  const appUsers = (profiles || []).filter((u: { id: string; role?: string | null; is_affiliate?: boolean | null }) =>
     gdAuthIds.has(u.id) ||
     activityIds.has(u.id) ||
     (u.role && u.role !== 'user') ||
@@ -878,7 +1090,7 @@ export async function getBankingPartners() {
 }
 
 // Update Actions
-export async function updateService(id: string, updates: any) {
+export async function updateService(id: string, updates: ServiceMutation) {
   const isAuthorized = await checkIsAdmin(['admin', 'registrar', 'service_manager'])
   if (!isAuthorized) return { error: 'Unauthorized: Service Manager access required' }
 
@@ -893,7 +1105,7 @@ export async function updateService(id: string, updates: any) {
   return { error: error?.message || null }
 }
 
-export async function updateBusinessType(id: string, updates: any) {
+export async function updateBusinessType(id: string, updates: BusinessTypeMutation) {
   const isAuthorized = await checkIsAdmin(['admin', 'registrar', 'service_manager'])
   if (!isAuthorized) return { error: 'Unauthorized: Pricing Manager access required' }
 
@@ -942,7 +1154,7 @@ export async function deleteBusinessType(id: string) {
   return { error: error?.message || null }
 }
 
-export async function updateBankingPartner(id: string, updates: any) {
+export async function updateBankingPartner(id: string, updates: BankingPartnerMutation) {
   const isAuthorized = await checkIsAdmin(['admin', 'bank_manager'])
   if (!isAuthorized) return { error: 'Unauthorized: Bank Manager access required' }
 
@@ -1045,7 +1257,9 @@ export async function updateApplicationStatus(id: string, status: string, adminN
   // 4. ---- Premium status-aware SMS Notification via Zend ----
   if (application && process.env.ZEND_API_KEY) {
     // Normalize phone number
-    const phoneNumber = formatPhoneNumber((application.form_data as any)?.mobilePhone || (application as any).profiles?.phone || '')
+    const formData = (application.form_data as ApplicationFormData | null) || {}
+    const profile = (application.profiles as PhoneContact | null) || null
+    const phoneNumber = formatPhoneNumber(formData.mobilePhone || profile?.phone || '')
 
     if (phoneNumber && phoneNumber.startsWith('+') && phoneNumber.length > 8) {
       const trackingLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://graydocket.com'}/track/${application.tracking_id}`
@@ -1103,29 +1317,9 @@ export async function updateApplicationStatus(id: string, status: string, adminN
     }
   }
 
-  // ---- Handle Commissions on completion ----
-  if (status === 'completed' && application && application.referred_by_id) {
-     // Logic: Commission = 20% of GrayDocket Service Fee (or flat rate)
-     const serviceFee = (application as any).business_types?.service_fee || 0
-     const commissionAmount = serviceFee * 0.2 // Example 20% commission
-
-     if (commissionAmount > 0) {
-       // Check if commission already exists
-       const { data: existing } = await adminClient
-         .from('commissions')
-         .select('id')
-         .eq('application_id', id)
-         .single()
-         
-       if (!existing) {
-         await adminClient.from('commissions').insert({
-           affiliate_id: application.referred_by_id,
-           application_id: id,
-           amount: commissionAmount,
-           status: 'pending'
-         })
-       }
-     }
+  // ---- Ensure commission ledger exists for referred paid applications ----
+  if (status === 'completed' && application?.referred_by_id) {
+    await processAffiliateCommission(id)
   }
 
   revalidatePath(`/admin/applications/${id}`)
@@ -1161,7 +1355,7 @@ export async function updateUserRole(id: string, role: 'user' | 'admin' | 'regis
   return { error: error?.message || null }
 }
 
-export async function createService(service: any) {
+export async function createService(service: ServiceMutation) {
   const isAdmin = await checkIsAdmin()
   if (!isAdmin) return { error: 'Unauthorized' }
 
@@ -1174,7 +1368,7 @@ export async function createService(service: any) {
   return { error: error?.message || null }
 }
 
-export async function createBankingPartner(partner: any) {
+export async function createBankingPartner(partner: BankingPartnerMutation) {
   const isAdmin = await checkIsAdmin()
   if (!isAdmin) return { error: 'Unauthorized' }
 
@@ -1315,6 +1509,7 @@ export async function getAffiliateStats() {
     .order('created_at', { ascending: false })
 
   const pending = commissions?.filter(c => c.status === 'pending').reduce((sum, c) => sum + Number(c.amount), 0) || 0
+  const approved = commissions?.filter(c => c.status === 'approved').reduce((sum, c) => sum + Number(c.amount), 0) || 0
   const earned = commissions?.filter(c => c.status === 'paid').reduce((sum, c) => sum + Number(c.amount), 0) || 0
   
   const { count: referrals } = await supabase
@@ -1324,6 +1519,7 @@ export async function getAffiliateStats() {
 
   return {
     pendingEarnings: pending,
+    approvedEarnings: approved,
     totalEarned: earned,
     referralCount: referrals || 0,
     commissions: commissions || []
@@ -1335,7 +1531,6 @@ export async function getAffiliateStats() {
  * Calculates and records earnings for affiliates based on the SERVICE FEE component of a successful application.
  */
 export async function processAffiliateCommission(applicationId: string) {
-  const { createAdminClient } = await import('@/lib/supabase/server')
   const adminClient = await createAdminClient()
 
   // 1. Fetch application with business type context (Service Fee info)
@@ -1361,16 +1556,7 @@ export async function processAffiliateCommission(applicationId: string) {
   // 3. Calculation Logic 
   // Institutional Standard: Dynamic % of the Net Returns Portion
   // Fallback: 20% of the Service Fee (for legacy categories)
-  const returnsPortion = (app.business_types as any)?.returns_portion || 0
-  const serviceFee = (app.business_types as any)?.service_fee || 0
-  const affiliateRate = ((app.business_types as any)?.affiliate_share_percentage || 40) / 100
-  
-  let commissionAmount = 0
-  if (returnsPortion > 0) {
-    commissionAmount = returnsPortion * affiliateRate
-  } else {
-    commissionAmount = serviceFee * 0.20 // 20% of total service fee (legacy fallback)
-  }
+  const commissionAmount = calculateAffiliateCommissionAmount(app as AffiliateCommissionContext)
 
   if (commissionAmount <= 0) return { success: false, reason: 'Zero value yield' }
 
@@ -1402,6 +1588,55 @@ export async function processAffiliateCommission(applicationId: string) {
   return { success: true }
 }
 
+export async function updateAffiliateCommissionStatus(
+  affiliateId: string,
+  fromStatus: 'pending' | 'approved',
+  toStatus: 'approved' | 'paid'
+) {
+  const isAdmin = await checkIsAdmin(['admin', 'registrar'])
+  if (!isAdmin) return { error: 'Unauthorized' }
+
+  const adminClient = await createAdminClient()
+
+  const { data: commissions, error: fetchError } = await adminClient
+    .from('commissions')
+    .select('id, amount')
+    .eq('affiliate_id', affiliateId)
+    .eq('status', fromStatus)
+
+  if (fetchError) return { error: fetchError.message }
+  if (!commissions || commissions.length === 0) {
+    return { error: `No ${fromStatus} commissions found.` }
+  }
+
+  const ids = commissions.map((commission) => commission.id)
+  const totalAmount = commissions.reduce((sum, commission) => sum + Number(commission.amount), 0)
+
+  const { error: updateError } = await adminClient
+    .from('commissions')
+    .update({
+      status: toStatus,
+      updated_at: new Date().toISOString(),
+    })
+    .in('id', ids)
+
+  if (updateError) return { error: updateError.message }
+
+  await sendDiscordNotification({
+    title: toStatus === 'paid' ? '🏦 AFFILIATE PAYOUT SETTLED' : '🧾 AFFILIATE PAYOUT APPROVED',
+    color: toStatus === 'paid' ? DiscordColors.SUCCESS : DiscordColors.INFO,
+    fields: [
+      { name: 'Affiliate ID', value: `\`${affiliateId}\``, inline: true },
+      { name: 'Entries', value: ids.length.toString(), inline: true },
+      { name: 'Amount', value: `GH₵ ${totalAmount.toFixed(2)}`, inline: true },
+    ]
+  })
+
+  revalidatePath('/admin/affiliates')
+  revalidatePath('/dashboard/affiliate')
+  return { success: true, count: ids.length, totalAmount }
+}
+
 export async function markUserAsAffiliate(userId: string, isAffiliate: boolean) {
   const isAdmin = await checkIsAdmin()
   if (!isAdmin) return { error: 'Unauthorized' }
@@ -1409,10 +1644,12 @@ export async function markUserAsAffiliate(userId: string, isAffiliate: boolean) 
   const supabase = await createClient()
   
   // Generate random 6 char code if enabling
-  let updates: any = { is_affiliate: isAffiliate }
+  const updates: ProfileAffiliateUpdate = { is_affiliate: isAffiliate }
   if (isAffiliate) {
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase()
+    const code = await generateUniqueAffiliateCode()
     updates.affiliate_code = code
+  } else {
+    updates.affiliate_code = null
   }
 
   const { error } = await supabase
@@ -1428,7 +1665,7 @@ export async function applyToBeAffiliate() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
-  const code = Math.random().toString(36).substring(2, 8).toUpperCase()
+  const code = await generateUniqueAffiliateCode()
   const { error } = await supabase
     .from('profiles')
     .update({ 
@@ -1498,7 +1735,7 @@ export async function getApplicationDetails(id: string) {
   if (error) return { application: null, error: error.message }
   if (!rawApp) return { application: null, error: 'Application record not found in the graydocket registry.' }
 
-  // 2. Authorization Check (Hyper-Permissive for Founders and Registry Staff)
+  // 2. Authorization Check
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { application: null, error: 'Unauthorized' }
@@ -1506,14 +1743,7 @@ export async function getApplicationDetails(id: string) {
   // Logic Branching
   const isOwner = rawApp.user_id === user.id
   
-  // Founder check (Robust across email permutations)
-  const isFounder = (
-    user.email?.toLowerCase().includes('maxcofie') || 
-    user.email?.toLowerCase().includes('maxwellcofie') ||
-    user.user_metadata?.email?.toLowerCase().includes('maxcofie')
-  )
-
-  let isAuthorized = isOwner || isFounder
+  let isAuthorized = isOwner
 
   if (!isAuthorized) {
     // Check official roles in the graydocket schema
@@ -1524,7 +1754,8 @@ export async function getApplicationDetails(id: string) {
       .eq('id', user.id)
       .maybeSingle()
     
-    const role = staffProf?.role || user.app_metadata?.role || (user as any).user_metadata?.role
+    const metadataRole = (user.user_metadata as RoleMetadata | undefined)?.role
+    const role = staffProf?.role || user.app_metadata?.role || metadataRole
     isAuthorized = ['admin', 'registrar', 'bank_manager', 'service_manager'].includes(role)
   }
 
@@ -1578,10 +1809,10 @@ export async function getApplicationDetails(id: string) {
        status: d.verification_status
     }))
     
-    const formDocs = (appData.form_data as any)?.documents || []
+    const formDocs = ((appData.form_data as ApplicationFormData | null)?.documents) || []
     appData.documents = [
        ...mappedDbDocs,
-       ...formDocs.map((d: any, i: number) => ({ 
+       ...formDocs.map((d, i) => ({ 
          id: `fd-${i}`, 
          title: d.name || d.title || 'Document', 
          url: d.file_url || d.url 
@@ -1687,7 +1918,7 @@ export async function createAdminUser(userData: {
 
   // 1. Check if user already exists in Auth to decide whether to Create or Sync
   let userId: string | null = null
-  const { data: { users }, error: listError } = await adminClient.auth.admin.listUsers()
+  const { data: { users } } = await adminClient.auth.admin.listUsers()
   const existingAuthUser = users?.find(u => u.email?.toLowerCase() === userData.email.toLowerCase())
 
   if (existingAuthUser) {
@@ -1699,7 +1930,7 @@ export async function createAdminUser(userData: {
       phone: userData.phone,
       email_confirm: true,
       user_metadata: { full_name: userData.full_name, phone: userData.phone, app_id: 'graydocket' },
-      password: 'GrayDocketPartner@2026' 
+      password: crypto.randomBytes(24).toString('hex')
     })
 
     if (authError) return { error: authError.message }
@@ -1723,7 +1954,7 @@ export async function createAdminUser(userData: {
   if (profileError) return { error: `Profile update failed: ${profileError.message}` }
 
   revalidatePath('/admin/users')
-  return { error: null }
+  return { error: null, onboarding: 'phone_otp' }
 }
 
 export async function deleteAdminUser(id: string) {
@@ -1803,7 +2034,7 @@ export async function updateAdminAvatar(formData: FormData) {
   return { error: null, avatarUrl: publicUrl }
 }
 
-export async function forceFetchProfile(userId: string, email: string) {
+export async function forceFetchProfile(userId: string) {
   const { createAdminClient } = await import('@/lib/supabase/server')
   const adminClient = await createAdminClient()
 
@@ -1824,11 +2055,6 @@ export async function forceFetchProfile(userId: string, email: string) {
       .maybeSingle()
     
     if (publicProfile) profile = publicProfile
-  }
-
-  if (email === 'maxcofie@gmail.com') {
-    if (!profile) profile = { role: 'admin', full_name: 'Maxwell Nii Offei Cofie', avatar_url: null }
-    else profile.role = 'admin'
   }
 
   // Final emergency fallback if they genuinely log in without a profile but shouldn't be locked out
@@ -1911,8 +2137,9 @@ export async function verifyDocument(applicationId: string, documentUrl: string,
 
   if (fetchErr || !application) return { error: fetchErr?.message || 'Application not found' }
 
-  const currentDocs = (application.form_data as any)?.documents || []
-  const updatedDocs = currentDocs.map((doc: any) => {
+  const currentFormData = (application.form_data as ApplicationFormData | null) || {}
+  const currentDocs = currentFormData.documents || []
+  const updatedDocs = currentDocs.map((doc) => {
     if (doc.url === documentUrl) {
       return { 
         ...doc, 
@@ -1929,7 +2156,7 @@ export async function verifyDocument(applicationId: string, documentUrl: string,
     .from('applications')
     .update({ 
       form_data: { 
-        ...(application.form_data as any), 
+        ...currentFormData,
         documents: updatedDocs 
       } 
     })
@@ -1939,7 +2166,8 @@ export async function verifyDocument(applicationId: string, documentUrl: string,
 
   // 3. If rejected, send an urgent SMS to the user
   if (status === 'rejected' && process.env.ZEND_API_KEY) {
-    let phoneNumber = ((application.form_data as any)?.mobilePhone || (application as any).profiles?.phone || '').toString().trim()
+    const profile = (application.profiles as PhoneContact | null) || null
+    let phoneNumber = (currentFormData.mobilePhone || profile?.phone || '').toString().trim()
     
     // Normalize Ghana numbers (+233)
     if (phoneNumber) {
@@ -2020,9 +2248,9 @@ export async function getPulseAnalytics() {
     .select('id, full_name, role, applications!assigned_to(id)')
     .eq('role', 'registrar')
 
-  const registrarStats = performance?.map(r => ({
+  const registrarStats = (performance as ProfileApplicationsRow[] | null)?.map(r => ({
     name: r.full_name,
-    activeCases: (r as any).applications?.length || 0
+    activeCases: r.applications?.length || 0
   }))
 
   return {
@@ -2054,7 +2282,7 @@ export async function getTrackingStatus(trackingId: string) {
   const { data: history } = await client
     .from('application_status_history')
     .select('status, notes, created_at')
-    .eq('application_id', (application as any).id)
+    .eq('application_id', application.id)
     .order('created_at', { ascending: false })
 
   return {
@@ -2080,7 +2308,7 @@ export async function requestFieldCorrection(applicationId: string, fieldKey: st
   if (!application) return { error: 'Application not found' }
 
   // 2. Update form_data with correction
-  const formData = (application.form_data as any) || {}
+  const formData = ((application.form_data as ApplicationFormData | null) || {}) as ApplicationFormData
   const corrections = formData.corrections || {}
   corrections[fieldKey] = reason
   formData.corrections = corrections
@@ -2121,7 +2349,8 @@ export async function requestFieldCorrection(applicationId: string, fieldKey: st
 
   // 5. Send SMS Notification
   if (process.env.ZEND_API_KEY) {
-    const phoneNumber = formatPhoneNumber((application as any).profiles?.phone || '')
+    const profile = (application.profiles as PhoneContact | null) || null
+    const phoneNumber = formatPhoneNumber(profile?.phone || '')
     if (phoneNumber) {
       const trackingLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://graydocket.com'}/dashboard/applications/${applicationId}`
       const message = `Urgent GrayDocket Alert: A correction is required for your application "${application.business_name}". Please log in to your dashboard to resolve: ${trackingLink}`
@@ -2189,7 +2418,7 @@ export async function resubmitApplication(applicationId: string, formData: Recor
     color: DiscordColors.INFO,
     fields: [
       { name: 'Tracking ID', value: `\`${applicationId.substring(0, 8)}...\``, inline: true },
-      { name: 'Business', value: (app as any).business_name || 'N/A', inline: true }
+      { name: 'Business', value: ('business_name' in app && typeof app.business_name === 'string' ? app.business_name : 'N/A'), inline: true }
     ]
   })
 
@@ -2207,5 +2436,3 @@ export async function resubmitApplication(applicationId: string, formData: Recor
   
   return { success: true }
 }
-
-

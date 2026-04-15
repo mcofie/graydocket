@@ -1,25 +1,58 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getAdminAffiliates } from '@/lib/actions'
+import { getAdminAffiliates, updateAffiliateCommissionStatus } from '@/lib/actions'
 import styles from '../../dashboard/overview.module.css'
 
+type CommissionRow = {
+  id: string
+  amount: number | string
+  status: 'pending' | 'approved' | 'paid' | 'void'
+  created_at: string
+}
+
+type AffiliateRow = {
+  id: string
+  full_name: string | null
+  email: string | null
+  phone: string | null
+  affiliate_code: string | null
+  payout_method: string | null
+  payout_address: string | null
+  referral_count: number
+  commissions: CommissionRow[]
+}
+
 export default function AdminAffiliatesPage() {
-  const [affiliates, setAffiliates] = useState<any[]>([])
+  const [affiliates, setAffiliates] = useState<AffiliateRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchAffiliates()
-  }, [])
-
-  const fetchAffiliates = async () => {
+  async function fetchAffiliates() {
     const res = await getAdminAffiliates()
-    setAffiliates(res.affiliates)
+    setAffiliates((res.affiliates || []) as AffiliateRow[])
     setLoading(false)
   }
 
-  // To mark commissioned as paid, we would need a new action. 
-  // For now, we will just display and allow tracking.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchAffiliates()
+  }, [])
+
+  const handleStatusUpdate = async (
+    affiliateId: string,
+    fromStatus: 'pending' | 'approved',
+    toStatus: 'approved' | 'paid'
+  ) => {
+    setUpdatingId(`${affiliateId}:${fromStatus}:${toStatus}`)
+    const res = await updateAffiliateCommissionStatus(affiliateId, fromStatus, toStatus)
+    if (res.error) {
+      alert(res.error)
+    } else {
+      await fetchAffiliates()
+    }
+    setUpdatingId(null)
+  }
 
   if (loading) {
     return <div className={styles.overview}>Loading Affiliate Brands...</div>
@@ -55,10 +88,16 @@ export default function AdminAffiliatesPage() {
             <tbody>
               {affiliates.map((a) => {
                 const commissions = a.commissions || []
-                const totalReferrals = commissions.length
+                const totalReferrals = a.referral_count || 0
                 const pendingAmount = commissions
-                  .filter((c: any) => c.status === 'pending')
-                  .reduce((sum: number, c: any) => sum + Number(c.amount), 0)
+                  .filter((c) => c.status === 'pending')
+                  .reduce((sum, c) => sum + Number(c.amount), 0)
+                const approvedAmount = commissions
+                  .filter((c) => c.status === 'approved')
+                  .reduce((sum, c) => sum + Number(c.amount), 0)
+                const paidAmount = commissions
+                  .filter((c) => c.status === 'paid')
+                  .reduce((sum, c) => sum + Number(c.amount), 0)
 
                 return (
                   <tr key={a.id} style={{ borderBottom: '1px solid var(--color-neutral-100)' }}>
@@ -83,7 +122,26 @@ export default function AdminAffiliatesPage() {
                       {totalReferrals}
                     </td>
                     <td style={{ padding: 'var(--space-4)', textAlign: 'right', fontSize: 'var(--text-sm)', fontWeight: 600, color: pendingAmount > 0 ? 'var(--color-primary-600)' : 'var(--color-neutral-400)' }}>
-                      GH₵ {pendingAmount.toLocaleString()}
+                      <div>GH₵ {pendingAmount.toLocaleString()}</div>
+                      <div style={{ fontSize: '10px', color: 'var(--color-neutral-500)', marginTop: '4px' }}>
+                        Approved: GH₵ {approvedAmount.toLocaleString()} | Paid: GH₵ {paidAmount.toLocaleString()}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '10px' }}>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleStatusUpdate(a.id, 'pending', 'approved')}
+                          disabled={pendingAmount <= 0 || updatingId !== null}
+                        >
+                          {updatingId === `${a.id}:pending:approved` ? 'Approving...' : 'Approve'}
+                        </button>
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => handleStatusUpdate(a.id, 'approved', 'paid')}
+                          disabled={approvedAmount <= 0 || updatingId !== null}
+                        >
+                          {updatingId === `${a.id}:approved:paid` ? 'Paying...' : 'Mark Paid'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )

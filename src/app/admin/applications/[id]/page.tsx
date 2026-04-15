@@ -1,11 +1,90 @@
 'use client'
 
-import { useState, useEffect, use, useRef } from 'react'
+import { useState, useEffect, use, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, FileText, UploadCloud, ExternalLink, Copy, Printer, Clock, Save, User, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import { getApplicationDetails, updateApplicationStatus, uploadApplicationDocument, updateApplicationNotes, assignApplication, getRegistrarsForAssignment, verifyDocument, requestFieldCorrection } from '@/lib/actions'
 import { createClient } from '@/lib/supabase/client'
 import styles from '../../../dashboard/overview.module.css'
+
+type JsonPrimitive = string | number | boolean | null
+type JsonValue = JsonPrimitive | JsonObject | JsonValue[]
+type JsonObject = { [key: string]: JsonValue | undefined }
+
+type CurrentUser = {
+  id: string
+  app_metadata?: {
+    role?: string
+  } | null
+}
+
+type RegistrarOption = {
+  id: string
+  full_name: string
+}
+
+type ApplicationDocument = {
+  title: string
+  url: string
+  uploadedAt: string
+  verification_status?: 'approved' | 'rejected' | 'pending' | null
+  admin_notes?: string | null
+}
+
+type DirectorEntry = {
+  firstName?: string
+  surname?: string
+  ghanaCardNumber?: string
+  tinNumber?: string
+  email?: string
+  phone?: string
+} & JsonObject
+
+type ApplicationFormData = JsonObject & {
+  natureOfBusiness?: string
+  dateOfCommencement?: string
+  mobilePhone?: string
+  directors?: DirectorEntry[]
+  documents?: ApplicationDocument[]
+  corrections?: Record<string, string>
+}
+
+type ApplicationHistoryEntry = {
+  id: string
+  status: string
+  notes?: string | null
+  created_at: string
+  updater?: {
+    full_name?: string | null
+  } | null
+}
+
+type ApplicationDetail = {
+  id: string
+  tracking_id: string
+  business_name: string
+  status: string
+  notes?: string | null
+  created_at: string
+  total_amount?: number | null
+  payment_status?: string | null
+  assigned_to?: string | null
+  form_data?: ApplicationFormData | null
+  business_types?: {
+    name?: string | null
+    orc_fee?: number | null
+    agent_fee?: number | null
+    returns_portion?: number | null
+  } | null
+  assigned_registrar?: {
+    full_name?: string | null
+  } | null
+  application_status_history?: ApplicationHistoryEntry[]
+  profiles?: {
+    phone?: string | null
+  } | null
+  referred_by_id?: string | null
+}
 
 const statusOptions = [
   'draft', 'submitted', 'name_search', 'under_review', 
@@ -16,14 +95,14 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
   const resolvedParams = use(params)
   const appId = resolvedParams.id
   
-  const [app, setApp] = useState<any>(null)
+  const [app, setApp] = useState<ApplicationDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
   // Auth & Assignment State
-  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
-  const [registrars, setRegistrars] = useState<{id: string, full_name: string}[]>([])
+  const [registrars, setRegistrars] = useState<RegistrarOption[]>([])
   const [assigning, setAssigning] = useState(false)
   
   // Doc Upload State
@@ -36,20 +115,14 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
   const [notes, setNotes] = useState('')
   const [savingNotes, setSavingNotes] = useState(false)
 
-  useEffect(() => {
-    fetchData()
-  }, [appId])
-
-  const fetchData = async () => {
-    console.log('Fetching App Data for:', appId)
+  const fetchData = useCallback(async () => {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     
     let adminFlag = false
     if (user) {
-      setCurrentUser(user)
-      const email = user.email?.toLowerCase()
-      if (email === 'maxcofie@gmail.com' || user.app_metadata?.role === 'admin') {
+      setCurrentUser(user as CurrentUser)
+      if (user.app_metadata?.role === 'admin') {
         adminFlag = true
         setIsSuperAdmin(true)
       } else {
@@ -63,15 +136,20 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
 
     if (adminFlag) {
       const regs = await getRegistrarsForAssignment()
-      setRegistrars(regs)
+      setRegistrars(regs as RegistrarOption[])
     }
 
     const res = await getApplicationDetails(appId)
     if (res.error) setError(res.error)
-    setApp(res.application)
+    setApp((res.application as ApplicationDetail | null) || null)
     setNotes(res.application?.notes || '')
     setLoading(false)
-  }
+  }, [appId])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData()
+  }, [fetchData])
 
   const handleAssignAction = async (targetUserId: string) => {
     if (!targetUserId) return
@@ -176,7 +254,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
     setUploading(false)
   }
 
-  const generateText = (obj: any, indent = 0): string => {
+  const generateText = (obj: JsonValue | undefined, indent = 0): string => {
     if (!obj) return ''
     if (typeof obj !== 'object') return String(obj)
     
@@ -222,7 +300,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
     alert('Application data copied to clipboard!')
   }
 
-  const generateObjectHTML = (obj: any): string => {
+  const generateObjectHTML = (obj: JsonValue | undefined): string => {
     if (!obj) return ''
     if (typeof obj !== 'object') return `<span>${obj}</span>`
     
@@ -265,7 +343,8 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
       return
     }
     const fd = app.form_data || {}
-    const { documents, ...restData } = fd
+    const restData = { ...fd }
+    delete restData.documents
     
     let html = `<html><head><title>App_${app.tracking_id}</title><style>
       body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; line-height: 1.6; color: #111; max-width: 900px; margin: 0 auto; }
@@ -293,7 +372,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
     }, 500)
   }
 
-  const renderUIDataNode = (obj: any, level = 0, path = ''): React.ReactNode => {
+  const renderUIDataNode = (obj: JsonValue | undefined, level = 0, path = ''): React.ReactNode => {
     if (!obj) return null
     if (typeof obj !== 'object') return <span style={{ fontWeight: 500 }}>{String(obj)}</span>
     
@@ -389,8 +468,8 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
     )
   }
 
-  const fd = app.form_data || {}
-  const docs = fd.documents || []
+  const fd = (app.form_data || {}) as ApplicationFormData
+  const docs = Array.isArray(fd.documents) ? fd.documents : []
 
   return (
     <div className={styles.overview}>
@@ -488,12 +567,12 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
             </div>
           </div>
 
-          {fd.directors && fd.directors.length > 0 && (
+          {Array.isArray(fd.directors) && fd.directors.length > 0 && (
              <div style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
                <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: 'var(--space-4)', paddingBottom: 'var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)' }}>
                  Directors ({fd.directors.length})
                </h3>
-               {fd.directors.map((d: any, idx: number) => (
+               {fd.directors.map((d, idx) => (
                  <div key={idx} style={{ marginBottom: idx < fd.directors.length - 1 ? 'var(--space-4)' : 0, paddingBottom: idx < fd.directors.length - 1 ? 'var(--space-4)' : 0, borderBottom: idx < fd.directors.length - 1 ? '1px dashed var(--color-neutral-200)' : 'none' }}>
                    <div style={{ fontWeight: 600 }}>{d.firstName} {d.surname}</div>
                    <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>Ghana Card: {d.ghanaCardNumber} | TIN: {d.tinNumber}</div>
@@ -539,7 +618,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
                   No documents uploaded yet.
                 </div>
               ) : (
-                docs.map((d: any, idx: number) => (
+                docs.map((d, idx) => (
                   <div key={idx} style={{ padding: '12px', background: 'white', border: '1px solid var(--color-neutral-200)', borderRadius: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -682,7 +761,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
               {app.application_status_history && app.application_status_history.length > 0 ? (
-                app.application_status_history.map((hist: any, i: number) => (
+                app.application_status_history.map((hist, i) => (
                   <div key={hist.id} style={{ display: 'flex', gap: '12px', position: 'relative' }}>
                     {/* Timeline Line */}
                     {i < app.application_status_history.length - 1 && (

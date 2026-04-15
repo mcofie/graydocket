@@ -2,25 +2,41 @@
 
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
-import { Search, MapPin, Clock, CheckCircle2, ShieldQuestion, ArrowRight, Activity, Calendar, ArrowLeft } from 'lucide-react'
+import { Search, CheckCircle2, ArrowRight, Activity, Calendar, ArrowLeft } from 'lucide-react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { getTrackingStatus } from '@/lib/actions'
 import styles from '../track.module.css'
 
+type TrackingHistoryEntry = {
+  id?: string
+  status: string
+  notes?: string | null
+  created_at: string
+}
+
+type TrackingApplication = {
+  business_name: string
+  status: string
+  created_at: string
+  business_types?: {
+    name?: string | null
+  } | null
+}
+
+type TrackingResult = {
+  application: TrackingApplication
+  history?: TrackingHistoryEntry[]
+  error?: string | null
+}
+
 export default function DynamicTrackPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params)
   const idFromUrl = resolvedParams.id
   
-  const [data, setData] = useState<any>(null)
+  const [data, setData] = useState<TrackingResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (idFromUrl) {
-      fetchStatus(idFromUrl)
-    }
-  }, [idFromUrl])
 
   const fetchStatus = async (id: string) => {
     setLoading(true)
@@ -31,14 +47,20 @@ export default function DynamicTrackPage({ params }: { params: Promise<{ id: str
         setError(res.error)
         setData(null)
       } else {
-        setData(res)
+        setData(res as TrackingResult)
       }
-    } catch (err) {
+    } catch {
       setError('A connection error occurred while querying the registry.')
     } finally {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (idFromUrl) {
+      void fetchStatus(idFromUrl)
+    }
+  }, [idFromUrl])
 
   const formatStatus = (s: string) => s.replace(/_/g, ' ').toUpperCase()
 
@@ -65,7 +87,7 @@ export default function DynamicTrackPage({ params }: { params: Promise<{ id: str
                      <Search size={48} style={{ marginBottom: 'var(--space-4)', opacity: 0.5 }} />
                      <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: 'var(--space-2)' }}>Security Check Failed</h3>
                      <p style={{ fontSize: '14px', lineHeight: 1.6 }}>
-                        We could not find an application linked to "<strong>{idFromUrl.toUpperCase()}</strong>". 
+                        We could not find an application linked to &quot;<strong>{idFromUrl.toUpperCase()}</strong>&quot;.
                         Please verify the ID and ensure there are no trailing spaces.
                      </p>
                      <Link href="/track" style={{ marginTop: 'var(--space-6)', textDecoration: 'none', display: 'inline-block', background: 'white', color: '#ef4444', border: '1px solid #fee2e2', padding: '10px 24px', borderRadius: '12px', fontWeight: 700 }}>
@@ -93,7 +115,7 @@ export default function DynamicTrackPage({ params }: { params: Promise<{ id: str
 
                 <div className={styles.timeline}>
                    {data.history && data.history.length > 0 ? (
-                      data.history.map((step: any, i: number) => (
+                      data.history.map((step, i) => (
                         <div key={i} className={`${styles.timelineItem} ${i === 0 ? styles.isActive : styles.isCompleted}`}>
                           <div className={styles.timelineVisual}>
                             <div className={styles.dot}>

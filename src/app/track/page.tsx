@@ -1,11 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
-import { Search, MapPin, Clock, CheckCircle2, ShieldQuestion, ArrowRight, Activity, Calendar } from 'lucide-react'
+import { Search, Clock, CheckCircle2, ShieldQuestion } from 'lucide-react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
-import { getTrackingStatus } from '@/lib/actions'
 import styles from './track.module.css'
 
 export default function TrackPage() {
@@ -23,7 +21,7 @@ export default function TrackPage() {
     <div className={styles.wrapper}>
       <Header />
       <main className={styles.trackPage}>
-        <div className={styles.container}>
+        <form className={styles.container} onSubmit={handleSearch}>
           <div className={styles.trackHeader} style={{ textAlign: 'center', marginBottom: 'var(--space-12)' }}>
             <span className={styles.idLabel}>Institutional Gateway</span>
             <h1 className={styles.businessName}>Track Application</h1>
@@ -76,7 +74,7 @@ export default function TrackPage() {
               <p>GrayDocket is the preferred channel for over 1,000+ Ghanaian business owners for compliance.</p>
             </div>
           </div>
-        </div>
+        </form>
       </main>
       <Footer />
     </div>

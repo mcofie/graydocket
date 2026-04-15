@@ -2,9 +2,16 @@
 import crypto from 'crypto'
 
 import { createClient as createSupabaseServerClient } from '@/lib/supabase/server'
-import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js'
 import { formatPhoneNumber } from '@/lib/sms'
 import { sendDiscordNotification, DiscordColors } from '@/lib/discord'
+
+function isMockOtpEnabled() {
+  return process.env.NODE_ENV === 'development' && process.env.ALLOW_MOCK_OTP === 'true'
+}
+
+function getOtpSigningSecret() {
+  return process.env.OTP_SIGNING_SECRET || process.env.ZEND_API_KEY
+}
 
 export async function checkPhoneExists(phone: string) {
   const normalizedPhone = formatPhoneNumber(phone)
@@ -28,8 +35,10 @@ export async function checkPhoneExists(phone: string) {
 
 export async function sendZendOtp(phone: string) {
   if (!process.env.ZEND_API_KEY) {
-    console.warn('Missing ZEND_API_KEY environment variable. Mocking OTP send.')
-    return { success: true, id: 'mock_otp_123', message: 'Mock OTP sent (ZEND_API_KEY missing)' }
+    if (!isMockOtpEnabled()) {
+      return { success: false, error: 'OTP provider is not configured.' }
+    }
+    return { success: true, id: 'mock_otp_123', message: 'Mock OTP sent (development mode)' }
   }
 
   const normalizedPhone = formatPhoneNumber(phone)
@@ -38,7 +47,10 @@ export async function sendZendOtp(phone: string) {
   const expiry = Date.now() + 10 * 60 * 1000 // 10 minutes
   
   // Create a stateless verification token (Hash: phone + code + expiry + secret)
-  const secret = process.env.ZEND_API_KEY // Using API Key as secret for now
+  const secret = getOtpSigningSecret()
+  if (!secret) {
+    return { success: false, error: 'OTP signing secret is not configured.' }
+  }
   const hash = crypto.createHmac('sha256', secret)
     .update(`${normalizedPhone}${code}${expiry}`)
     .digest('hex')
@@ -66,9 +78,10 @@ export async function sendZendOtp(phone: string) {
     }
     
     return { success: true, id: otpId }
-  } catch (error: any) {
-    console.error('Zend send OTP error:', error)
-    return { success: false, error: error.message || 'Failed to send OTP' }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to send OTP'
+    console.error('Zend send OTP error:', message)
+    return { success: false, error: message }
   }
 }
 
@@ -76,7 +89,9 @@ export async function verifyZendOtp(id: string, code: string, phone: string, ful
   let isVerified = false
   
   if (!process.env.ZEND_API_KEY) {
-    console.warn('Missing ZEND_API_KEY environment variable. Mocking OTP verification.')
+    if (!isMockOtpEnabled()) {
+      return { success: false, message: 'OTP provider is not configured.' }
+    }
     if (code !== '123456') return { success: false, message: 'Invalid mock code. Try 123456' }
     isVerified = true
   } else {
@@ -95,7 +110,10 @@ export async function verifyZendOtp(id: string, code: string, phone: string, ful
       }
       
       // Re-calculate hash to verify the code
-      const secret = process.env.ZEND_API_KEY;
+      const secret = getOtpSigningSecret();
+      if (!secret) {
+        return { success: false, message: 'OTP signing secret is not configured.' }
+      }
       const expectedHash = crypto.createHmac('sha256', secret)
         .update(`${normalizedPhone}${code}${expiry}`)
         .digest('hex');
@@ -105,8 +123,9 @@ export async function verifyZendOtp(id: string, code: string, phone: string, ful
       }
 
       isVerified = true
-    } catch (error: any) {
-      console.error('Zend verify OTP error:', error)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to verify OTP'
+      console.error('Zend verify OTP error:', message)
       return { success: false, error: 'Failed to verify OTP' }
     }
   }
@@ -122,12 +141,13 @@ export async function verifyZendOtp(id: string, code: string, phone: string, ful
     const adminSupabase = await createAdminClient()
 
     const normalizedPhone = formatPhoneNumber(phone)
-    let { data: profiles, error: lookupError } = await adminSupabase
+    const { data: existingProfiles } = await adminSupabase
       .schema('graydocket')
       .from('profiles')
       .select('id, email')
       .eq('phone', normalizedPhone)
       .limit(1)
+    let profiles = existingProfiles
 
     // Bridge for Registration: If no account exists, create one!
     if (!profiles || profiles.length === 0) {

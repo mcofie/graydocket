@@ -1,30 +1,45 @@
 'use client'
+/* eslint-disable @next/next/no-img-element */
 
 import { useState, useEffect } from 'react'
 import { getBankingPartners, updateBankingPartner, createBankingPartner, deleteBankingPartner } from '@/lib/actions'
 import Modal from '../components/Modal'
 import styles from '../../dashboard/overview.module.css'
-import Image from 'next/image'
+
+type BankingPartnerRow = {
+  id: string
+  name: string
+  description?: string | null
+  logo_url?: string | null
+  is_active: boolean
+}
+
+type BankingPartnerFormState = {
+  name: string
+  description: string
+  logo_url: string
+}
 
 export default function AdminBankingPage() {
-  const [partners, setPartners] = useState<any[]>([])
+  const [partners, setPartners] = useState<BankingPartnerRow[]>([])
   const [loading, setLoading] = useState(true)
   
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingPartner, setEditingPartner] = useState<any>(null)
-  const [formData, setFormData] = useState({ name: '', description: '', logo_url: '' })
+  const [editingPartner, setEditingPartner] = useState<BankingPartnerRow | null>(null)
+  const [formData, setFormData] = useState<BankingPartnerFormState>({ name: '', description: '', logo_url: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
-
-  useEffect(() => {
-    fetchPartners()
-  }, [])
 
   const fetchPartners = async () => {
     const res = await getBankingPartners()
-    setPartners(res.partners)
+    setPartners((res.partners as BankingPartnerRow[] | undefined) || [])
     setLoading(false)
   }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchPartners()
+  }, [])
 
   const openCreateModal = () => {
     setEditingPartner(null)
@@ -32,7 +47,7 @@ export default function AdminBankingPage() {
     setIsModalOpen(true)
   }
 
-  const openEditModal = (partner: any) => {
+  const openEditModal = (partner: BankingPartnerRow) => {
     setEditingPartner(partner)
     setFormData({ 
       name: partner.name, 
@@ -56,7 +71,7 @@ export default function AdminBankingPage() {
 
     setIsSubmitting(false)
     setIsModalOpen(false)
-    fetchPartners()
+    await fetchPartners()
   }
 
   const toggleActive = async (id: string, current: boolean) => {
@@ -120,7 +135,7 @@ export default function AdminBankingPage() {
                         alt={partner.name}
                         style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                         onError={(e) => {
-                          (e.target as any).src = 'https://via.placeholder.com/40?text=Bank'
+                          e.currentTarget.src = 'https://via.placeholder.com/40?text=Bank'
                         }}
                       />
                     ) : (

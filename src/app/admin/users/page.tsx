@@ -1,30 +1,39 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getAdminUsers, updateUserRole, markUserAsAffiliate, createAdminUser, deleteAdminUser, updateAdminUserProfile } from '@/lib/actions'
+import { getAdminUsers, markUserAsAffiliate, createAdminUser, deleteAdminUser, updateAdminUserProfile } from '@/lib/actions'
 import styles from '../../dashboard/overview.module.css'
-import { Plus, X, UserPlus, Shield, Mail, RefreshCw, AlertCircle, Smartphone, Edit2, Trash2, MoreVertical } from 'lucide-react'
+import { Plus, RefreshCw, AlertCircle, Edit2, Trash2, UserPlus, Mail, Smartphone, Shield } from 'lucide-react'
 import Modal from '../components/Modal'
 
+type UserRole = 'user' | 'admin' | 'registrar' | 'bank_manager' | 'service_manager'
+
+type AdminUser = {
+  id: string
+  email: string
+  full_name: string | null
+  phone: string | null
+  role: UserRole
+  is_affiliate: boolean
+  affiliate_code: string | null
+  created_at: string
+}
+
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<any[]>([])
+  const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [creating, setCreating] = useState(false)
-  const [editingUser, setEditingUser] = useState<any>(null)
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null)
   const [newUser, setNewUser] = useState({
     email: '',
     full_name: '',
     phone: '',
-    role: 'registrar' as any
+    role: 'registrar' as UserRole
   })
 
-  useEffect(() => {
-    fetchUsers()
-  }, [])
-
-  const fetchUsers = async () => {
+  async function fetchUsers() {
     setLoading(true)
     setErrorMsg(null)
     const res = await getAdminUsers()
@@ -36,6 +45,11 @@ export default function AdminUsersPage() {
     }
     setLoading(false)
   }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchUsers()
+  }, [])
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -63,7 +77,7 @@ export default function AdminUsersPage() {
       if (error) {
         alert(error)
       } else {
-        alert(`User created successfully! Default password: GrayDocketPartner@2026`)
+        alert('User created successfully. They can sign in using the phone OTP flow.')
         setIsModalOpen(false)
         setNewUser({ email: '', full_name: '', phone: '', role: 'registrar' })
         fetchUsers()
@@ -80,7 +94,7 @@ export default function AdminUsersPage() {
     else fetchUsers()
   }
 
-  const openEditModal = (user: any) => {
+  const openEditModal = (user: AdminUser) => {
     setEditingUser(user)
     setNewUser({
       email: user.email || '',
@@ -89,17 +103,6 @@ export default function AdminUsersPage() {
       role: user.role || 'registrar'
     })
     setIsModalOpen(true)
-  }
-
-  const handleRoleChange = async (id: string, newRole: any) => {
-    if (!confirm(`Are you sure you want to change this user's role to ${newRole.toUpperCase().replace('_', ' ')}?`)) return
-
-    const { error } = await updateUserRole(id, newRole)
-    if (error) {
-      alert(error)
-    } else {
-      setUsers(users.map(u => u.id === id ? { ...u, role: newRole } : u))
-    }
   }
 
   const handleToggleAffiliate = async (id: string, currentStatus: boolean) => {
@@ -283,7 +286,7 @@ export default function AdminUsersPage() {
               <Shield size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-neutral-400)' }} />
               <select 
                 value={newUser.role}
-                onChange={(e) => setNewUser({ ...newUser, role: e.target.value as any })}
+                onChange={(e) => setNewUser({ ...newUser, role: e.target.value as UserRole })}
                 style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '10px', border: '1px solid var(--color-neutral-200)', fontSize: '14px', appearance: 'none', background: 'white' }}
               >
                 <option value="registrar">REGISTRAR (Agent)</option>

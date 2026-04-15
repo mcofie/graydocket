@@ -7,18 +7,11 @@ import {
   TrendingUp, 
   Copy, 
   Check,
-  CheckCircle2, 
   ExternalLink,
-  ChevronRight,
   Clock,
-  Briefcase,
-  Settings,
   CreditCard,
-  Phone,
-  HelpCircle,
   AlertCircle,
-  Wallet,
-  ArrowUpRight
+  Wallet
 } from 'lucide-react'
 import { getAffiliateStats, applyToBeAffiliate, updatePayoutInfo } from '@/lib/actions'
 import { createClient } from '@/lib/supabase/client'
@@ -26,11 +19,39 @@ import styles from '../overview.module.css'
 import affStyles from './affiliate.module.css'
 import Skeleton from '@/components/ui/Skeleton'
 
+type CommissionStatus = 'pending' | 'approved' | 'paid' | 'void'
+
+type AffiliateLedgerEntry = {
+  id: string
+  amount: number | string
+  status: CommissionStatus
+  created_at: string
+  applications?: {
+    business_name?: string | null
+    tracking_id?: string | null
+  } | null
+}
+
+type AffiliateStats = {
+  pendingEarnings: number
+  approvedEarnings: number
+  totalEarned: number
+  referralCount: number
+  commissions: AffiliateLedgerEntry[]
+}
+
+type AffiliateProfile = {
+  affiliate_code: string | null
+  is_affiliate: boolean
+  payout_method: string | null
+  payout_address: string | null
+}
+
 export default function AffiliateDashboard() {
-  const [stats, setStats] = useState<any>(null)
+  const [stats, setStats] = useState<AffiliateStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
-  const [profile, setProfile] = useState<any>(null)
+  const [profile, setProfile] = useState<AffiliateProfile | null>(null)
   const [isApplying, setIsApplying] = useState(false)
   
   // Payout section state
@@ -38,10 +59,6 @@ export default function AffiliateDashboard() {
   const [payoutMethod, setPayoutMethod] = useState('momo')
   const [payoutAddress, setPayoutAddress] = useState('')
   const [payoutLoading, setPayoutLoading] = useState(false)
-
-  useEffect(() => {
-    loadData()
-  }, [])
 
   async function loadData() {
     const supabase = createClient()
@@ -52,7 +69,7 @@ export default function AffiliateDashboard() {
         .select('*')
         .eq('id', user.id)
         .single()
-      setProfile(prof)
+      setProfile((prof as AffiliateProfile | null) ?? null)
       if (prof) {
         setPayoutMethod(prof.payout_method || 'momo')
         setPayoutAddress(prof.payout_address || '')
@@ -60,9 +77,14 @@ export default function AffiliateDashboard() {
     }
 
     const res = await getAffiliateStats()
-    setStats(res)
+    setStats((res as AffiliateStats | null) ?? null)
     setLoading(false)
   }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadData()
+  }, [])
 
   const handleApply = async () => {
     setIsApplying(true)
@@ -109,7 +131,7 @@ export default function AffiliateDashboard() {
     )
   }
 
-  if (!profile?.is_affiliate) {
+  if (!profile?.is_affiliate || !stats) {
     return (
       <div className={affStyles.unregistered}>
         <div className={affStyles.unregisteredContent}>
@@ -191,6 +213,16 @@ export default function AffiliateDashboard() {
         </div>
 
         <div className={styles.statCard}>
+          <div className={`${styles.statIcon} ${styles.info}`}>
+            <CreditCard size={24} />
+          </div>
+          <div className={styles.statContent}>
+            <h3>GH₵ {(stats.approvedEarnings || 0).toLocaleString()}</h3>
+            <p>Approved for Payout</p>
+          </div>
+        </div>
+
+        <div className={styles.statCard}>
           <div className={`${styles.statIcon} ${styles.success}`}>
             <Wallet size={24} />
           </div>
@@ -250,7 +282,7 @@ export default function AffiliateDashboard() {
                 </thead>
                 <tbody>
                   {stats.commissions.length > 0 ? (
-                    stats.commissions.map((c: any) => (
+                    stats.commissions.map((c) => (
                       <tr key={c.id} style={{ borderBottom: '1px solid var(--color-neutral-100)' }}>
                         <td style={{ padding: '16px 24px' }}>
                           <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--color-neutral-900)' }}>{c.applications?.business_name || 'Anonymous User'}</div>
@@ -267,8 +299,8 @@ export default function AffiliateDashboard() {
                             textTransform: 'uppercase', 
                             padding: '4px 10px', 
                             borderRadius: '20px',
-                            background: c.status === 'paid' ? '#ecfdf5' : '#fff7ed',
-                            color: c.status === 'paid' ? '#059669' : '#c2410c'
+                            background: c.status === 'paid' ? '#ecfdf5' : c.status === 'approved' ? '#eff6ff' : '#fff7ed',
+                            color: c.status === 'paid' ? '#059669' : c.status === 'approved' ? '#2563eb' : '#c2410c'
                           }}>
                             {c.status}
                           </span>
@@ -346,7 +378,7 @@ export default function AffiliateDashboard() {
             <div className={affStyles.protocolNotice}>
                <AlertCircle size={18} color="var(--color-primary-600)" style={{ flexShrink: 0 }} />
                <p style={{ fontSize: '12px', color: 'var(--color-primary-900)', lineHeight: '1.6', margin: 0 }}>
-                 Settlement operations occur every <strong style={{ fontWeight: 800 }}>Friday</strong> for balances above <strong style={{ fontWeight: 800 }}>GH₵ 50.00</strong>.
+                 Settlement operations move from <strong style={{ fontWeight: 800 }}>pending</strong> to <strong style={{ fontWeight: 800 }}>approved</strong> once finance validates the ledger, then to <strong style={{ fontWeight: 800 }}>paid</strong> after transfer.
                </p>
             </div>
           </section>

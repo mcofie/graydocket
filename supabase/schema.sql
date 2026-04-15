@@ -74,15 +74,34 @@ CREATE TABLE IF NOT EXISTS graydocket.business_types (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE graydocket.business_types
+  ADD COLUMN IF NOT EXISTS description TEXT,
+  ADD COLUMN IF NOT EXISTS required_fields JSONB DEFAULT '[]',
+  ADD COLUMN IF NOT EXISTS base_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS service_fee DECIMAL(10,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS eta TEXT DEFAULT '5-7 business days',
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS orc_fee DECIMAL(10,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS agent_fee DECIMAL(10,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS returns_portion DECIMAL(10,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS affiliate_share_percentage DECIMAL(5,2) NOT NULL DEFAULT 40,
+  ADD COLUMN IF NOT EXISTS processing_timeline TEXT;
+
 -- Seed default business types
-INSERT INTO graydocket.business_types (name, description, base_price, required_fields, eta) VALUES
-  ('Sole Proprietorship', 'For individual entrepreneurs. Register under the Registration of Business Names Act (Form A).', 350.00, 
-   '["business_name", "owner_name", "ghana_card", "tin", "email", "phone", "address", "digital_address", "description", "sector", "date_of_commencement"]', '3-5 business days'),
-  ('Company Limited by Shares', 'For teams and investors. Limited liability with share capital under the Companies Act 2019 (Form 3).', 1200.00,
-   '["business_name", "directors", "secretary", "shareholders", "stated_capital", "auditor", "beneficial_owner", "constitution", "registered_office"]', '5-7 business days'),
-  ('Company Limited by Guarantee', 'For NGOs, associations, and non-profits. No share capital required (Form 3).', 1200.00,
-   '["business_name", "directors", "secretary", "members", "auditor", "beneficial_owner", "constitution", "registered_office"]', '10-14 business days')
-ON CONFLICT DO NOTHING;
+INSERT INTO graydocket.business_types (name, description, base_price, required_fields, eta)
+SELECT *
+FROM (
+  VALUES
+    ('Sole Proprietorship', 'For individual entrepreneurs. Register under the Registration of Business Names Act (Form A).', 350.00, '["business_name", "owner_name", "ghana_card", "tin", "email", "phone", "address", "digital_address", "description", "sector", "date_of_commencement"]'::jsonb, '3-5 business days'),
+    ('Company Limited by Shares', 'For teams and investors. Limited liability with share capital under the Companies Act 2019 (Form 3).', 1200.00, '["business_name", "directors", "secretary", "shareholders", "stated_capital", "auditor", "beneficial_owner", "constitution", "registered_office"]'::jsonb, '5-7 business days'),
+    ('Company Limited by Guarantee', 'For NGOs, associations, and non-profits. No share capital required (Form 3).', 1200.00, '["business_name", "directors", "secretary", "members", "auditor", "beneficial_owner", "constitution", "registered_office"]'::jsonb, '10-14 business days')
+) AS seed(name, description, base_price, required_fields, eta)
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM graydocket.business_types existing
+  WHERE existing.name = seed.name
+);
 
 -- =====================================================
 -- Applications
@@ -99,12 +118,31 @@ CREATE TABLE IF NOT EXISTS graydocket.applications (
   )),
   form_data JSONB DEFAULT '{}',
   total_amount DECIMAL(10,2) DEFAULT 0,
+  paystack_reference TEXT,
   payment_status TEXT DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'refunded')),
   delivery_method TEXT DEFAULT 'digital', -- 'digital', 'courier'
   delivery_address JSONB, -- { street, city, region, digital_address, phone }
   referred_by_id UUID REFERENCES graydocket.profiles(id),
   assigned_to UUID REFERENCES graydocket.profiles(id),
   notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE graydocket.applications
+  ADD COLUMN IF NOT EXISTS paystack_reference TEXT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_applications_paystack_reference
+  ON graydocket.applications(paystack_reference)
+  WHERE paystack_reference IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS graydocket.paystack_webhook_events (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  event_type TEXT NOT NULL,
+  reference TEXT NOT NULL,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  application_id UUID REFERENCES graydocket.applications(id) ON DELETE SET NULL,
+  processed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -134,13 +172,28 @@ CREATE TABLE IF NOT EXISTS graydocket.services (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE graydocket.services
+  ADD COLUMN IF NOT EXISTS description TEXT,
+  ADD COLUMN IF NOT EXISTS price DECIMAL(10,2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'general',
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+
 -- Seed default services
-INSERT INTO graydocket.services (name, description, price, category) VALUES
-  ('Domain Name Purchase', 'Purchase a .com or .com.gh domain', 80.00, 'value-added'),
-  ('Business Email Setup', 'Professional email address setup', 120.00, 'value-added'),
-  ('Business Website', 'Professional one-page website', 500.00, 'value-added'),
-  ('Bank Account Setup', 'Business bank account with partner bank', 0.00, 'banking')
-ON CONFLICT DO NOTHING;
+INSERT INTO graydocket.services (name, description, price, category)
+SELECT *
+FROM (
+  VALUES
+    ('Domain Name Purchase', 'Purchase a .com or .com.gh domain', 80.00, 'value-added'),
+    ('Business Email Setup', 'Professional email address setup', 120.00, 'value-added'),
+    ('Business Website', 'Professional one-page website', 500.00, 'value-added'),
+    ('Bank Account Setup', 'Business bank account with partner bank', 0.00, 'banking')
+) AS seed(name, description, price, category)
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM graydocket.services existing
+  WHERE existing.name = seed.name
+);
 
 -- =====================================================
 -- Application Services (junction table)
@@ -166,14 +219,29 @@ CREATE TABLE IF NOT EXISTS graydocket.banking_partners (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE graydocket.banking_partners
+  ADD COLUMN IF NOT EXISTS logo_url TEXT,
+  ADD COLUMN IF NOT EXISTS description TEXT,
+  ADD COLUMN IF NOT EXISTS requirements JSONB DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+
 -- Seed banking partners
-INSERT INTO graydocket.banking_partners (name, description, is_active) VALUES
-  ('Ghana Commercial Bank', 'Ghana''s premier bank for business accounts', TRUE),
-  ('Ecobank Ghana', 'Pan-African banking with digital-first services', TRUE),
-  ('Fidelity Bank Ghana', 'SME-focused banking solutions', TRUE),
-  ('Stanbic Bank Ghana', 'International banking capabilities', FALSE),
-  ('CalBank', 'Tailored business banking packages', TRUE)
-ON CONFLICT DO NOTHING;
+INSERT INTO graydocket.banking_partners (name, description, is_active)
+SELECT *
+FROM (
+  VALUES
+    ('Ghana Commercial Bank', 'Ghana''s premier bank for business accounts', TRUE),
+    ('Ecobank Ghana', 'Pan-African banking with digital-first services', TRUE),
+    ('Fidelity Bank Ghana', 'SME-focused banking solutions', TRUE),
+    ('Stanbic Bank Ghana', 'International banking capabilities', FALSE),
+    ('CalBank', 'Tailored business banking packages', TRUE)
+) AS seed(name, description, is_active)
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM graydocket.banking_partners existing
+  WHERE existing.name = seed.name
+);
 
 -- =====================================================
 -- Documents
@@ -199,6 +267,9 @@ CREATE TABLE IF NOT EXISTS graydocket.commissions (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_commissions_application_id_unique
+  ON graydocket.commissions(application_id);
 
 -- =====================================================
 -- Admin helper (SECURITY DEFINER bypasses RLS)
@@ -359,6 +430,14 @@ CREATE POLICY "Admins can manage all commissions"
   ON graydocket.commissions FOR ALL
   USING (public.is_admin());
 
+ALTER TABLE graydocket.paystack_webhook_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admins can manage Paystack webhook events" ON graydocket.paystack_webhook_events;
+CREATE POLICY "Admins can manage Paystack webhook events"
+  ON graydocket.paystack_webhook_events FOR ALL
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
 -- =====================================================
 -- Database Performance Indexes
 -- =====================================================
@@ -379,6 +458,9 @@ CREATE INDEX IF NOT EXISTS idx_applications_status ON graydocket.applications(st
 CREATE INDEX IF NOT EXISTS idx_applications_payment_status ON graydocket.applications(payment_status);
 CREATE INDEX IF NOT EXISTS idx_applications_updated_at ON graydocket.applications(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_applications_created_at ON graydocket.applications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_paystack_webhook_events_reference ON graydocket.paystack_webhook_events(reference);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_paystack_webhook_events_event_type_reference
+  ON graydocket.paystack_webhook_events(event_type, reference);
 
 CREATE INDEX IF NOT EXISTS idx_profiles_role ON graydocket.profiles(role);
 CREATE INDEX IF NOT EXISTS idx_profiles_is_affiliate ON graydocket.profiles(is_affiliate);

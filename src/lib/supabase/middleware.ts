@@ -5,11 +5,18 @@ export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   })
+  const isProtectedPath =
+    request.nextUrl.pathname.startsWith('/admin') ||
+    request.nextUrl.pathname.startsWith('/dashboard')
+  const isDevelopment = process.env.NODE_ENV === 'development'
 
   // Skip auth check if Supabase is not configured (dev mode)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!supabaseUrl || !supabaseAnonKey || supabaseUrl === 'your-supabase-url') {
+    if (isProtectedPath && !isDevelopment) {
+      return new NextResponse('Application configuration error.', { status: 503 })
+    }
     return supabaseResponse
   }
 

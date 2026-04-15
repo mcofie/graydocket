@@ -39,6 +39,18 @@ function NewRegistrationContent() {
     const urlRef = searchParams.get('ref')
     if (urlRef) {
       setAffiliateCode(urlRef)
+      return
+    }
+
+    const persistedReferral =
+      localStorage.getItem('graydocket_referral') ||
+      document.cookie
+        .split('; ')
+        .find((entry) => entry.startsWith('gd_ref='))
+        ?.split('=')[1]
+
+    if (persistedReferral) {
+      setAffiliateCode(decodeURIComponent(persistedReferral))
     }
   }, [searchParams])
   const [dbBusinessTypes, setDbBusinessTypes] = useState<Array<{id: string; name: string; description: string; base_price: number; service_fee: number}>>([]) 
@@ -396,7 +408,8 @@ function NewRegistrationContent() {
       deliveryMethod,
       deliveryAddress: deliveryMethod === 'courier' ? deliveryAddress : null,
       totalAmount: totalPrice,
-      affiliateCode: affiliateCode
+      affiliateCode: affiliateCode,
+      paystackReference: paymentRef,
     })
 
     if (result.error) {

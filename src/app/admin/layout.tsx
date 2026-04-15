@@ -1,13 +1,13 @@
 'use client'
+/* eslint-disable @next/next/no-img-element */
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect } from 'react'
 import { forceFetchProfile } from '@/lib/actions'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
   FileText,
-  Settings,
   Users,
   DollarSign,
   Building2,
@@ -18,7 +18,6 @@ import {
   Shield,
   Briefcase,
   Cog,
-  User,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import dashStyles from '../dashboard/dashboard.module.css'
@@ -55,7 +54,7 @@ export default function AdminLayout({
       if (authUser) {
         let profile = null;
         try {
-          profile = await forceFetchProfile(authUser.id, authUser.email || '')
+          profile = await forceFetchProfile(authUser.id)
         } catch (err) {
           console.error("Profile fetch strictly failed:", err)
         }

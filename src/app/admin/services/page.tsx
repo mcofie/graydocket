@@ -5,25 +5,40 @@ import { getServices, updateService, createService, deleteService } from '@/lib/
 import Modal from '../components/Modal'
 import styles from '../../dashboard/overview.module.css'
 
+type ServiceRow = {
+  id: string
+  name: string
+  category?: string | null
+  price: number
+  is_active: boolean
+}
+
+type ServiceFormState = {
+  name: string
+  category: string
+  price: string
+}
+
 export default function AdminServicesPage() {
-  const [services, setServices] = useState<any[]>([])
+  const [services, setServices] = useState<ServiceRow[]>([])
   const [loading, setLoading] = useState(true)
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingService, setEditingService] = useState<any>(null)
-  const [formData, setFormData] = useState({ name: '', category: 'Value-Added', price: '0' })
+  const [editingService, setEditingService] = useState<ServiceRow | null>(null)
+  const [formData, setFormData] = useState<ServiceFormState>({ name: '', category: 'Value-Added', price: '0' })
   const [isSubmitting, setIsSubmitting] = useState(false)
-
-  useEffect(() => {
-    fetchServices()
-  }, [])
 
   const fetchServices = async () => {
     const res = await getServices()
-    setServices(res.services)
+    setServices((res.services as ServiceRow[] | undefined) || [])
     setLoading(false)
   }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchServices()
+  }, [])
 
   const openCreateModal = () => {
     setEditingService(null)
@@ -31,7 +46,7 @@ export default function AdminServicesPage() {
     setIsModalOpen(true)
   }
 
-  const openEditModal = (service: any) => {
+  const openEditModal = (service: ServiceRow) => {
     setEditingService(service)
     setFormData({ name: service.name, category: service.category || 'General', price: service.price.toString() })
     setIsModalOpen(true)
@@ -56,7 +71,7 @@ export default function AdminServicesPage() {
 
     setIsSubmitting(false)
     setIsModalOpen(false)
-    fetchServices()
+    await fetchServices()
   }
 
   const toggleActive = async (id: string, current: boolean) => {
