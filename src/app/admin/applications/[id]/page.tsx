@@ -845,7 +845,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
                        <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>Ghana Card: {d.ghanaCardNumber} | TIN: {d.tinNumber}</div>
                        <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>{d.email} | {d.phone}</div>
                      </div>
-                     {d.ghanaCardPhotoUrl && (
+                     {d.ghanaCardPhotoUrl && typeof d.ghanaCardPhotoUrl === 'string' && (
                        <a href={d.ghanaCardPhotoUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', background: 'var(--color-neutral-100)', padding: '4px 8px', borderRadius: '4px', textDecoration: 'none', color: 'var(--color-neutral-700)', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid var(--color-neutral-200)' }}>
                          View ID Photo
                        </a>
@@ -973,7 +973,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
                       <Edit2 size={14} /> Edit Data
                     </button>
                   )}
-                  <button className="btn btn-secondary btn-sm" onClick={() => window.location.href = `mailto:${app.profiles?.email}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button className="btn btn-secondary btn-sm" onClick={() => window.location.href = `mailto:${(app.profiles as any)?.email}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     Email User
                   </button>
                   <button 

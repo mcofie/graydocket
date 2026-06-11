@@ -22,6 +22,9 @@ function LoginContent() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const rawDigits = phone.replace('+233', '')
+  const isPhoneValid = rawDigits.length === 9 || rawDigits.length === 10
+
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -89,7 +92,7 @@ function LoginContent() {
                     required
                   />
                 </div>
-                <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
+                <button type="submit" className="btn btn-primary btn-lg" disabled={loading || !isPhoneValid}>
                   {loading ? 'Sending OTP...' : 'Continue with Phone'}
                 </button>
               </form>

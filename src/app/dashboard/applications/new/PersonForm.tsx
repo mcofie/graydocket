@@ -5,7 +5,7 @@ import styles from './new.module.css'
 
 interface PersonFormProps {
   person: PersonEntry
-  onChange: (field: string, value: string) => void
+  onChange: (field: string, value: any) => void
   prefix: string
   title: string
 }
