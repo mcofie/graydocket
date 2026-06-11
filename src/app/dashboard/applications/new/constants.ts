@@ -41,11 +41,13 @@ export interface PersonEntry {
   digitalAddress: string
   phone: string
   email: string
+  ghanaCardPhotoUrl?: string
+  idPhotos?: string[]
 }
 
 export const emptyPerson: PersonEntry = {
   title: '', surname: '', firstName: '', otherNames: '', dateOfBirth: '', gender: '', nationality: '', occupation: '',
-  ghanaCardNumber: '', tinNumber: '', residentialAddress: '', city: '', region: '', digitalAddress: '', phone: '', email: ''
+  ghanaCardNumber: '', tinNumber: '', residentialAddress: '', city: '', region: '', digitalAddress: '', phone: '', email: '', ghanaCardPhotoUrl: '', idPhotos: []
 }
 
 export interface ShareholderEntry {

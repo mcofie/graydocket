@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { getAdminApplications, updateApplicationStatus } from '@/lib/actions'
+import { getAdminApplications, updateApplicationStatus, adminCreateApplication, getAdminUsers, getAllBusinessTypes, adminDeleteApplication } from '@/lib/actions'
 import Modal from '../components/Modal'
 import styles from '../../dashboard/overview.module.css'
 import Skeleton from '@/components/ui/Skeleton'
@@ -28,16 +28,66 @@ const statusColorMap: Record<string, string> = {
 
 export default function AdminApplicationsPage() {
   const [apps, setApps] = useState<any[]>([])
+  const [users, setUsers] = useState<any[]>([])
+  const [businessTypes, setBusinessTypes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [showNewModal, setShowNewModal] = useState(false)
+  
+  // Form State
+  const [formData, setFormData] = useState({
+    userId: '',
+    businessTypeId: '',
+    businessName: '',
+    status: 'submitted',
+    paymentStatus: 'paid',
+    totalAmount: 0
+  })
+  const [creating, setCreating] = useState(false)
 
   useEffect(() => {
     fetchApplications()
   }, [])
 
   const fetchApplications = async () => {
-    const res = await getAdminApplications()
-    setApps(res.applications)
+    const [resApps, resUsers, resTypes] = await Promise.all([
+      getAdminApplications(),
+      getAdminUsers(),
+      getAllBusinessTypes()
+    ])
+    setApps(resApps.applications)
+    setUsers(resUsers.users || [])
+    const uniqueBTypes = (resTypes.business_types || []).filter((v: any, i: number, a: any[]) => 
+      a.findIndex(t => t.name === v.name) === i
+    )
+    setBusinessTypes(uniqueBTypes)
     setLoading(false)
+  }
+
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formData.userId || !formData.businessTypeId || !formData.businessName) {
+      alert('Please fill out all required fields')
+      return
+    }
+
+    setCreating(true)
+    const res = await adminCreateApplication(formData)
+    setCreating(false)
+
+    if (res.error) {
+      alert(res.error)
+    } else {
+      setShowNewModal(false)
+      setFormData({
+        userId: '',
+        businessTypeId: '',
+        businessName: '',
+        status: 'submitted',
+        paymentStatus: 'paid',
+        totalAmount: 0
+      })
+      fetchApplications()
+    }
   }
 
   const handleStatusChange = async (id: string, newStatus: string) => {
@@ -46,6 +96,17 @@ export default function AdminApplicationsPage() {
       alert(error)
     } else {
       setApps(apps.map(a => a.id === id ? { ...a, status: newStatus } : a))
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Are you absolutely sure you want to permanently delete this application? This action cannot be undone.')) {
+       const res = await adminDeleteApplication(id)
+       if (res.error) {
+          alert(`Failed to delete: ${res.error}`)
+       } else {
+          setApps(apps.filter(a => a.id !== id))
+       }
     }
   }
 
@@ -74,7 +135,125 @@ export default function AdminApplicationsPage() {
     <div className={styles.overview}>
       <div className={styles.sectionHeader}>
         <h2 className={styles.sectionTitle}>Global Applications</h2>
+        <button 
+          onClick={() => setShowNewModal(true)}
+          className="btn btn-primary"
+        >
+          + New Application
+        </button>
       </div>
+
+      <Modal isOpen={showNewModal} onClose={() => setShowNewModal(false)} title="Create New Application">
+        <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+          <div className="form-group">
+            <label className="form-label">User / Client</label>
+            <select 
+              className="form-input" 
+              value={formData.userId} 
+              onChange={e => setFormData({ ...formData, userId: e.target.value })}
+              required
+            >
+              <option value="">-- Select User --</option>
+              {users.map(u => (
+                <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Business Type</label>
+            <select 
+              className="form-input" 
+              value={formData.businessTypeId} 
+              onChange={e => {
+                const bType = businessTypes.find(b => b.id === e.target.value);
+                setFormData({ 
+                  ...formData, 
+                  businessTypeId: e.target.value,
+                  totalAmount: bType ? bType.base_price : formData.totalAmount
+                });
+              }}
+              required
+            >
+              <option value="">-- Select Business Type --</option>
+              {businessTypes.map(b => {
+                 const orcFee = b.orc_fee || 0;
+                 const agentFee = b.agent_fee || 0;
+                 const returnsPortion = b.returns_portion || 0;
+                 const basePrice = b.base_price || 0;
+                 const serviceFee = b.service_fee || 0;
+                 const totalPrice = returnsPortion > 0 
+                    ? (orcFee + agentFee + returnsPortion) 
+                    : (basePrice + serviceFee);
+                 return (
+                    <option key={b.id} value={b.id}>
+                       {b.name} (GH₵ {totalPrice.toLocaleString()})
+                    </option>
+                 );
+              })}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Business Name</label>
+            <input 
+              type="text" 
+              className="form-input" 
+              value={formData.businessName}
+              onChange={e => setFormData({ ...formData, businessName: e.target.value })}
+              placeholder="e.g. Acme Corp"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Amount Paid (GH₵)</label>
+            <input 
+              type="number" 
+              step="0.01"
+              className="form-input" 
+              value={formData.totalAmount}
+              onChange={e => setFormData({ ...formData, totalAmount: parseFloat(e.target.value) || 0 })}
+              required
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: 'var(--space-4)' }}>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">Status</label>
+              <select 
+                className="form-input" 
+                value={formData.status} 
+                onChange={e => setFormData({ ...formData, status: e.target.value })}
+              >
+                {statusOptions.map(opt => (
+                  <option key={opt} value={opt}>{opt.toUpperCase().replace('_', ' ')}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">Payment Status</label>
+              <select 
+                className="form-input" 
+                value={formData.paymentStatus} 
+                onChange={e => setFormData({ ...formData, paymentStatus: e.target.value })}
+              >
+                <option value="pending">Pending</option>
+                <option value="paid">Paid</option>
+                <option value="refunded">Refunded</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', marginTop: 'var(--space-4)' }}>
+            <button type="button" className="btn btn-secondary" onClick={() => setShowNewModal(false)}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={creating}>
+              {creating ? 'Creating...' : 'Create Application'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
 
       {apps.length === 0 ? (
         <div className={styles.emptyState}>
@@ -94,6 +273,7 @@ export default function AdminApplicationsPage() {
                 <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>DELIVERY</th>
                 <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>STATUS</th>
                 <th style={{ padding: 'var(--space-4)', textAlign: 'right', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>UPDATED ON</th>
+                <th style={{ padding: 'var(--space-4)', textAlign: 'right', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
@@ -164,6 +344,23 @@ export default function AdminApplicationsPage() {
                   </td>
                   <td style={{ padding: 'var(--space-4)', textAlign: 'right', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>
                     {app.updated_at ? new Date(app.updated_at).toLocaleDateString() : new Date(app.created_at).toLocaleDateString()}
+                  </td>
+                  <td style={{ padding: 'var(--space-4)', textAlign: 'right' }}>
+                    <button 
+                       onClick={() => handleDelete(app.id)}
+                       style={{ 
+                         background: 'none', 
+                         border: 'none', 
+                         color: 'var(--color-error)', 
+                         cursor: 'pointer', 
+                         fontSize: '14px', 
+                         padding: '4px',
+                         borderRadius: '4px'
+                       }}
+                       title="Delete Application"
+                    >
+                       🗑️
+                    </button>
                   </td>
                 </tr>
               ))}

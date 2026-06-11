@@ -493,7 +493,14 @@ function NewRegistrationContent() {
       </div>
       <div className={styles.reviewRow}>
         <span className={styles.reviewLabel}>Ghana Card</span>
-        <span className={styles.reviewValue}>{person.ghanaCardNumber || '—'}</span>
+        <span className={styles.reviewValue}>
+           {person.ghanaCardNumber || '—'} 
+           {(person.idPhotos?.length ? person.idPhotos.length > 0 : person.ghanaCardPhotoUrl) && (
+             <span style={{ marginLeft: '8px', fontSize: '11px', color: 'var(--color-success)', fontWeight: 600, background: 'var(--color-success-light)', padding: '2px 6px', borderRadius: '4px' }}>
+               {person.idPhotos?.length ? `${person.idPhotos.length} PHOTO(S) ATTACHED` : 'PHOTO ATTACHED'}
+             </span>
+           )}
+        </span>
       </div>
       <div className={styles.reviewRow}>
         <span className={styles.reviewLabel}>TIN</span>

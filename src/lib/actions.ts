@@ -1332,6 +1332,76 @@ export async function updateApplicationStatus(id: string, status: string, adminN
   return { error: null }
 }
 
+export async function sendDirectSmsToApplicant(id: string, customMessage: string) {
+  const isAuthorized = await checkIsAdmin(['admin', 'registrar'])
+  if (!isAuthorized) return { error: 'Unauthorized: Admin access required' }
+  
+  if (!customMessage || customMessage.trim() === '') {
+     return { error: 'Message cannot be empty.' }
+  }
+
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+
+  const { data: application } = await adminClient
+    .from('applications')
+    .select('*, profiles:user_id(phone)')
+    .eq('id', id)
+    .single()
+
+  if (!application) return { error: 'Application not found' }
+
+  if (process.env.ZEND_API_KEY) {
+    const formData = (application.form_data as any) || {}
+    const profile = (application.profiles as any) || null
+    const phoneNumber = formatPhoneNumber(formData.mobilePhone || profile?.phone || '')
+
+    if (phoneNumber && phoneNumber.startsWith('+') && phoneNumber.length > 8) {
+      try {
+        const response = await fetch('https://api.tryzend.com/messages', {
+          method: 'POST',
+          headers: {
+            'x-api-key': process.env.ZEND_API_KEY as string,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            to: phoneNumber,
+            body: `GrayDocket Support: ${customMessage.trim()}`,
+            preferred_channels: ['sms'],
+            sender_id: 'GrayDocket'
+          })
+        })
+        
+        if (!response.ok) {
+           const errData = await response.json().catch(() => ({}))
+           console.error('Zend SMS failed:', response.status, errData)
+           return { error: 'Failed to send SMS via Zend API.' }
+        }
+
+        // Log this action
+        const { data: { user } } = await adminClient.auth.getUser()
+        await adminClient.from('application_status_history').insert({
+          application_id: id,
+          status: application.status,
+          notes: `Sent manual SMS: ${customMessage}`,
+          updated_by: user?.id
+        })
+
+      } catch (err) {
+        console.error('Failed to send custom SMS:', err)
+        return { error: 'Internal server error while sending SMS.' }
+      }
+    } else {
+       return { error: 'No valid phone number found for this applicant.' }
+    }
+  } else {
+    return { error: 'SMS service is not configured.' }
+  }
+
+  revalidatePath(`/admin/applications/${id}`)
+  return { error: null }
+}
+
 export async function updateUserRole(id: string, role: 'user' | 'admin' | 'registrar' | 'bank_manager' | 'service_manager') {
   // Only SUPER ADMINS can update roles
   const isSuperAdmin = await checkIsAdmin(['admin'])
@@ -2438,5 +2508,130 @@ export async function resubmitApplication(applicationId: string, formData: Recor
   revalidatePath('/dashboard/applications')
   revalidatePath(`/dashboard/applications/${applicationId}`)
   
+  return { success: true }
+}
+
+export async function adminCreateApplication(data: {
+  userId: string
+  businessTypeId: string
+  businessName: string
+  status: string
+  totalAmount: number
+  paymentStatus: string
+}) {
+  const isAdmin = await checkIsAdmin()
+  if (!isAdmin) return { error: 'Unauthorized' }
+
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+
+  const trackingId = generateTrackingId()
+
+  const payload: ApplicationPayload = {
+    user_id: data.userId,
+    business_type_id: data.businessTypeId,
+    tracking_id: trackingId,
+    business_name: data.businessName,
+    status: data.status,
+    form_data: { 
+      total_amount: data.totalAmount,
+      admin_created: true
+    },
+    total_amount: data.totalAmount,
+    payment_status: data.paymentStatus,
+    referred_by_id: null,
+    updated_at: new Date().toISOString()
+  }
+
+  const { data: inserted, error } = await adminClient
+    .schema('graydocket')
+    .from('applications')
+    .insert(payload)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Admin Application insert error:', error)
+    return { error: error.message }
+  }
+
+  await adminClient.schema('graydocket').from('application_status_history').insert({
+    application_id: inserted.id,
+    status: data.status,
+    notes: `Application manually created by admin.`,
+    updated_by: null // we don't strictly have the admin ID easily here, but could pull from session
+  })
+
+  revalidatePath('/admin/applications')
+
+  return { success: true, trackingId, applicationId: inserted.id }
+}
+
+export async function adminUpdateApplicationData(
+  applicationId: string, 
+  payload: { businessTypeId: string, businessName: string, formData: any }
+) {
+  const isAdmin = await checkIsAdmin()
+  if (!isAdmin) return { error: 'Unauthorized' }
+
+  const { createAdminClient, createClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const { error } = await adminClient
+    .schema('graydocket')
+    .from('applications')
+    .update({
+      business_type_id: payload.businessTypeId,
+      business_name: payload.businessName,
+      form_data: payload.formData,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', applicationId)
+
+  if (error) {
+    console.error('Admin application update error:', error)
+    return { error: error.message }
+  }
+
+  await adminClient.schema('graydocket').from('application_status_history').insert({
+    application_id: applicationId,
+    status: 'under_review', // Optional fallback or current status
+    notes: 'Application data and/or business type updated manually by admin.',
+    updated_by: user?.id
+  })
+
+  revalidatePath(`/admin/applications/${applicationId}`)
+  revalidatePath('/admin/applications')
+
+  return { success: true }
+}
+
+export async function adminDeleteApplication(applicationId: string) {
+  const isAdmin = await checkIsAdmin()
+  if (!isAdmin) return { error: 'Unauthorized' }
+
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const adminClient = await createAdminClient()
+
+  // Foreign keys (like application_status_history, documents, etc.) should either have ON DELETE CASCADE
+  // or we need to delete them first. Let's try deleting the application directly.
+  // The schema for `application_status_history` has ON DELETE CASCADE on application_id.
+  
+  const { error } = await adminClient
+    .schema('graydocket')
+    .from('applications')
+    .delete()
+    .eq('id', applicationId)
+
+  if (error) {
+    console.error('Admin application delete error:', error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/admin/applications')
+
   return { success: true }
 }

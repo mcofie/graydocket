@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ScanFace, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react'
+import { ScanFace, ChevronDown, ChevronUp, CheckCircle2, UploadCloud, X } from 'lucide-react'
 import { PersonEntry, ghanaRegions } from './constants'
 import styles from './new.module.css'
 
@@ -126,6 +126,65 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
               <div className="form-group">
                 <label className="form-label">TIN *</label>
                 <input type="text" className="form-input" placeholder="e.g., CXXXXXXXX" value={person.tinNumber} onChange={(e) => onChange('tinNumber', e.target.value)} required />
+              </div>
+              <div className={`form-group ${styles.formFull}`}>
+                <label className="form-label">Upload ID Photos (Front, Back, etc.)</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+                  <label 
+                    style={{ 
+                      display: 'flex', alignItems: 'center', gap: '8px', 
+                      padding: '10px 16px', background: 'var(--color-neutral-100)', 
+                      border: '1px solid var(--color-neutral-200)', borderRadius: '8px',
+                      cursor: 'pointer', fontSize: '14px', fontWeight: 500, color: 'var(--color-neutral-700)',
+                      width: 'fit-content'
+                    }}
+                  >
+                    <UploadCloud size={16} /> Add Photos
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      multiple
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || [])
+                        const promises = files.map(file => new Promise<string>((resolve) => {
+                           const reader = new FileReader()
+                           reader.onloadend = () => resolve(reader.result as string)
+                           reader.readAsDataURL(file)
+                        }))
+                        Promise.all(promises).then(results => {
+                           const existing = person.idPhotos || []
+                           onChange('idPhotos', [...existing, ...results])
+                        })
+                      }}
+                    />
+                  </label>
+                  
+                  {((person.idPhotos && person.idPhotos.length > 0) || person.ghanaCardPhotoUrl) && (
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
+                      {person.ghanaCardPhotoUrl && (
+                        <div style={{ position: 'relative', width: '80px', height: '80px' }}>
+                          <img src={person.ghanaCardPhotoUrl} alt="ID" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--color-neutral-200)' }} />
+                          <button type="button" onClick={() => onChange('ghanaCardPhotoUrl', '')} style={{ position: 'absolute', top: '-6px', right: '-6px', background: 'white', border: '1px solid var(--color-error)', color: 'var(--color-error)', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>
+                            <X size={12} />
+                          </button>
+                        </div>
+                      )}
+                      {person.idPhotos?.map((photo, idx) => (
+                        <div key={idx} style={{ position: 'relative', width: '80px', height: '80px' }}>
+                          <img src={photo} alt="ID" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--color-neutral-200)' }} />
+                          <button type="button" onClick={() => {
+                             const newPhotos = [...(person.idPhotos || [])]
+                             newPhotos.splice(idx, 1)
+                             onChange('idPhotos', newPhotos)
+                          }} style={{ position: 'absolute', top: '-6px', right: '-6px', background: 'white', border: '1px solid var(--color-error)', color: 'var(--color-error)', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <div style={{ marginTop: 'var(--space-6)', textAlign: 'right' }}>

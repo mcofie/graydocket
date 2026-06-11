@@ -2,9 +2,10 @@
 
 import { useState, useEffect, use, useRef, useCallback } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, FileText, UploadCloud, ExternalLink, Copy, Printer, Clock, Save, User, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
-import { getApplicationDetails, updateApplicationStatus, uploadApplicationDocument, updateApplicationNotes, assignApplication, getRegistrarsForAssignment, verifyDocument, requestFieldCorrection } from '@/lib/actions'
+import { ArrowLeft, FileText, UploadCloud, ExternalLink, Copy, Printer, Clock, Save, User, CheckCircle, XCircle, AlertCircle, Edit2, X } from 'lucide-react'
+import { getApplicationDetails, updateApplicationStatus, uploadApplicationDocument, updateApplicationNotes, assignApplication, getRegistrarsForAssignment, verifyDocument, requestFieldCorrection, adminUpdateApplicationData, getAllBusinessTypes, sendDirectSmsToApplicant } from '@/lib/actions'
 import { createClient } from '@/lib/supabase/client'
+import Modal from '../../components/Modal'
 import styles from '../../../dashboard/overview.module.css'
 
 type JsonPrimitive = string | number | boolean | null
@@ -71,11 +72,14 @@ type ApplicationDetail = {
   assigned_to?: string | null
   form_data?: ApplicationFormData | null
   business_types?: {
+    id?: string
     name?: string | null
     orc_fee?: number | null
     agent_fee?: number | null
     returns_portion?: number | null
+    required_fields?: any
   } | null
+  business_type_id?: string | null
   assigned_registrar?: {
     full_name?: string | null
   } | null
@@ -94,6 +98,7 @@ const statusOptions = [
 export default function ApplicationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params)
   const appId = resolvedParams.id
+
   
   const [app, setApp] = useState<ApplicationDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -115,7 +120,20 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
   const [notes, setNotes] = useState('')
   const [savingNotes, setSavingNotes] = useState(false)
 
+  // Edit Mode State
+  const [isEditingForm, setIsEditingForm] = useState(false)
+  const [businessTypes, setBusinessTypes] = useState<any[]>([])
+  const [editPayload, setEditPayload] = useState<any>({ businessTypeId: '', businessName: '', formData: {} })
+  const [savingForm, setSavingForm] = useState(false)
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null)
+  
+  // SMS Modal State
+  const [isSmsModalOpen, setIsSmsModalOpen] = useState(false)
+  const [smsMessage, setSmsMessage] = useState('')
+  const [sendingSms, setSendingSms] = useState(false)
+
   const fetchData = useCallback(async () => {
+    if (!appId) return
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     
@@ -135,8 +153,15 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
     }
 
     if (adminFlag) {
-      const regs = await getRegistrarsForAssignment()
+      const [regs, bTypes] = await Promise.all([
+        getRegistrarsForAssignment(),
+        getAllBusinessTypes()
+      ])
       setRegistrars(regs as RegistrarOption[])
+      const uniqueBTypes = (bTypes.business_types || []).filter((v: any, i: number, a: any[]) => 
+        a.findIndex(t => t.name === v.name) === i
+      )
+      setBusinessTypes(uniqueBTypes)
     }
 
     const res = await getApplicationDetails(appId)
@@ -147,12 +172,13 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
   }, [appId])
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchData()
-  }, [fetchData])
+    if (appId) {
+      fetchData()
+    }
+  }, [appId, fetchData])
 
   const handleAssignAction = async (targetUserId: string) => {
-    if (!targetUserId) return
+    if (!appId || !targetUserId) return
     setAssigning(true)
     const res = await assignApplication(appId, targetUserId)
     if (res.error) alert(res.error)
@@ -161,6 +187,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
   }
 
   const handleVerify = async (docUrl: string, status: 'approved' | 'rejected') => {
+    if (!appId) return
     let notes = ''
     if (status === 'rejected') {
       notes = window.prompt('Why are you rejecting this document?') || ''
@@ -173,6 +200,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
   }
 
   const handleSaveNotes = async () => {
+    if (!appId) return
     setSavingNotes(true)
     const res = await updateApplicationNotes(appId, notes)
     if (res.error) alert(res.error)
@@ -187,7 +215,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
   }
 
   const handleStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    if (!app) return
+    if (!app || !appId) return
 
     const newStatus = e.target.value
     const currentStatus = app.status
@@ -221,7 +249,29 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
     }
   }
 
+  const handleSendCustomSms = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    if (!appId) return
+    if (!smsMessage || !smsMessage.trim()) {
+      alert('Please enter a message.')
+      return
+    }
+
+    setSendingSms(true)
+    const res = await sendDirectSmsToApplicant(appId, smsMessage.trim())
+    if (res.error) {
+      alert(`Error sending SMS: ${res.error}`)
+    } else {
+      alert('SMS successfully queued for sending!')
+      setIsSmsModalOpen(false)
+      setSmsMessage('')
+      await fetchData() // Refresh history timeline
+    }
+    setSendingSms(false)
+  }
+
   const handleFlagField = async (fieldKey: string, fieldName: string) => {
+    if (!appId) return
     const reason = window.prompt(`Why does "${fieldName}" need correction? Individual fields flagged will help the user fix them precisely.`)
     if (reason === null) return // Cancelled
     if (!reason.trim()) {
@@ -239,7 +289,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedFile || !docTitle) {
+    if (!appId || !selectedFile || !docTitle) {
       alert('Please provide both a title and a file.')
       return
     }
@@ -382,6 +432,179 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
     }, 500)
   }
 
+  const startEditing = () => {
+    setIsEditingForm(true)
+    setEditPayload({
+      businessTypeId: app?.business_type_id || app?.business_types?.id || '',
+      businessName: app?.business_name || '',
+      formData: app?.form_data || {}
+    })
+  }
+
+  const saveEditedForm = async () => {
+    if (!appId) return
+    setSavingForm(true)
+    const res = await adminUpdateApplicationData(appId, editPayload)
+    if (res.error) {
+       alert(res.error)
+    } else {
+       setIsEditingForm(false)
+       await fetchData()
+    }
+    setSavingForm(false)
+  }
+
+  const renderEditField = (field: string) => {
+    const isComplex = ['directors', 'secretary', 'shareholders', 'members', 'proprietor'].includes(field)
+    
+    if (isComplex) {
+       const isArray = ['directors', 'secretary', 'shareholders', 'members'].includes(field) && field !== 'secretary';
+       const rawVal = editPayload.formData[field] || (isArray ? [] : {});
+       
+       const getEmptyEntityTemplate = () => {
+         if (['directors', 'secretary', 'proprietor', 'members'].includes(field)) {
+            return { title: '', surname: '', firstName: '', otherNames: '', dateOfBirth: '', gender: '', nationality: '', occupation: '', ghanaCardNumber: '', tinNumber: '', residentialAddress: '', city: '', region: '', digitalAddress: '', phone: '', email: '', idPhotos: [], ghanaCardPhotoUrl: '' };
+         }
+         if (field === 'shareholders') {
+            return { type: 'individual', name: '', tinNumber: '', nationality: '', address: '', numberOfShares: '', valuePerShare: '' };
+         }
+         return {};
+       };
+
+       const handlePhotoUpload = (idx: number, files: FileList | null) => {
+          if (!files) return;
+          const fileArray = Array.from(files);
+          const promises = fileArray.map(file => new Promise<string>((resolve) => {
+             const reader = new FileReader();
+             reader.onloadend = () => resolve(reader.result as string);
+             reader.readAsDataURL(file);
+          }));
+          Promise.all(promises).then(results => {
+             if (isArray) {
+                const arr = [...(editPayload.formData[field] || [])];
+                const existingPhotos = arr[idx].idPhotos || [];
+                arr[idx] = { ...arr[idx], idPhotos: [...existingPhotos, ...results] };
+                setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: arr } });
+             } else {
+                const currentVal = editPayload.formData[field] || {};
+                const existingPhotos = currentVal.idPhotos || [];
+                const updated = { ...currentVal, idPhotos: [...existingPhotos, ...results] };
+                setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: updated } });
+             }
+          });
+       };
+
+       const removePhoto = (idx: number, photoIdx: number, isOldGhanaCardUrl: boolean) => {
+          if (isArray) {
+             const arr = [...(editPayload.formData[field] || [])];
+             if (isOldGhanaCardUrl) {
+                arr[idx] = { ...arr[idx], ghanaCardPhotoUrl: '' };
+             } else {
+                const newPhotos = [...(arr[idx].idPhotos || [])];
+                newPhotos.splice(photoIdx, 1);
+                arr[idx] = { ...arr[idx], idPhotos: newPhotos };
+             }
+             setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: arr } });
+          } else {
+             const currentVal = editPayload.formData[field] || {};
+             if (isOldGhanaCardUrl) {
+                setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: { ...currentVal, ghanaCardPhotoUrl: '' } } });
+             } else {
+                const newPhotos = [...(currentVal.idPhotos || [])];
+                newPhotos.splice(photoIdx, 1);
+                setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: { ...currentVal, idPhotos: newPhotos } } });
+             }
+          }
+       };
+
+       const updateItem = (idx: number, key: string, val: any) => {
+          if (isArray) {
+             const arr = [...(editPayload.formData[field] || [])];
+             arr[idx] = { ...arr[idx], [key]: val };
+             setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: arr } });
+          } else {
+             const currentVal = editPayload.formData[field] || {};
+             setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: { ...currentVal, [key]: val } } });
+          }
+       };
+
+       const renderEntityCard = (item: any, idx: number) => {
+         const standardKeys = Object.keys(getEmptyEntityTemplate()).filter(k => k !== 'idPhotos' && k !== 'ghanaCardPhotoUrl');
+         return (
+           <div key={idx} style={{ background: 'white', border: '1px solid var(--color-neutral-200)', padding: '16px', borderRadius: '8px', marginBottom: '12px' }}>
+             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <strong style={{ fontSize: '13px' }}>{isArray ? `Item #${idx + 1}` : 'Details'}</strong>
+                {isArray && (
+                   <button type="button" onClick={() => {
+                      const arr = [...(editPayload.formData[field] || [])];
+                      arr.splice(idx, 1);
+                      setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: arr } });
+                   }} style={{ background: 'none', border: 'none', color: 'var(--color-error)', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>Remove</button>
+                )}
+             </div>
+             {field !== 'proprietor' && (
+               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                 {standardKeys.map(k => (
+                   <div key={k}>
+                      <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-neutral-500)', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>{k.replace(/([A-Z])/g, ' $1')}</label>
+                      <input type="text" className="form-input" style={{ fontSize: '12px', padding: '6px' }} value={item[k] || ''} onChange={(e) => updateItem(idx, k, e.target.value)} />
+                   </div>
+                 ))}
+               </div>
+             )}
+             <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--color-neutral-100)' }}>
+                <label style={{ fontSize: '11px', fontWeight: 700, marginBottom: '8px', display: 'block', color: 'var(--color-neutral-600)' }}>UPLOADED ID PHOTOS</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                   {item.ghanaCardPhotoUrl && (
+                     <div style={{ position: 'relative', width: '60px', height: '60px' }}>
+                        <img src={item.ghanaCardPhotoUrl} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--color-neutral-200)' }} />
+                        <button type="button" onClick={() => removePhoto(idx, -1, true)} style={{ position: 'absolute', top: '-6px', right: '-6px', background: 'white', border: '1px solid var(--color-error)', borderRadius: '50%', color: 'var(--color-error)', cursor: 'pointer', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', padding: 0 }}>&times;</button>
+                     </div>
+                   )}
+                   {item.idPhotos?.map((p: string, pIdx: number) => (
+                     <div key={pIdx} style={{ position: 'relative', width: '60px', height: '60px' }}>
+                        <img src={p} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--color-neutral-200)' }} />
+                        <button type="button" onClick={() => removePhoto(idx, pIdx, false)} style={{ position: 'absolute', top: '-6px', right: '-6px', background: 'white', border: '1px solid var(--color-error)', borderRadius: '50%', color: 'var(--color-error)', cursor: 'pointer', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', padding: 0 }}>&times;</button>
+                     </div>
+                   ))}
+                   <label style={{ width: '60px', height: '60px', border: '1px dashed var(--color-neutral-300)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'var(--color-neutral-50)' }}>
+                      <span style={{ fontSize: '20px', color: 'var(--color-neutral-400)' }}>+</span>
+                      <input type="file" multiple accept="image/*" style={{ display: 'none' }} onChange={(e) => handlePhotoUpload(idx, e.target.files)} />
+                   </label>
+                </div>
+             </div>
+           </div>
+         );
+       };
+
+       return (
+         <div style={{ background: 'var(--color-neutral-50)', padding: '16px', borderRadius: '8px', border: '1px solid var(--color-neutral-200)' }}>
+           {isArray ? (
+              <>
+                {(rawVal as any[]).map((item, idx) => renderEntityCard(item, idx))}
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => {
+                   const arr = [...(editPayload.formData[field] || [])];
+                   arr.push(getEmptyEntityTemplate());
+                   setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: arr } });
+                }} style={{ marginTop: '8px' }}>+ Add New</button>
+              </>
+           ) : (
+              renderEntityCard(rawVal, 0)
+           )}
+         </div>
+       );
+    }
+
+    return (
+       <input 
+         type="text" 
+         className="form-input" 
+         value={editPayload.formData[field] || ''}
+         onChange={(e) => setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: e.target.value } })}
+       />
+    )
+  }
+
   const renderUIDataNode = (obj: JsonValue | undefined, level = 0, path = ''): React.ReactNode => {
     if (!obj) return null
     if (typeof obj !== 'object') return <span style={{ fontWeight: 500 }}>{String(obj)}</span>
@@ -433,14 +656,31 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
               
               {Array.isArray(val) ? (
                 val.length === 0 ? <span style={{ color: 'var(--color-neutral-400)', fontSize: '13px', fontStyle: 'italic' }}>Empty</span> : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
-                    {val.map((item, i) => (
-                      <div key={i} style={{ padding: '16px', background: 'var(--color-neutral-50)', border: '1px solid var(--color-neutral-200)', borderRadius: '8px' }}>
-                        <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-primary-600)', textTransform: 'uppercase', marginBottom: '12px' }}>Item {i + 1}</div>
-                        {typeof item === 'object' ? renderUIDataNode(item, level + 1, `${currentPath}.${i}`) : String(item)}
-                      </div>
-                    ))}
-                  </div>
+                  key === 'idPhotos' ? (
+                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
+                        {val.map((item, i) => (
+                           String(item).startsWith('data:image') 
+                             ? (
+                                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'white', padding: '8px', borderRadius: '8px', border: '1px solid var(--color-neutral-200)', width: '240px' }}>
+                                   <img src={String(item)} alt={`ID Photo ${i+1}`} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--color-neutral-100)', cursor: 'zoom-in' }} onClick={() => setLightboxImage(String(item))} />
+                                   <a href={String(item)} download={`ID_Photo_${i+1}.png`} style={{ textAlign: 'center', fontSize: '12px', fontWeight: 600, color: 'var(--color-primary-600)', textDecoration: 'none', padding: '8px', border: '1px solid var(--color-primary-200)', borderRadius: '4px', background: 'var(--color-primary-50)', transition: 'background 0.2s' }}>
+                                      Download
+                                   </a>
+                                </div>
+                             )
+                             : <span key={i}>{String(item)}</span>
+                        ))}
+                     </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+                      {val.map((item, i) => (
+                        <div key={i} style={{ padding: '16px', background: 'var(--color-neutral-50)', border: '1px solid var(--color-neutral-200)', borderRadius: '8px' }}>
+                          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-primary-600)', textTransform: 'uppercase', marginBottom: '12px' }}>Item {i + 1}</div>
+                          {typeof item === 'object' ? renderUIDataNode(item, level + 1, `${currentPath}.${i}`) : String(item)}
+                        </div>
+                      ))}
+                    </div>
+                  )
                 )
               ) : typeof val === 'object' ? (
                 <div style={{ marginTop: '8px', padding: '12px', background: 'var(--color-neutral-50)', borderRadius: '8px', border: '1px solid var(--color-neutral-200)' }}>
@@ -448,7 +688,16 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
                 </div>
               ) : (
                 <div style={{ fontSize: '14px', color: val === '' ? 'var(--color-neutral-400)' : 'var(--color-neutral-900)', fontWeight: val === '' ? 400 : 500, fontStyle: val === '' ? 'italic' : 'normal' }}>
-                  {val === '' ? 'N/A' : String(val)}
+                  {val === '' ? 'N/A' : (
+                    (key === 'ghanaCardPhotoUrl' && String(val).startsWith('data:image')) ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'white', padding: '8px', borderRadius: '8px', border: '1px solid var(--color-neutral-200)', marginTop: '8px', width: '240px' }}>
+                         <img src={String(val)} alt="Ghana Card" style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--color-neutral-100)', cursor: 'zoom-in' }} onClick={() => setLightboxImage(String(val))} />
+                         <a href={String(val)} download="Ghana_Card.png" style={{ textAlign: 'center', fontSize: '12px', fontWeight: 600, color: 'var(--color-primary-600)', textDecoration: 'none', padding: '8px', border: '1px solid var(--color-primary-200)', borderRadius: '4px', background: 'var(--color-primary-50)', transition: 'background 0.2s' }}>
+                            Download
+                         </a>
+                      </div>
+                    ) : String(val)
+                  )}
                 </div>
               )}
             </div>
@@ -590,33 +839,164 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
                </h3>
                {directors.map((d, idx) => (
                  <div key={idx} style={{ marginBottom: idx < directors.length - 1 ? 'var(--space-4)' : 0, paddingBottom: idx < directors.length - 1 ? 'var(--space-4)' : 0, borderBottom: idx < directors.length - 1 ? '1px dashed var(--color-neutral-200)' : 'none' }}>
-                   <div style={{ fontWeight: 600 }}>{d.firstName} {d.surname}</div>
-                   <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>Ghana Card: {d.ghanaCardNumber} | TIN: {d.tinNumber}</div>
-                   <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>{d.email} | {d.phone}</div>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                     <div>
+                       <div style={{ fontWeight: 600 }}>{d.firstName} {d.surname}</div>
+                       <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>Ghana Card: {d.ghanaCardNumber} | TIN: {d.tinNumber}</div>
+                       <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>{d.email} | {d.phone}</div>
+                     </div>
+                     {d.ghanaCardPhotoUrl && (
+                       <a href={d.ghanaCardPhotoUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', background: 'var(--color-neutral-100)', padding: '4px 8px', borderRadius: '4px', textDecoration: 'none', color: 'var(--color-neutral-700)', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid var(--color-neutral-200)' }}>
+                         View ID Photo
+                       </a>
+                     )}
+                   </div>
                  </div>
                ))}
              </div>
           )}
 
-          <div style={{ background: 'var(--color-neutral-0)', borderRadius: '12px', padding: '0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)', padding: 'var(--space-6) var(--space-6) 0 var(--space-6)' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: 600 }}>
-                Comprehensive Form Payload
-              </h3>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button className="btn btn-secondary btn-sm" onClick={handleCopyData} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Copy size={14} /> Copy All
-                </button>
-                <button className="btn btn-primary btn-sm" onClick={handlePrintPDF} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Printer size={14} /> Export to PDF
-                </button>
+          {isEditingForm ? (
+            <div style={{ background: '#f8fafc', borderRadius: '12px', padding: 'var(--space-6)', border: '1px solid #cbd5e1' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
+                <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#0f172a' }}>Edit Application Data</h3>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setIsEditingForm(false)}>Cancel</button>
+                  <button className="btn btn-primary btn-sm" onClick={saveEditedForm} disabled={savingForm}>
+                    {savingForm ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+                <div>
+                  <label className="form-label">Business Type</label>
+                  <select 
+                    className="form-input" 
+                    value={editPayload.businessTypeId}
+                    onChange={(e) => {
+                       const newBType = businessTypes.find(b => b.id === e.target.value)
+                       if (newBType && window.confirm('Changing the business type will alter the required fields. Continue?')) {
+                          const newRequiredFields = newBType.required_fields || [];
+                          const cleanedFormData = { ...editPayload.formData };
+                          
+                          // Keys that should be preserved across all business types
+                          const standardKeys = ['documents', 'corrections', 'delivery_method', 'delivery_address', 'total_amount', 'paystackReference', 'businessType'];
+                          
+                          // Remove fields that are no longer needed
+                          Object.keys(cleanedFormData).forEach(key => {
+                             if (!newRequiredFields.includes(key) && !standardKeys.includes(key)) {
+                                delete cleanedFormData[key];
+                             }
+                          });
+                          
+                          // Initialize any new required fields
+                          newRequiredFields.forEach((field: string) => {
+                             if (cleanedFormData[field] === undefined) {
+                                 const isComplex = ['directors', 'secretary', 'shareholders', 'members'].includes(field);
+                                 cleanedFormData[field] = isComplex ? [] : '';
+                             }
+                          });
+
+                          setEditPayload({ 
+                             ...editPayload, 
+                             businessTypeId: e.target.value,
+                             formData: cleanedFormData
+                          });
+                       }
+                    }}
+                  >
+                    <option value="" disabled>-- Select Business Type --</option>
+                    {businessTypes.map(b => {
+                       const orcFee = b.orc_fee || 0;
+                       const agentFee = b.agent_fee || 0;
+                       const returnsPortion = b.returns_portion || 0;
+                       const basePrice = b.base_price || 0;
+                       const serviceFee = b.service_fee || 0;
+                       const totalPrice = returnsPortion > 0 
+                          ? (orcFee + agentFee + returnsPortion) 
+                          : (basePrice + serviceFee);
+                       return (
+                          <option key={b.id} value={b.id}>
+                             {b.name} (GH₵ {totalPrice.toLocaleString()})
+                          </option>
+                       );
+                    })}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="form-label">Business Name</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    value={editPayload.businessName}
+                    onChange={(e) => setEditPayload({ ...editPayload, businessName: e.target.value })}
+                  />
+                </div>
+
+                <div style={{ marginTop: 'var(--space-4)', paddingTop: 'var(--space-4)', borderTop: '1px solid #e2e8f0' }}>
+                   <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: 'var(--space-4)' }}>Form Fields</h4>
+                   {(() => {
+                      const selectedBType = businessTypes.find(b => b.id === editPayload.businessTypeId) || app.business_types;
+                      let fields = selectedBType?.required_fields || [];
+                      
+                      if (selectedBType?.name?.toLowerCase().includes('sole proprietorship') && !fields.includes('proprietor')) {
+                         fields = [...fields, 'proprietor'];
+                      }
+                      
+                      return (
+                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            {fields.map((field: string) => (
+                               <div key={field}>
+                                  <label className="form-label" style={{ textTransform: 'capitalize' }}>
+                                     {field.replace(/_/g, ' ')}
+                                  </label>
+                                  {renderEditField(field)}
+                               </div>
+                            ))}
+                         </div>
+                      )
+                   })()}
+                </div>
               </div>
             </div>
-            
-            <div style={{ padding: '0 var(--space-6) var(--space-6) var(--space-6)' }}>
-              {renderUIDataNode(fd)}
+          ) : (
+            <div style={{ background: 'var(--color-neutral-0)', borderRadius: '12px', padding: '0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)', padding: 'var(--space-6) var(--space-6) 0 var(--space-6)' }}>
+                <h3 style={{ fontSize: '18px', fontWeight: 600 }}>
+                  Comprehensive Form Payload
+                </h3>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {isSuperAdmin && (
+                    <button className="btn btn-secondary btn-sm" onClick={startEditing} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Edit2 size={14} /> Edit Data
+                    </button>
+                  )}
+                  <button className="btn btn-secondary btn-sm" onClick={() => window.location.href = `mailto:${app.profiles?.email}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    Email User
+                  </button>
+                  <button 
+                    className="btn btn-primary btn-sm" 
+                    onClick={() => setIsSmsModalOpen(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    SMS Applicant
+                  </button>
+                  <button className="btn btn-secondary btn-sm" onClick={handleCopyData} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Copy size={14} /> Copy All
+                  </button>
+                  <button className="btn btn-primary btn-sm" onClick={handlePrintPDF} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Printer size={14} /> Export to PDF
+                  </button>
+                </div>
+              </div>
+              
+              <div style={{ padding: '0 var(--space-6) var(--space-6) var(--space-6)' }}>
+                {renderUIDataNode(fd)}
+              </div>
             </div>
-          </div>
+          )}
           
         </div>
 
@@ -803,6 +1183,52 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
 
         </div>
       </div>
+
+      {/* Lightbox Modal */}
+      {lightboxImage && (
+        <div 
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }}
+          onClick={() => setLightboxImage(null)}
+        >
+          <button style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px', borderRadius: '50%', backgroundClip: 'padding-box', backgroundColor: 'rgba(255,255,255,0.1)' }} onClick={(e) => { e.stopPropagation(); setLightboxImage(null); }}>
+             <X size={32} />
+          </button>
+          <img src={lightboxImage} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }} onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
+
+      {/* SMS Modal */}
+      <Modal isOpen={isSmsModalOpen} onClose={() => setIsSmsModalOpen(false)} title="Send SMS to Applicant">
+        <form onSubmit={handleSendCustomSms}>
+          <div className="form-group" style={{ marginBottom: 'var(--space-4)' }}>
+            <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>SMS Message</span>
+              <span style={{ fontSize: '11px', color: smsMessage.length > 160 ? 'var(--color-error)' : 'var(--color-neutral-400)' }}>
+                {smsMessage.length}/160 chars
+              </span>
+            </label>
+            <textarea
+              className="form-input"
+              style={{ minHeight: '100px', fontSize: '14px', resize: 'vertical' }}
+              value={smsMessage}
+              onChange={(e) => setSmsMessage(e.target.value)}
+              placeholder="e.g. Please log in to complete your signature requirements..."
+              required
+            />
+            <p style={{ fontSize: '11px', color: 'var(--color-neutral-500)', marginTop: '8px' }}>
+              This will be sent directly to the applicant's phone number as "GrayDocket".
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <button type="button" className="btn btn-secondary" onClick={() => setIsSmsModalOpen(false)}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={sendingSms || !smsMessage.trim()}>
+              {sendingSms ? 'Sending...' : 'Send Message'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
-}
+} 
