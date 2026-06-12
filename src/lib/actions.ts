@@ -55,6 +55,7 @@ type UserIdRow = {
 
 type AdminApplicationRow = {
   assigned_to?: string | null
+  status?: string
 }
 
 type ServiceMutation = {
