@@ -32,6 +32,7 @@ export default function AdminApplicationsPage() {
   const [businessTypes, setBusinessTypes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showNewModal, setShowNewModal] = useState(false)
+  const [userRole, setUserRole] = useState('registrar')
   
   // Form State
   const [formData, setFormData] = useState({
@@ -55,6 +56,7 @@ export default function AdminApplicationsPage() {
       getAllBusinessTypes()
     ])
     setApps(resApps.applications)
+    setUserRole(resApps.role || 'registrar')
     setUsers(resUsers.users || [])
     const uniqueBTypes = (resTypes.business_types || []).filter((v: any, i: number, a: any[]) => 
       a.findIndex(t => t.name === v.name) === i
@@ -135,12 +137,14 @@ export default function AdminApplicationsPage() {
     <div className={styles.overview}>
       <div className={styles.sectionHeader}>
         <h2 className={styles.sectionTitle}>Global Applications</h2>
-        <button 
-          onClick={() => setShowNewModal(true)}
-          className="btn btn-primary"
-        >
-          + New Application
-        </button>
+        {userRole === 'admin' && (
+          <button 
+            onClick={() => setShowNewModal(true)}
+            className="btn btn-primary"
+          >
+            + New Application
+          </button>
+        )}
       </div>
 
       <Modal isOpen={showNewModal} onClose={() => setShowNewModal(false)} title="Create New Application">
@@ -346,21 +350,23 @@ export default function AdminApplicationsPage() {
                     {app.updated_at ? new Date(app.updated_at).toLocaleDateString() : new Date(app.created_at).toLocaleDateString()}
                   </td>
                   <td style={{ padding: 'var(--space-4)', textAlign: 'right' }}>
-                    <button 
-                       onClick={() => handleDelete(app.id)}
-                       style={{ 
-                         background: 'none', 
-                         border: 'none', 
-                         color: 'var(--color-error)', 
-                         cursor: 'pointer', 
-                         fontSize: '14px', 
-                         padding: '4px',
-                         borderRadius: '4px'
-                       }}
-                       title="Delete Application"
-                    >
-                       🗑️
-                    </button>
+                    {userRole === 'admin' && (
+                      <button 
+                         onClick={() => handleDelete(app.id)}
+                         style={{ 
+                           background: 'none', 
+                           border: 'none', 
+                           color: 'var(--color-error)', 
+                           cursor: 'pointer', 
+                           fontSize: '14px', 
+                           padding: '4px',
+                           borderRadius: '4px'
+                         }}
+                         title="Delete Application"
+                      >
+                         🗑️
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

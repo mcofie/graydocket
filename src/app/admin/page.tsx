@@ -95,13 +95,7 @@ export default function AdminDashboardPage() {
             Monitor platform flow, system revenue, and corporate applications in real-time.
           </p>
         </div>
-        <div style={{ background: 'var(--color-primary-50)', color: 'var(--color-primary-600)', padding: '12px 20px', borderRadius: '12px', border: '1px solid var(--color-primary-100)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-           <Zap size={20} fill="var(--color-primary-600)" />
-           <div>
-              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>System Pulse</div>
-              <div style={{ fontSize: '14px', fontWeight: 600 }}>Operational & Live</div>
-           </div>
-        </div>
+
       </div>
 
       <div className={styles.statsSection}>

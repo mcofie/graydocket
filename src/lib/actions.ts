@@ -813,21 +813,22 @@ export async function getAdminStats() {
   let completedQuery = client.schema('graydocket').from('applications').select('id', { count: 'exact', head: true }).eq('status', 'completed')
   
   if (role === 'registrar') {
-    appQuery = appQuery.or(`assigned_to.eq.${user.id},assigned_to.is.null`)
+    appQuery = appQuery.or(`assigned_to.eq.${user.id},and(assigned_to.is.null,status.neq.draft)`)
     completedQuery = completedQuery.eq('assigned_to', user.id)
   }
 
   const { count: appCount } = await appQuery
   const { count: completedCount } = await completedQuery
 
-  // 2. Pulse: Stale/Urgent (Unassigned > 6 hours) - Registrars only see unassigned urgent
+  // 2. Pulse: Stale/Urgent (Unassigned > 6 hours) - Registrars only see unassigned urgent (excluding drafts)
   const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
   const { count: urgentCount } = await client
     .schema('graydocket')
     .from('applications')
     .select('id', { count: 'exact', head: true })
     .is('assigned_to', null)
-    .gt('created_at', sixHoursAgo)
+    .neq('status', 'draft')
+    .lt('created_at', sixHoursAgo)
 
   // 3. Pulse: Revenue This Month (Admins only see global revenue)
   let monthlyRevenue = 0
@@ -861,7 +862,7 @@ export async function getAdminStats() {
     .limit(8)
   
   if (role === 'registrar') {
-     recentQuery = recentQuery.or(`assigned_to.eq.${user.id},assigned_to.is.null`)
+     recentQuery = recentQuery.or(`assigned_to.eq.${user.id},and(assigned_to.is.null,status.neq.draft)`)
   }
 
   const { data: recentApps } = await recentQuery
@@ -913,11 +914,18 @@ export async function getAdminApplications() {
   // This circumvents RLS/Schema quirks while maintaining strictly secure constraints within this trusted server action
   const finalApps = ((data as AdminApplicationRow[] | null) || []).filter((app) => {
     if (role === 'admin') return true; // Admins view global unconstrained
-    // Registrars only see unassigned, or ones assigned exactly to them
-    return !app.assigned_to || app.assigned_to === user.id;
+    
+    // If it is assigned to this specific registrar, they see it
+    if (app.assigned_to === user.id) return true;
+    
+    // If it is unassigned, registrars only see it if it has been submitted (i.e., not a draft)
+    if (!app.assigned_to && app.status !== 'draft') return true;
+    
+    // Otherwise, they do not see it (e.g. assigned to someone else, or is a draft)
+    return false;
   })
 
-  return { applications: finalApps, error: error?.message || null }
+  return { applications: finalApps, role, error: error?.message || null }
 }
 
 export async function getAdminPayments(status: string = 'paid') {
@@ -1830,7 +1838,23 @@ export async function getApplicationDetails(id: string) {
     
     const metadataRole = (user.user_metadata as RoleMetadata | undefined)?.role
     const role = staffProf?.role || user.app_metadata?.role || metadataRole
-    isAuthorized = ['admin', 'registrar', 'bank_manager', 'service_manager'].includes(role)
+    
+    if (role === 'admin') {
+      isAuthorized = true
+    } else if (role === 'registrar') {
+      // Registrars can only view if it's assigned to them, or unassigned (and not draft)
+      if (rawApp.assigned_to === user.id) {
+        isAuthorized = true
+      } else if (!rawApp.assigned_to && rawApp.status !== 'draft') {
+        isAuthorized = true
+      } else {
+        isAuthorized = false
+      }
+    } else if (['bank_manager', 'service_manager'].includes(role)) {
+      isAuthorized = true
+    } else {
+      isAuthorized = false
+    }
   }
 
   if (!isAuthorized) {

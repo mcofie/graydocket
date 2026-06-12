@@ -93,16 +93,16 @@ export default function AdminSettingsPage() {
         </p>
       </div>
 
-      <div className="grid grid-3" style={{ gap: 'var(--space-12)', alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-8)', alignItems: 'flex-start' }}>
         
         {/* LEFT: AVATAR & QUICK STATS */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-8)' }}>
-           <div className="card" style={{ textAlign: 'center', padding: 'var(--space-10) var(--space-6)' }}>
-              <div style={{ position: 'relative', width: '140px', height: '140px', margin: '0 auto 24px', borderRadius: '50%', overflow: 'hidden', boxShadow: '0 12px 24px -10px rgba(0,0,0,0.15)' }}>
+        <div style={{ flex: '1 1 320px', maxWidth: '380px', display: 'flex', flexDirection: 'column', gap: 'var(--space-8)' }}>
+           <div className="card" style={{ textAlign: 'center', padding: 'var(--space-10) var(--space-6)', background: 'linear-gradient(180deg, #ffffff 0%, #fcfcfc 100%)', border: '1px solid var(--color-neutral-200)', boxShadow: '0 4px 20px -10px rgba(0,0,0,0.05)' }}>
+              <div style={{ position: 'relative', width: '150px', height: '150px', margin: '0 auto 28px', borderRadius: '50%', overflow: 'hidden', boxShadow: '0 0 0 6px white, 0 16px 32px -12px rgba(0,0,0,0.25)', border: '1px solid var(--color-neutral-100)' }}>
                  {profile.avatar_url ? (
                    <img src={profile.avatar_url} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                  ) : (
-                   <div style={{ width: '100%', height: '100%', background: 'var(--color-primary-600)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px', fontWeight: 800 }}>
+                   <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-800) 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '56px', fontWeight: 800, textShadow: '0 2px 10px rgba(0,0,0,0.2)' }}>
                      {initials}
                    </div>
                  )}
@@ -112,107 +112,125 @@ export default function AdminSettingsPage() {
                      bottom: 0, 
                      left: 0, 
                      right: 0, 
-                     height: '40px', 
-                     background: 'rgba(0,0,0,0.6)', 
-                     backdropFilter: 'blur(4px)', 
+                     height: '48px', 
+                     background: 'rgba(0,0,0,0.65)', 
+                     backdropFilter: 'blur(8px)', 
                      display: 'flex', 
                      alignItems: 'center', 
                      justifyContent: 'center', 
                      color: 'white', 
                      cursor: 'pointer',
-                     transition: 'all 0.2s ease',
-                     opacity: uploading ? 0.8 : 1
+                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                     opacity: uploading ? 0.8 : 0,
+                     transform: uploading ? 'translateY(0)' : 'translateY(10px)'
                    }}
+                   onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'translateY(0)' }}
+                   onMouseLeave={(e) => { e.currentTarget.style.opacity = uploading ? '0.8' : '0'; e.currentTarget.style.transform = uploading ? 'translateY(0)' : 'translateY(10px)' }}
                  >
                     <input type="file" hidden accept="image/*" onChange={handleAvatarUpload} disabled={uploading} />
-                    {uploading ? <div className="animate-spin" style={{ width: '14px', height: '14px', border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%' }} /> : <Camera size={18} />}
+                    {uploading ? <div className="animate-spin" style={{ width: '16px', height: '16px', border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%' }} /> : <Camera size={20} />}
                  </label>
               </div>
-              <h3 style={{ fontSize: '20px', fontWeight: 800 }}>{profile.full_name || 'Admin Agent'}</h3>
-              <p style={{ fontSize: '13px', color: 'var(--color-neutral-400)', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>
+              <h3 style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--color-neutral-900)' }}>{profile.full_name || 'Admin Agent'}</h3>
+              <p style={{ fontSize: '13px', color: 'var(--color-primary-600)', marginTop: '6px', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 800 }}>
                  {user?.app_metadata?.role?.replace('_', ' ') || 'Authorized'}
               </p>
               
               <div style={{ marginTop: 'var(--space-8)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: 'var(--color-neutral-50)', borderRadius: '10px', fontSize: '13px' }}>
-                    <span style={{ color: 'var(--color-neutral-500)' }}>Account Status</span>
-                    <span style={{ color: 'var(--color-success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}><Check size={14} /> ACTIVE</span>
+                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'var(--color-neutral-50)', borderRadius: '12px', fontSize: '13px', border: '1px solid var(--color-neutral-200)' }}>
+                    <span style={{ color: 'var(--color-neutral-500)', fontWeight: 600 }}>Account Status</span>
+                    <span style={{ color: 'var(--color-success)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: '#ecfdf5', borderRadius: '20px' }}><Check size={14} strokeWidth={3} /> ACTIVE</span>
                  </div>
               </div>
            </div>
 
-           <div className="card" style={{ borderLeft: '4px solid #f59e0b', background: '#fffbeb30' }}>
-              <h3 style={{ fontSize: '15px', fontWeight: 700, marginBottom: 'var(--space-3)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                 <Lock size={18} style={{ color: '#f59e0b' }} /> Security Portal
+           <div className="card" style={{ padding: 'var(--space-6)', background: 'linear-gradient(to right, #fffbeb, #ffffff)', border: '1px solid #fde68a', borderLeft: '5px solid #f59e0b', boxShadow: '0 4px 12px -8px rgba(245, 158, 11, 0.2)' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 800, marginBottom: 'var(--space-3)', display: 'flex', alignItems: 'center', gap: '8px', color: '#b45309' }}>
+                 <Lock size={18} style={{ color: '#d97706' }} /> Security Portal
               </h3>
-              <p style={{ fontSize: '13px', color: 'var(--color-neutral-600)', lineHeight: 1.6 }}>
-                 Password resets and MFA policies are managed via the root infrastructure console.
+              <p style={{ fontSize: '13px', color: '#92400e', lineHeight: 1.6, fontWeight: 500 }}>
+                 Password resets and MFA policies are centrally managed via the root infrastructure console.
               </p>
-              <button className="btn btn-ghost" style={{ width: '100%', marginTop: '16px', fontSize: '12px' }}>Request Protocol Reset</button>
+              <button className="btn btn-ghost" style={{ width: '100%', marginTop: '16px', fontSize: '13px', fontWeight: 700, color: '#b45309', background: '#fef3c7', border: 'none' }}>Request Protocol Reset</button>
            </div>
         </div>
 
         {/* RIGHT: PROFILE FORM */}
-        <div className="col-span-2 card" style={{ padding: 'var(--space-10)' }}>
-           <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: 'var(--space-8)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <Shield size={24} style={{ color: 'var(--color-primary-600)' }} /> Personal Branding & Credentials
+        <div className="card" style={{ flex: '2 1 500px', padding: 'var(--space-10)', background: '#ffffff', border: '1px solid var(--color-neutral-200)', boxShadow: '0 8px 30px -12px rgba(0,0,0,0.08)' }}>
+           <h3 style={{ fontSize: '22px', fontWeight: 800, marginBottom: 'var(--space-8)', display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--color-neutral-900)' }}>
+              <div style={{ padding: '10px', background: 'var(--color-primary-50)', borderRadius: '12px' }}>
+                 <Shield size={24} style={{ color: 'var(--color-primary-600)' }} />
+              </div>
+              Personal Branding & Credentials
            </h3>
 
            <form onSubmit={handleUpdate} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-8)' }}>
-              <div className="grid grid-2" style={{ gap: 'var(--space-6)' }}>
-                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                    <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-neutral-400)', textTransform: 'uppercase' }}>Professional Name</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--space-6)' }}>
+                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 800, color: 'var(--color-neutral-500)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Professional Name</label>
                     <div style={{ position: 'relative' }}>
-                      <User size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-neutral-400)' }} />
+                      <User size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-neutral-400)' }} />
                       <input 
                         type="text"
                         value={profile.full_name}
                         onChange={(e) => setProfile({ ...profile, full_name: e.target.value })}
-                        style={{ width: '100%', padding: '14px 14px 14px 40px', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', fontSize: '15px', fontWeight: 500 }}
+                        style={{ width: '100%', padding: '16px 16px 16px 44px', borderRadius: '12px', border: '2px solid var(--color-neutral-200)', fontSize: '15px', fontWeight: 600, color: 'var(--color-neutral-900)', transition: 'border-color 0.2s', outline: 'none' }}
+                        onFocus={(e) => e.target.style.borderColor = 'var(--color-primary-500)'}
+                        onBlur={(e) => e.target.style.borderColor = 'var(--color-neutral-200)'}
                       />
                     </div>
                  </div>
 
-                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                    <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-neutral-400)', textTransform: 'uppercase' }}>Contact Number</label>
+                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 800, color: 'var(--color-neutral-500)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Contact Number</label>
                     <div style={{ position: 'relative' }}>
-                      <Smartphone size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-neutral-400)' }} />
+                      <Smartphone size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-neutral-400)' }} />
                       <input 
                         type="tel"
                         value={profile.phone}
                         onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                        style={{ width: '100%', padding: '14px 14px 14px 40px', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', fontSize: '15px', fontWeight: 500 }}
+                        style={{ width: '100%', padding: '16px 16px 16px 44px', borderRadius: '12px', border: '2px solid var(--color-neutral-200)', fontSize: '15px', fontWeight: 600, color: 'var(--color-neutral-900)', transition: 'border-color 0.2s', outline: 'none' }}
+                        onFocus={(e) => e.target.style.borderColor = 'var(--color-primary-500)'}
+                        onBlur={(e) => e.target.style.borderColor = 'var(--color-neutral-200)'}
                       />
                     </div>
                  </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-neutral-400)', textTransform: 'uppercase' }}>Authorized Email (Login)</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 800, color: 'var(--color-neutral-500)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Authorized Email (Login)</label>
                 <div style={{ position: 'relative' }}>
-                  <Mail size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-neutral-300)' }} />
+                  <Mail size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-neutral-400)' }} />
                   <input 
                     type="email"
                     disabled
                     value={user?.email || ''}
-                    style={{ width: '100%', padding: '14px 14px 14px 40px', borderRadius: '12px', border: '1px solid var(--color-neutral-100)', background: 'var(--color-neutral-50)', color: 'var(--color-neutral-400)', fontSize: '15px', cursor: 'not-allowed' }}
+                    style={{ width: '100%', padding: '16px 16px 16px 44px', borderRadius: '12px', border: '2px solid var(--color-neutral-100)', background: 'var(--color-neutral-50)', color: 'var(--color-neutral-500)', fontSize: '15px', fontWeight: 500, cursor: 'not-allowed' }}
                   />
                 </div>
               </div>
 
-              <div style={{ padding: 'var(--space-4)', background: 'var(--color-neutral-50)', borderRadius: '12px', border: '1px solid var(--color-neutral-200)' }}>
-                 <p style={{ fontSize: '12px', color: 'var(--color-neutral-500)', lineHeight: 1.6 }}>
-                   <strong>Role Context:</strong> You are currently operating as a system administrator. Updates to your name will be reflected across all registry audits and client-facing timelines.
-                 </p>
+              <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+                 <div style={{ padding: '8px', background: '#e0e7ff', borderRadius: '8px', color: '#4f46e5' }}>
+                    <Shield size={20} />
+                 </div>
+                 <div>
+                   <h4 style={{ fontSize: '14px', fontWeight: 800, color: '#1e293b', marginBottom: '4px' }}>Role Context</h4>
+                   <p style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.6, fontWeight: 500 }}>
+                     You are currently operating as a system administrator. Updates to your name will be reflected across all registry audits and client-facing timelines securely.
+                   </p>
+                 </div>
               </div>
 
               <button 
                 type="submit" 
                 className="btn btn-primary"
                 disabled={saving}
-                style={{ alignSelf: 'flex-start', padding: '0 var(--space-8)', height: '48px', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
+                style={{ alignSelf: 'flex-end', padding: '0 32px', height: '52px', fontSize: '15px', fontWeight: 700, borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 8px 16px -4px var(--color-primary-300)', transition: 'all 0.2s' }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
               >
-                <Save size={18} />
+                <Save size={20} />
                 {saving ? 'Synchronizing...' : 'Save All Changes'}
               </button>
            </form>

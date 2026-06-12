@@ -6,6 +6,11 @@ export function formatPhoneNumber(phone: string): string {
   
   // Remove all non-numeric characters except +
   let normalized = phone.replace(/[^\d+]/g, '')
+
+  // Fix cases where people add 0 after +233
+  if (normalized.startsWith('+2330')) {
+    normalized = '+233' + normalized.substring(5)
+  }
   
   // If it starts with 0 and is 10 digits, replace with +233
   if (normalized.startsWith('0') && normalized.length === 10) {

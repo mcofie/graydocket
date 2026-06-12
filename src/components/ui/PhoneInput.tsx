@@ -23,7 +23,11 @@ export default function PhoneInput({ value, onChange, placeholder = '24 000 0000
 
     // Always emit the full E.164 number
     if (limitedDigits) {
-      onChange(`+233${limitedDigits}`)
+      let finalDigits = limitedDigits;
+      if (finalDigits.startsWith('0')) {
+        finalDigits = finalDigits.substring(1);
+      }
+      onChange(`+233${finalDigits}`)
     } else {
       onChange('')
     }

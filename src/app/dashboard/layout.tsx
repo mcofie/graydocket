@@ -52,6 +52,7 @@ export default function DashboardLayout({
   }
 
   const isAffiliate = userData?.profile?.is_affiliate
+  const isPartner = ['admin', 'registrar', 'bank_manager', 'service_manager'].includes(userData?.profile?.role)
 
   const navItems = [
     { label: 'Overview', href: '/dashboard', icon: LayoutGrid },
@@ -61,6 +62,7 @@ export default function DashboardLayout({
   ]
 
   const accountItems = [
+    ...(isPartner ? [{ label: 'Partner Portal', href: '/admin', icon: ShieldCheck }] : []),
     ...(isAffiliate ? [{ label: 'Partner Program', href: '/dashboard/affiliate', icon: TrendingUp }] : []),
     { label: 'Account & Security', href: '/dashboard/settings', icon: Settings },
   ]
