@@ -167,7 +167,7 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: stats.role === 'admin' ? '1.5fr 1fr' : '1fr', gap: 'var(--space-6)', marginTop: 'var(--space-6)' }}>
+        <div className={stats.role === 'admin' ? styles.dashboardGrid : styles.singleGrid} style={{ marginTop: 'var(--space-6)' }}>
            {/* Recent Applications */}
            <div className={styles.tableContainer} style={{ margin: 0 }}>
              <div className={styles.tableHeader}>

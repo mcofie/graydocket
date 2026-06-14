@@ -266,90 +266,194 @@ export default function AdminApplicationsPage() {
           <p>User-submitted applications will be managed from here.</p>
         </div>
       ) : (
-        <div className="card" style={{ padding: 0, overflow: 'visible' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead style={{ background: 'var(--color-neutral-50)', borderBottom: '1px solid var(--color-neutral-200)' }}>
-              <tr>
-                <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>TRK ID</th>
-                <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>BUSINESS NAME</th>
-                <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>USER</th>
-                <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>TYPE</th>
-                <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>DELIVERY</th>
-                <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>STATUS</th>
-                <th style={{ padding: 'var(--space-4)', textAlign: 'right', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>UPDATED ON</th>
-                <th style={{ padding: 'var(--space-4)', textAlign: 'right', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {apps.map((app) => (
-                <tr key={app.id} style={{ borderBottom: '1px solid var(--color-neutral-100)' }}>
-                  <td style={{ padding: 'var(--space-4)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
-                    <Link href={`/admin/applications/${app.id}`} style={{ color: 'var(--color-primary-600)', textDecoration: 'none', fontWeight: 600 }}>
+        <>
+          {/* Desktop Table View */}
+          <div className={`${styles.desktopTableContainer} card`} style={{ padding: 0, overflow: 'hidden' }}>
+            <div className={styles.tableWrapper}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '950px' }}>
+                <thead style={{ background: 'var(--color-neutral-50)', borderBottom: '1px solid var(--color-neutral-200)' }}>
+                  <tr>
+                    <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>TRK ID</th>
+                    <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>BUSINESS NAME</th>
+                    <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>USER</th>
+                    <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>TYPE</th>
+                    <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>DELIVERY</th>
+                    <th style={{ padding: 'var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>STATUS</th>
+                    <th style={{ padding: 'var(--space-4)', textAlign: 'right', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>UPDATED ON</th>
+                    <th style={{ padding: 'var(--space-4)', textAlign: 'right', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {apps.map((app) => (
+                    <tr key={app.id} style={{ borderBottom: '1px solid var(--color-neutral-100)' }}>
+                      <td style={{ padding: 'var(--space-4)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
+                        <Link href={`/admin/applications/${app.id}`} style={{ color: 'var(--color-primary-600)', textDecoration: 'none', fontWeight: 600 }}>
+                          {app.tracking_id}
+                        </Link>
+                      </td>
+                      <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)', fontWeight: 600 }}>
+                        <Link href={`/admin/applications/${app.id}`} style={{ color: 'var(--color-neutral-900)', textDecoration: 'none' }}>
+                          {app.business_name}
+                        </Link>
+                      </td>
+                      <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)' }}>
+                        <div>{app.profiles?.full_name || 'Anonymous'}</div>
+                      </td>
+                      <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)' }}>{app.business_types?.name}</td>
+                      <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-xs)' }}>
+                        {(() => {
+                          const method = app.delivery_method || app.form_data?.delivery_method;
+                          const addr = app.delivery_address || app.form_data?.delivery_address;
+                          const isCourier = method === 'courier';
+                          return (
+                            <>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ 
+                                  padding: '2px 6px', 
+                                  borderRadius: '4px', 
+                                  background: isCourier ? '#fef3c7' : '#f3f4f6',
+                                  color: isCourier ? '#92400e' : '#4b5563',
+                                  fontWeight: 600
+                                }}>
+                                  {isCourier ? '📦 COURIER' : '📧 DIGITAL'}
+                                </span>
+                              </div>
+                              {isCourier && addr && (
+                                <div style={{ marginTop: '4px', color: 'var(--color-neutral-500)', fontSize: '10px', maxWidth: '150px' }}>
+                                  {addr.recipientName || addr.street} - {addr.city} ({addr.phone || 'No phone'})
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </td>
+                      <td style={{ padding: 'var(--space-4)' }}>
+                        <select 
+                          value={app.status}
+                          onChange={(e) => handleStatusChange(app.id, e.target.value)}
+                          style={{ 
+                            padding: '4px 8px', 
+                            borderRadius: '6px', 
+                            fontSize: 'var(--text-xs)', 
+                            background: `${statusColorMap[app.status]}15`, 
+                            color: statusColorMap[app.status],
+                            border: 'none',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {statusOptions.map(opt => (
+                            <option key={opt} value={opt} style={{ color: '#000' }}>
+                              {opt.toUpperCase().replace('_', ' ')}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td style={{ padding: 'var(--space-4)', textAlign: 'right', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>
+                        {app.updated_at ? new Date(app.updated_at).toLocaleDateString() : new Date(app.created_at).toLocaleDateString()}
+                      </td>
+                      <td style={{ padding: 'var(--space-4)', textAlign: 'right' }}>
+                        {userRole === 'admin' && (
+                          <button 
+                             onClick={() => handleDelete(app.id)}
+                             style={{ 
+                               background: 'none', 
+                               border: 'none', 
+                               color: 'var(--color-error)', 
+                               cursor: 'pointer', 
+                               fontSize: '14px', 
+                               padding: '4px',
+                               borderRadius: '4px'
+                             }}
+                             title="Delete Application"
+                          >
+                             🗑️
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Mobile Cards View */}
+          <div className={styles.mobileCardList}>
+            {apps.map((app) => {
+              const method = app.delivery_method || app.form_data?.delivery_method;
+              const addr = app.delivery_address || app.form_data?.delivery_address;
+              const isCourier = method === 'courier';
+              return (
+                <div key={app.id} className={styles.mobileCard}>
+                  <div className={styles.mobileCardHeader}>
+                    <Link href={`/admin/applications/${app.id}`} className={styles.mobileCardTrackingId}>
                       {app.tracking_id}
                     </Link>
-                  </td>
-                  <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)', fontWeight: 600 }}>
-                    <Link href={`/admin/applications/${app.id}`} style={{ color: 'var(--color-neutral-900)', textDecoration: 'none' }}>
+                    <span className={styles.mobileCardDate}>
+                      {app.updated_at ? new Date(app.updated_at).toLocaleDateString() : new Date(app.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+
+                  <div className={styles.mobileCardBody}>
+                    <Link href={`/admin/applications/${app.id}`} className={styles.mobileCardTitle}>
                       {app.business_name}
                     </Link>
-                  </td>
-                  <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)' }}>
-                    <div>{app.profiles?.full_name || 'Anonymous'}</div>
-                  </td>
-                  <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)' }}>{app.business_types?.name}</td>
-                  <td style={{ padding: 'var(--space-4)', fontSize: 'var(--text-xs)' }}>
-                    {(() => {
-                      const method = app.delivery_method || app.form_data?.delivery_method;
-                      const addr = app.delivery_address || app.form_data?.delivery_address;
-                      const isCourier = method === 'courier';
-                      return (
-                        <>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span style={{ 
-                              padding: '2px 6px', 
-                              borderRadius: '4px', 
-                              background: isCourier ? '#fef3c7' : '#f3f4f6',
-                              color: isCourier ? '#92400e' : '#4b5563',
-                              fontWeight: 600
-                            }}>
-                              {isCourier ? '📦 COURIER' : '📧 DIGITAL'}
-                            </span>
-                          </div>
-                          {isCourier && addr && (
-                            <div style={{ marginTop: '4px', color: 'var(--color-neutral-500)', fontSize: '10px', maxWidth: '150px' }}>
-                              {addr.recipientName || addr.street} - {addr.city} ({addr.phone || 'No phone'})
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </td>
-                  <td style={{ padding: 'var(--space-4)' }}>
-                    <select 
-                      value={app.status}
-                      onChange={(e) => handleStatusChange(app.id, e.target.value)}
-                      style={{ 
-                        padding: '4px 8px', 
-                        borderRadius: '6px', 
-                        fontSize: 'var(--text-xs)', 
-                        background: `${statusColorMap[app.status]}15`, 
-                        color: statusColorMap[app.status],
-                        border: 'none',
-                        fontWeight: 600,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {statusOptions.map(opt => (
-                        <option key={opt} value={opt} style={{ color: '#000' }}>
-                          {opt.toUpperCase().replace('_', ' ')}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td style={{ padding: 'var(--space-4)', textAlign: 'right', fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>
-                    {app.updated_at ? new Date(app.updated_at).toLocaleDateString() : new Date(app.created_at).toLocaleDateString()}
-                  </td>
-                  <td style={{ padding: 'var(--space-4)', textAlign: 'right' }}>
+                    <span className={styles.mobileCardSubtitle}>
+                      {app.business_types?.name || 'Unknown Entity'}
+                    </span>
+                  </div>
+
+                  <div className={styles.mobileCardMeta}>
+                    <div className={styles.mobileCardMetaRow}>
+                      <span className={styles.mobileCardMetaLabel}>Client:</span>
+                      <span className={styles.mobileCardMetaValue}>{app.profiles?.full_name || 'Anonymous'}</span>
+                    </div>
+                    <div className={styles.mobileCardMetaRow}>
+                      <span className={styles.mobileCardMetaLabel}>Delivery:</span>
+                      <span style={{ 
+                        padding: '2px 6px', 
+                        borderRadius: '4px', 
+                        fontSize: '11px',
+                        background: isCourier ? '#fef3c7' : '#f3f4f6',
+                        color: isCourier ? '#92400e' : '#4b5563',
+                        fontWeight: 600
+                      }}>
+                        {isCourier ? '📦 COURIER' : '📧 DIGITAL'}
+                      </span>
+                    </div>
+                    {isCourier && addr && (
+                      <div style={{ color: 'var(--color-neutral-500)', fontSize: '11px', borderTop: '1px dashed var(--color-neutral-200)', paddingTop: '6px', marginTop: '2px' }}>
+                        {addr.recipientName || addr.street} - {addr.city} ({addr.phone || 'No phone'})
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={styles.mobileCardFooter}>
+                    <div className={styles.mobileCardStatus}>
+                      <select 
+                        value={app.status}
+                        onChange={(e) => handleStatusChange(app.id, e.target.value)}
+                        style={{ 
+                          padding: '6px 10px', 
+                          borderRadius: '6px', 
+                          fontSize: 'var(--text-xs)', 
+                          background: `${statusColorMap[app.status]}15`, 
+                          color: statusColorMap[app.status],
+                          border: 'none',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          width: '100%'
+                        }}
+                      >
+                        {statusOptions.map(opt => (
+                          <option key={opt} value={opt} style={{ color: '#000' }}>
+                            {opt.toUpperCase().replace('_', ' ')}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
                     {userRole === 'admin' && (
                       <button 
                          onClick={() => handleDelete(app.id)}
@@ -358,21 +462,24 @@ export default function AdminApplicationsPage() {
                            border: 'none', 
                            color: 'var(--color-error)', 
                            cursor: 'pointer', 
-                           fontSize: '14px', 
-                           padding: '4px',
-                           borderRadius: '4px'
+                           fontSize: '16px', 
+                           padding: '8px',
+                           borderRadius: '4px',
+                           display: 'flex',
+                           alignItems: 'center',
+                           justifyContent: 'center'
                          }}
                          title="Delete Application"
                       >
                          🗑️
                       </button>
                     )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   )

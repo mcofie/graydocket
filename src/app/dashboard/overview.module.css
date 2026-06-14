@@ -536,3 +536,328 @@
     font-size: 14px;
   }
 }
+
+/* ─── Detail Screen Responsive Styles ─── */
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-6);
+  gap: var(--space-4);
+}
+
+.appDetailGrid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.ownershipBanner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.cardHeaderWithActions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.actionButtonGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.coreDataGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.documentItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.documentActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (max-width: 1024px) {
+  .appDetailGrid {
+    grid-template-columns: 1fr;
+    gap: var(--space-6);
+  }
+}
+
+@media (max-width: 768px) {
+  .sectionHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+  
+  .sectionHeader > div:last-child {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .ownershipBanner {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: left;
+  }
+  
+  .ownershipBanner > div {
+    width: 100%;
+  }
+
+  .ownershipBanner select,
+  .ownershipBanner button {
+    width: 100% !important;
+    margin-top: var(--space-2);
+  }
+
+  .cardHeaderWithActions {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+
+  .actionButtonGroup {
+    width: 100%;
+  }
+
+  .actionButtonGroup button,
+  .actionButtonGroup a {
+    flex: 1 1 calc(50% - 4px);
+    justify-content: center;
+  }
+}
+
+@media (max-width: 600px) {
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .coreDataGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .documentItem {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+
+  .documentActions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .actionButtonGroup button,
+  .actionButtonGroup a {
+    flex: 1 1 100%;
+  }
+}
+
+.tableWrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.settingsHeader {
+  margin-bottom: var(--space-12);
+}
+
+.settingsContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  align-items: flex-start;
+}
+
+.settingsLeftCol {
+  flex: 1 1 320px;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.settingsRightCol {
+  flex: 2 1 500px;
+  padding: var(--space-10);
+  background: #ffffff;
+  border: 1px solid var(--color-neutral-200);
+  box-shadow: 0 8px 30px -12px rgba(0,0,0,0.08);
+}
+
+@media (max-width: 768px) {
+  .settingsHeader {
+    margin-bottom: var(--space-6) !important;
+  }
+  
+  .settingsHeader h2 {
+    font-size: 24px !important;
+  }
+  
+  .settingsLeftCol {
+    max-width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .settingsRightCol {
+    padding: var(--space-6) !important;
+    flex: 1 1 100%;
+  }
+  
+  .settingsContainer {
+    gap: var(--space-6);
+  }
+}
+
+.settingsSubmitBtn {
+  align-self: flex-end;
+}
+
+@media (max-width: 768px) {
+  .settingsSubmitBtn {
+    align-self: stretch !important;
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Responsive Table/Card Switch */
+.desktopTableContainer {
+  display: block;
+}
+
+.mobileCardList {
+  display: none;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+@media (max-width: 768px) {
+  .desktopTableContainer {
+    display: none;
+  }
+  .mobileCardList {
+    display: flex;
+  }
+}
+
+/* Mobile Card Styling */
+.mobileCard {
+  background: white;
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius-xl);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  box-shadow: var(--shadow-sm);
+}
+
+.mobileCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--color-neutral-100);
+  padding-bottom: var(--space-2);
+}
+
+.mobileCardTrackingId {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-primary-600);
+  text-decoration: none;
+}
+
+.mobileCardDate {
+  font-size: 11px;
+  color: var(--color-neutral-400);
+}
+
+.mobileCardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mobileCardTitle {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--color-neutral-900);
+  text-decoration: none;
+}
+
+.mobileCardSubtitle {
+  font-size: 12px;
+  color: var(--color-neutral-500);
+}
+
+.mobileCardMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--color-neutral-50);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  font-size: 13px;
+}
+
+.mobileCardMetaRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mobileCardMetaLabel {
+  color: var(--color-neutral-400);
+  font-weight: 500;
+}
+
+.mobileCardMetaValue {
+  color: var(--color-neutral-800);
+  font-weight: 600;
+}
+
+.mobileCardFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-neutral-100);
+}
+
+.mobileCardStatus {
+  flex: 1;
+  max-width: 200px;
+}
+
+
+
+

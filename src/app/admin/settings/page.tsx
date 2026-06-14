@@ -86,17 +86,17 @@ export default function AdminSettingsPage() {
 
   return (
     <div className={styles.overview}>
-      <div className={styles.sectionHeader} style={{ marginBottom: 'var(--space-12)' }}>
+      <div className={styles.settingsHeader}>
         <h2 className={styles.sectionTitle} style={{ fontSize: '32px', letterSpacing: '-0.02em' }}>Administrative Settings</h2>
         <p style={{ fontSize: '15px', color: 'var(--color-neutral-500)', marginTop: '8px' }}>
           Refine your professional persona and secure your platform access.
         </p>
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-8)', alignItems: 'flex-start' }}>
+      <div className={styles.settingsContainer}>
         
         {/* LEFT: AVATAR & QUICK STATS */}
-        <div style={{ flex: '1 1 320px', maxWidth: '380px', display: 'flex', flexDirection: 'column', gap: 'var(--space-8)' }}>
+        <div className={styles.settingsLeftCol}>
            <div className="card" style={{ textAlign: 'center', padding: 'var(--space-10) var(--space-6)', background: 'linear-gradient(180deg, #ffffff 0%, #fcfcfc 100%)', border: '1px solid var(--color-neutral-200)', boxShadow: '0 4px 20px -10px rgba(0,0,0,0.05)' }}>
               <div style={{ position: 'relative', width: '150px', height: '150px', margin: '0 auto 28px', borderRadius: '50%', overflow: 'hidden', boxShadow: '0 0 0 6px white, 0 16px 32px -12px rgba(0,0,0,0.25)', border: '1px solid var(--color-neutral-100)' }}>
                  {profile.avatar_url ? (
@@ -156,7 +156,7 @@ export default function AdminSettingsPage() {
         </div>
 
         {/* RIGHT: PROFILE FORM */}
-        <div className="card" style={{ flex: '2 1 500px', padding: 'var(--space-10)', background: '#ffffff', border: '1px solid var(--color-neutral-200)', boxShadow: '0 8px 30px -12px rgba(0,0,0,0.08)' }}>
+        <div className={`card ${styles.settingsRightCol}`}>
            <h3 style={{ fontSize: '22px', fontWeight: 800, marginBottom: 'var(--space-8)', display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--color-neutral-900)' }}>
               <div style={{ padding: '10px', background: 'var(--color-primary-50)', borderRadius: '12px' }}>
                  <Shield size={24} style={{ color: 'var(--color-primary-600)' }} />
@@ -224,9 +224,9 @@ export default function AdminSettingsPage() {
 
               <button 
                 type="submit" 
-                className="btn btn-primary"
+                className={`btn btn-primary ${styles.settingsSubmitBtn}`}
                 disabled={saving}
-                style={{ alignSelf: 'flex-end', padding: '0 32px', height: '52px', fontSize: '15px', fontWeight: 700, borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 8px 16px -4px var(--color-primary-300)', transition: 'all 0.2s' }}
+                style={{ padding: '0 32px', height: '52px', fontSize: '15px', fontWeight: 700, borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 8px 16px -4px var(--color-primary-300)', transition: 'all 0.2s' }}
                 onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
                 onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
               >

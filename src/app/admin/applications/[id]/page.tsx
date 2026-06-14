@@ -543,7 +543,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
                 )}
              </div>
              {field !== 'proprietor' && (
-               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+               <div className={styles.formGrid}>
                  {standardKeys.map(k => (
                    <div key={k}>
                       <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-neutral-500)', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>{k.replace(/([A-Z])/g, ' $1')}</label>
@@ -762,7 +762,17 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
         </div>
       </div>
 
-      <div style={{ background: app.assigned_to ? 'var(--color-neutral-50)' : '#fffbeb30', border: app.assigned_to ? '1px solid var(--color-neutral-200)' : '1px solid #f59e0b50', borderLeft: app.assigned_to ? '4px solid var(--color-neutral-300)' : '4px solid #f59e0b', padding: '16px 20px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px' }}>
+      <div 
+         className={styles.ownershipBanner} 
+         style={{ 
+            background: app.assigned_to ? 'var(--color-neutral-50)' : '#fffbeb30', 
+            border: app.assigned_to ? '1px solid var(--color-neutral-200)' : '1px solid #f59e0b50', 
+            borderLeft: app.assigned_to ? '4px solid var(--color-neutral-300)' : '4px solid #f59e0b', 
+            padding: '16px 20px', 
+            borderRadius: '12px', 
+            marginTop: '24px' 
+         }}
+      >
          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <User size={20} style={{ color: app.assigned_to ? 'var(--color-neutral-500)' : '#f59e0b' }} />
             <div>
@@ -806,7 +816,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
          ) : null}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 'var(--space-6)', marginTop: 'var(--space-6)', alignItems: 'start' }}>
+      <div className={styles.appDetailGrid} style={{ marginTop: 'var(--space-6)' }}>
         
         {/* Left Column: Form Details */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
@@ -816,7 +826,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
               Core Application Data
             </h3>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
+            <div className={styles.coreDataGrid}>
               <div>
                 <label style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--color-neutral-400)', fontWeight: 600 }}>Entity Type</label>
                 <div style={{ fontWeight: 500, fontSize: '14px' }}>{app.business_types?.name || 'Unknown'}</div>
@@ -963,11 +973,11 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
             </div>
           ) : (
             <div style={{ background: 'var(--color-neutral-0)', borderRadius: '12px', padding: '0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)', padding: 'var(--space-6) var(--space-6) 0 var(--space-6)' }}>
+              <div className={styles.cardHeaderWithActions} style={{ marginBottom: 'var(--space-6)', padding: 'var(--space-6) var(--space-6) 0 var(--space-6)' }}>
                 <h3 style={{ fontSize: '18px', fontWeight: 600 }}>
                   Comprehensive Form Payload
                 </h3>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div className={styles.actionButtonGroup}>
                   {isSuperAdmin && (
                     <button className="btn btn-secondary btn-sm" onClick={startEditing} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Edit2 size={14} /> Edit Data
@@ -1016,7 +1026,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
               ) : (
                 docs.map((d, idx) => (
                   <div key={idx} style={{ padding: '12px', background: 'white', border: '1px solid var(--color-neutral-200)', borderRadius: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div className={styles.documentItem}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                          <div style={{ background: 'var(--color-neutral-50)', padding: '8px', borderRadius: '8px' }}>
                             <FileText size={16} style={{ color: 'var(--color-primary-600)' }} />
@@ -1027,7 +1037,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
                          </div>
                       </div>
                       
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div className={styles.documentActions}>
                         {d.verification_status === 'approved' ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#10b981', fontSize: '11px', fontWeight: 600, background: '#10b98115', padding: '4px 8px', borderRadius: '6px' }}>
                             <CheckCircle size={14} /> VERIFIED
@@ -1095,37 +1105,39 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
             </div>
           </div>
           
-          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
-            <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: 'var(--space-4)' }}>
-              Revenue & Disbursement Split
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-neutral-500)' }}>
-                <span>ORC Government:</span>
-                <span style={{ fontWeight: 600 }}>GH₵ {app.business_types?.orc_fee || 0}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-neutral-500)' }}>
-                <span>Registrar Agent:</span>
-                <span style={{ fontWeight: 600 }}>GH₵ {app.business_types?.agent_fee || 0}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-neutral-500)' }}>
-                <span>Returns (GD/Aff):</span>
-                <span style={{ fontWeight: 600 }}>GH₵ {app.business_types?.returns_portion || 0}</span>
-              </div>
-              
-              <div style={{ margin: '8px 0', borderTop: '1px solid var(--color-neutral-100)', paddingTop: '8px', display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontWeight: 800 }}>Total Paid:</span>
-                <span style={{ fontWeight: 800, color: 'var(--color-primary-600)' }}>GH₵ {(Number(app.total_amount) || 0).toLocaleString()}</span>
-              </div>
+          {isSuperAdmin && (
+            <div style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
+              <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: 'var(--space-4)' }}>
+                Revenue & Disbursement Split
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-neutral-500)' }}>
+                  <span>ORC Government:</span>
+                  <span style={{ fontWeight: 600 }}>GH₵ {app.business_types?.orc_fee || 0}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-neutral-500)' }}>
+                  <span>Registrar Agent:</span>
+                  <span style={{ fontWeight: 600 }}>GH₵ {app.business_types?.agent_fee || 0}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-neutral-500)' }}>
+                  <span>Returns (GD/Aff):</span>
+                  <span style={{ fontWeight: 600 }}>GH₵ {app.business_types?.returns_portion || 0}</span>
+                </div>
+                
+                <div style={{ margin: '8px 0', borderTop: '1px solid var(--color-neutral-100)', paddingTop: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontWeight: 800 }}>Total Paid:</span>
+                  <span style={{ fontWeight: 800, color: 'var(--color-primary-600)' }}>GH₵ {(Number(app.total_amount) || 0).toLocaleString()}</span>
+                </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
-                <span style={{ color: 'var(--color-neutral-500)' }}>Status:</span>
-                <span style={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', color: app.payment_status === 'paid' ? 'var(--color-success)' : 'var(--color-neutral-400)' }}>
-                  {app.payment_status || 'Unpaid'}
-                </span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                  <span style={{ color: 'var(--color-neutral-500)' }}>Status:</span>
+                  <span style={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', color: app.payment_status === 'paid' ? 'var(--color-success)' : 'var(--color-neutral-400)' }}>
+                    {app.payment_status || 'Unpaid'}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <div style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
             <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: 'var(--space-3)', display: 'flex', justifyContent: 'space-between' }}>

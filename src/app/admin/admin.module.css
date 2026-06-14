@@ -350,3 +350,20 @@
     padding: var(--space-10) var(--space-4);
   }
 }
+
+.dashboardGrid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: var(--space-6);
+}
+
+.singleGrid {
+  display: block;
+}
+
+@media (max-width: 1024px) {
+  .dashboardGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
