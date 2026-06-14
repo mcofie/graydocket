@@ -54,6 +54,7 @@ export const viewport = {
 
 import { Suspense } from "react";
 import ReferralTracker from "@/components/affiliate/ReferralTracker";
+import PageLoaderBar from "@/components/ui/PageLoaderBar";
 
 export default function RootLayout({
   children,
@@ -64,6 +65,7 @@ export default function RootLayout({
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body suppressHydrationWarning>
         <Suspense fallback={null}>
+          <PageLoaderBar />
           <ReferralTracker />
           {children}
         </Suspense>

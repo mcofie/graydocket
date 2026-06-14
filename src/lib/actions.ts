@@ -40,6 +40,31 @@ type PhoneContact = {
   phone?: string | null
 }
 
+function extractPhoneFromApplication(application: any): string {
+  if (!application) return ''
+  
+  const profiles = application.profiles
+  let profilePhone = ''
+  if (profiles) {
+    if (Array.isArray(profiles)) {
+      profilePhone = profiles[0]?.phone || ''
+    } else if (typeof profiles === 'object') {
+      profilePhone = profiles.phone || ''
+    }
+  }
+
+  const formData = (application.form_data as Record<string, any> | null) || {}
+  const nestedFormData = (formData.formData as Record<string, any> | null) || {}
+
+  const rawPhone = profilePhone || 
+                    formData.phone || 
+                    formData.mobilePhone || 
+                    nestedFormData.phone || 
+                    nestedFormData.mobilePhone || 
+                    ''
+  return String(rawPhone).trim()
+}
+
 type AmountRow = {
   total_amount?: number | string | null
 }
@@ -467,7 +492,8 @@ export async function submitApplication(data: {
 
   // --- Send SMS Notification ---
   if (paystackReference && process.env.ZEND_API_KEY) {
-    const phoneNumber = data.formData.mobilePhone as string
+    const rawPhone = data.formData.mobilePhone || data.formData.phone || ''
+    const phoneNumber = String(rawPhone)
     if (phoneNumber) {
       const trackingLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://graydocket.com'}/track/${trackingId}`
       const message = `Payment received! Your GrayDocket application for "${data.businessName}" is processing. Track your status here: ${trackingLink}`
@@ -1270,9 +1296,8 @@ export async function updateApplicationStatus(id: string, status: string, adminN
   // 4. ---- Premium status-aware SMS Notification via Zend ----
   if (application && process.env.ZEND_API_KEY) {
     // Normalize phone number
-    const formData = (application.form_data as ApplicationFormData | null) || {}
-    const profile = (application.profiles as PhoneContact | null) || null
-    const phoneNumber = formatPhoneNumber(formData.mobilePhone || profile?.phone || '')
+    const rawPhone = extractPhoneFromApplication(application)
+    const phoneNumber = formatPhoneNumber(rawPhone)
 
     if (phoneNumber && phoneNumber.startsWith('+') && phoneNumber.length > 8) {
       const trackingLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://graydocket.com'}/track/${application.tracking_id}`
@@ -1361,9 +1386,8 @@ export async function sendDirectSmsToApplicant(id: string, customMessage: string
   if (!application) return { error: 'Application not found' }
 
   if (process.env.ZEND_API_KEY) {
-    const formData = (application.form_data as any) || {}
-    const profile = (application.profiles as any) || null
-    const phoneNumber = formatPhoneNumber(formData.mobilePhone || profile?.phone || '')
+    const rawPhone = extractPhoneFromApplication(application)
+    const phoneNumber = formatPhoneNumber(rawPhone)
 
     if (phoneNumber && phoneNumber.startsWith('+') && phoneNumber.length > 8) {
       try {
@@ -1877,7 +1901,7 @@ export async function getApplicationDetails(id: string) {
       appData.assigned_to 
         ? adminClient.schema('graydocket').from('profiles').select('id, full_name').eq('id', appData.assigned_to).maybeSingle() 
         : Promise.resolve({ data: null }),
-      adminClient.schema('graydocket').from('business_types').select('name').eq('id', appData.business_type_id).maybeSingle(),
+      adminClient.schema('graydocket').from('business_types').select('*').eq('id', appData.business_type_id).maybeSingle(),
       adminClient.schema('graydocket').from('application_status_history').select('*').eq('application_id', appData.id).order('created_at', { ascending: false }),
       adminClient.schema('graydocket').from('documents').select('*').eq('application_id', appData.id)
     ])
@@ -2265,22 +2289,8 @@ export async function verifyDocument(applicationId: string, documentUrl: string,
 
   // 3. If rejected, send an urgent SMS to the user
   if (status === 'rejected' && process.env.ZEND_API_KEY) {
-    const profile = (application.profiles as PhoneContact | null) || null
-    let phoneNumber = (currentFormData.mobilePhone || profile?.phone || '').toString().trim()
-    
-    // Normalize Ghana numbers (+233)
-    if (phoneNumber) {
-       phoneNumber = phoneNumber.replace(/\s+/g, '') // Remove spaces
-       if (phoneNumber.startsWith('0')) {
-          phoneNumber = '+233' + phoneNumber.substring(1)
-       } else if (phoneNumber.startsWith('2') && phoneNumber.length === 9) {
-          phoneNumber = '+233' + phoneNumber
-       } else if (!phoneNumber.startsWith('+')) {
-          if (phoneNumber.startsWith('233') && phoneNumber.length === 12) {
-             phoneNumber = '+' + phoneNumber
-          }
-       }
-    }
+    const rawPhone = extractPhoneFromApplication(application)
+    const phoneNumber = formatPhoneNumber(rawPhone)
 
     if (phoneNumber && phoneNumber.startsWith('+')) {
       const trackingLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://graydocket.com'}/track/${application.tracking_id}`
@@ -2448,14 +2458,15 @@ export async function requestFieldCorrection(applicationId: string, fieldKey: st
 
   // 5. Send SMS Notification
   if (process.env.ZEND_API_KEY) {
-    const profile = (application.profiles as PhoneContact | null) || null
-    const phoneNumber = formatPhoneNumber(profile?.phone || '')
+    const rawPhone = extractPhoneFromApplication(application)
+    const phoneNumber = formatPhoneNumber(rawPhone)
     if (phoneNumber) {
       const trackingLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://graydocket.com'}/dashboard/applications/${applicationId}`
       const message = `Urgent GrayDocket Alert: A correction is required for your application "${application.business_name}". Please log in to your dashboard to resolve: ${trackingLink}`
       
       try {
-        await fetch('https://api.tryzend.com/messages', {
+        console.log(`[SMS DEBUG] Requesting correction SMS to: ${phoneNumber}`)
+        const response = await fetch('https://api.tryzend.com/messages', {
           method: 'POST',
           headers: {
             'x-api-key': process.env.ZEND_API_KEY as string,
@@ -2468,10 +2479,19 @@ export async function requestFieldCorrection(applicationId: string, fieldKey: st
             sender_id: 'GrayDocket'
           })
         })
+        const text = await response.text()
+        console.log(`[SMS DEBUG] Response status: ${response.status}, body: ${text}`)
+        if (!response.ok) {
+          console.error(`[SMS DEBUG] Zend API error (Status ${response.status}):`, text)
+        }
       } catch (err) {
-        console.error('Failed to send correction SMS:', err)
+        console.error('[SMS DEBUG] Failed to send correction SMS:', err)
       }
+    } else {
+      console.warn(`[SMS DEBUG] Cannot send correction SMS: No phone number found in profiles or form_data.`)
     }
+  } else {
+    console.warn("[SMS DEBUG] ZEND_API_KEY is not defined in environment variables. SMS will not be sent.")
   }
 
   revalidatePath('/dashboard')

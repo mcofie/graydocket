@@ -39,6 +39,27 @@ type DirectorEntry = {
   tinNumber?: string
   email?: string
   phone?: string
+  ghanaCardPhotoUrl?: string
+} & JsonObject
+
+type EntityEntry = {
+  firstName?: string
+  surname?: string
+  ghanaCardNumber?: string
+  tinNumber?: string
+  email?: string
+  phone?: string
+  ghanaCardPhotoUrl?: string
+} & JsonObject
+
+type ShareholderEntry = {
+  name?: string
+  type?: string
+  tinNumber?: string
+  nationality?: string
+  numberOfShares?: number | string
+  valuePerShare?: number | string
+  address?: string
 } & JsonObject
 
 type ApplicationFormData = JsonObject & {
@@ -48,6 +69,10 @@ type ApplicationFormData = JsonObject & {
   directors?: DirectorEntry[]
   documents?: ApplicationDocument[]
   corrections?: Record<string, string>
+  proprietor?: EntityEntry
+  secretary?: EntityEntry
+  shareholders?: ShareholderEntry[]
+  members?: EntityEntry[]
 }
 
 type ApplicationHistoryEntry = {
@@ -132,6 +157,13 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
   const [smsMessage, setSmsMessage] = useState('')
   const [sendingSms, setSendingSms] = useState(false)
 
+  // Correction Modal State
+  const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false)
+  const [correctionFieldKey, setCorrectionFieldKey] = useState('')
+  const [correctionFieldName, setCorrectionFieldName] = useState('')
+  const [correctionReason, setCorrectionReason] = useState('')
+  const [submittingCorrection, setSubmittingCorrection] = useState(false)
+
   const fetchData = useCallback(async () => {
     if (!appId) return
     const supabase = createClient()
@@ -152,23 +184,31 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
       }
     }
 
+    const [regs, bTypes, res] = await Promise.all([
+      adminFlag ? getRegistrarsForAssignment() : Promise.resolve([]),
+      adminFlag ? getAllBusinessTypes() : Promise.resolve({ business_types: [], error: null }),
+      getApplicationDetails(appId)
+    ])
+
+    if (res.error) setError(res.error)
+    const application = (res.application as ApplicationDetail | null) || null
+    setApp(application)
+    setNotes(application?.notes || '')
+    setLoading(false)
+
     if (adminFlag) {
-      const [regs, bTypes] = await Promise.all([
-        getRegistrarsForAssignment(),
-        getAllBusinessTypes()
-      ])
       setRegistrars(regs as RegistrarOption[])
       const uniqueBTypes = (bTypes.business_types || []).filter((v: any, i: number, a: any[]) => 
         a.findIndex(t => t.name === v.name) === i
       )
+      if (application?.business_type_id && !uniqueBTypes.some(b => b.id === application.business_type_id)) {
+        const matchingBType = (bTypes.business_types || []).find(b => b.id === application.business_type_id)
+        if (matchingBType) {
+          uniqueBTypes.push(matchingBType)
+        }
+      }
       setBusinessTypes(uniqueBTypes)
     }
-
-    const res = await getApplicationDetails(appId)
-    if (res.error) setError(res.error)
-    setApp((res.application as ApplicationDetail | null) || null)
-    setNotes(res.application?.notes || '')
-    setLoading(false)
   }, [appId])
 
   useEffect(() => {
@@ -270,21 +310,26 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
     setSendingSms(false)
   }
 
-  const handleFlagField = async (fieldKey: string, fieldName: string) => {
-    if (!appId) return
-    const reason = window.prompt(`Why does "${fieldName}" need correction? Individual fields flagged will help the user fix them precisely.`)
-    if (reason === null) return // Cancelled
-    if (!reason.trim()) {
-      alert('You must provide a reason for the correction request.')
-      return
-    }
-    
-    const res = await requestFieldCorrection(appId, fieldKey, reason)
+  const handleFlagField = (fieldKey: string, fieldName: string) => {
+    setCorrectionFieldKey(fieldKey)
+    setCorrectionFieldName(fieldName)
+    setCorrectionReason('')
+    setIsCorrectionModalOpen(true)
+  }
+
+  const submitCorrectionRequest = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!appId || !correctionFieldKey || !correctionReason.trim()) return
+
+    setSubmittingCorrection(true)
+    const res = await requestFieldCorrection(appId, correctionFieldKey, correctionReason.trim())
     if (res.error) {
       alert(res.error)
     } else {
+      setIsCorrectionModalOpen(false)
       await fetchData()
     }
+    setSubmittingCorrection(false)
   }
 
   const handleUpload = async (e: React.FormEvent) => {
@@ -542,16 +587,14 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
                    }} style={{ background: 'none', border: 'none', color: 'var(--color-error)', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>Remove</button>
                 )}
              </div>
-             {field !== 'proprietor' && (
-               <div className={styles.formGrid}>
-                 {standardKeys.map(k => (
-                   <div key={k}>
-                      <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-neutral-500)', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>{k.replace(/([A-Z])/g, ' $1')}</label>
-                      <input type="text" className="form-input" style={{ fontSize: '12px', padding: '6px' }} value={item[k] || ''} onChange={(e) => updateItem(idx, k, e.target.value)} />
-                   </div>
-                 ))}
-               </div>
-             )}
+             <div className={styles.formGrid}>
+               {standardKeys.map(k => (
+                 <div key={k}>
+                    <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-neutral-500)', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>{k.replace(/([A-Z])/g, ' $1')}</label>
+                    <input type="text" className="form-input" style={{ fontSize: '12px', padding: '6px' }} value={item[k] || ''} onChange={(e) => updateItem(idx, k, e.target.value)} />
+                 </div>
+               ))}
+             </div>
              <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--color-neutral-100)' }}>
                 <label style={{ fontSize: '11px', fontWeight: 700, marginBottom: '8px', display: 'block', color: 'var(--color-neutral-600)' }}>UPLOADED ID PHOTOS</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -731,6 +774,10 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
   const directors = Array.isArray(fd.directors) ? fd.directors : []
   const docs = Array.isArray(fd.documents) ? fd.documents : []
   const history = Array.isArray(app.application_status_history) ? app.application_status_history : []
+  const proprietor = fd.proprietor
+  const secretary = fd.secretary
+  const shareholders = Array.isArray(fd.shareholders) ? fd.shareholders : []
+  const members = Array.isArray(fd.members) ? fd.members : []
 
   return (
     <div className={styles.overview}>
@@ -863,15 +910,98 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
                    </div>
                  </div>
                ))}
-             </div>
-          )}
+              </div>
+           )}
 
-          {isEditingForm ? (
+            {proprietor && (proprietor.firstName || proprietor.surname) && (
+               <div style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
+                 <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: 'var(--space-4)', paddingBottom: 'var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)' }}>
+                   Proprietor
+                 </h3>
+                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                   <div>
+                     <div style={{ fontWeight: 600 }}>{proprietor.firstName} {proprietor.surname}</div>
+                     <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>Ghana Card: {proprietor.ghanaCardNumber || 'N/A'} | TIN: {proprietor.tinNumber || 'N/A'}</div>
+                     <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>{proprietor.email || 'N/A'} | {proprietor.phone || 'N/A'}</div>
+                   </div>
+                   {proprietor.ghanaCardPhotoUrl && typeof proprietor.ghanaCardPhotoUrl === 'string' && (
+                     <a href={proprietor.ghanaCardPhotoUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', background: 'var(--color-neutral-100)', padding: '4px 8px', borderRadius: '4px', textDecoration: 'none', color: 'var(--color-neutral-700)', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid var(--color-neutral-200)' }}>
+                       View ID Photo
+                     </a>
+                   )}
+                 </div>
+               </div>
+            )}
+
+            {secretary && (secretary.firstName || secretary.surname) && (
+               <div style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
+                 <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: 'var(--space-4)', paddingBottom: 'var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)' }}>
+                   Secretary
+                 </h3>
+                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                   <div>
+                     <div style={{ fontWeight: 600 }}>{secretary.firstName} {secretary.surname}</div>
+                     <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>Ghana Card: {secretary.ghanaCardNumber || 'N/A'} | TIN: {secretary.tinNumber || 'N/A'}</div>
+                     <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>{secretary.email || 'N/A'} | {secretary.phone || 'N/A'}</div>
+                   </div>
+                   {secretary.ghanaCardPhotoUrl && typeof secretary.ghanaCardPhotoUrl === 'string' && (
+                     <a href={secretary.ghanaCardPhotoUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', background: 'var(--color-neutral-100)', padding: '4px 8px', borderRadius: '4px', textDecoration: 'none', color: 'var(--color-neutral-700)', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid var(--color-neutral-200)' }}>
+                       View ID Photo
+                     </a>
+                   )}
+                 </div>
+               </div>
+            )}
+
+            {shareholders.length > 0 && (
+               <div style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
+                 <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: 'var(--space-4)', paddingBottom: 'var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)' }}>
+                   Shareholders ({shareholders.length})
+                 </h3>
+                 {shareholders.map((s, idx) => (
+                   <div key={idx} style={{ marginBottom: idx < shareholders.length - 1 ? 'var(--space-4)' : 0, paddingBottom: idx < shareholders.length - 1 ? 'var(--space-4)' : 0, borderBottom: idx < shareholders.length - 1 ? '1px dashed var(--color-neutral-200)' : 'none' }}>
+                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                       <div>
+                         <div style={{ fontWeight: 600 }}>{s.name} ({s.type || 'Individual'})</div>
+                         <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>TIN: {s.tinNumber || 'N/A'} | Nationality: {s.nationality || 'N/A'}</div>
+                         <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>Shares: {s.numberOfShares || 0} (Value: GH₵ {s.valuePerShare || 0}/share)</div>
+                         <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>Address: {s.address || 'N/A'}</div>
+                       </div>
+                     </div>
+                   </div>
+                 ))}
+               </div>
+            )}
+
+            {members.length > 0 && (
+               <div style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
+                 <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: 'var(--space-4)', paddingBottom: 'var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)' }}>
+                   Members ({members.length})
+                 </h3>
+                 {members.map((m, idx) => (
+                   <div key={idx} style={{ marginBottom: idx < members.length - 1 ? 'var(--space-4)' : 0, paddingBottom: idx < members.length - 1 ? 'var(--space-4)' : 0, borderBottom: idx < members.length - 1 ? '1px dashed var(--color-neutral-200)' : 'none' }}>
+                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                       <div>
+                         <div style={{ fontWeight: 600 }}>{m.firstName} {m.surname}</div>
+                         <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>Ghana Card: {m.ghanaCardNumber || 'N/A'} | TIN: {m.tinNumber || 'N/A'}</div>
+                         <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>{m.email || 'N/A'} | {m.phone || 'N/A'}</div>
+                       </div>
+                       {m.ghanaCardPhotoUrl && typeof m.ghanaCardPhotoUrl === 'string' && (
+                         <a href={m.ghanaCardPhotoUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', background: 'var(--color-neutral-100)', padding: '4px 8px', borderRadius: '4px', textDecoration: 'none', color: 'var(--color-neutral-700)', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid var(--color-neutral-200)' }}>
+                           View ID Photo
+                         </a>
+                       )}
+                     </div>
+                   </div>
+                 ))}
+               </div>
+            )}
+
+           {isEditingForm ? (
             <div style={{ background: '#f8fafc', borderRadius: '12px', padding: 'var(--space-6)', border: '1px solid #cbd5e1' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
                 <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#0f172a' }}>Edit Application Data</h3>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button className="btn btn-secondary btn-sm" onClick={() => setIsEditingForm(false)}>Cancel</button>
                   <button className="btn btn-primary btn-sm" onClick={saveEditedForm} disabled={savingForm}>
                     {savingForm ? 'Saving...' : 'Save Changes'}
                   </button>
@@ -951,7 +1081,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
                       const selectedBType = businessTypes.find(b => b.id === editPayload.businessTypeId) || app.business_types;
                       let fields = selectedBType?.required_fields || [];
                       
-                      if (selectedBType?.name?.toLowerCase().includes('sole proprietorship') && !fields.includes('proprietor')) {
+                      if (selectedBType?.name?.toLowerCase().includes('sole proprietor') && !fields.includes('proprietor')) {
                          fields = [...fields, 'proprietor'];
                       }
                       
@@ -1237,6 +1367,40 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
             </button>
             <button type="submit" className="btn btn-primary" disabled={sendingSms || !smsMessage.trim()}>
               {sendingSms ? 'Sending...' : 'Send Message'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Correction Modal */}
+      <Modal 
+        isOpen={isCorrectionModalOpen} 
+        onClose={() => setIsCorrectionModalOpen(false)} 
+        title={`Request Correction: ${correctionFieldName}`}
+      >
+        <form onSubmit={submitCorrectionRequest}>
+          <div className="form-group" style={{ marginBottom: 'var(--space-4)' }}>
+            <label className="form-label">
+              Reason for Correction
+            </label>
+            <textarea
+              className="form-input"
+              style={{ minHeight: '100px', fontSize: '14px', resize: 'vertical' }}
+              value={correctionReason}
+              onChange={(e) => setCorrectionReason(e.target.value)}
+              placeholder={`Explain why "${correctionFieldName}" is incorrect...`}
+              required
+            />
+            <p style={{ fontSize: '11px', color: 'var(--color-neutral-500)', marginTop: '8px' }}>
+              The application status will be moved to "rejected" and the customer will receive an automated SMS alert to log in and correct this field.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <button type="button" className="btn btn-secondary" onClick={() => setIsCorrectionModalOpen(false)}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary" style={{ background: 'var(--color-error)', borderColor: 'var(--color-error)' }} disabled={submittingCorrection || !correctionReason.trim()}>
+              {submittingCorrection ? 'Sending...' : 'Request Correction'}
             </button>
           </div>
         </form>

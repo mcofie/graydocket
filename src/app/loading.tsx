@@ -1,12 +1,5 @@
-import styles from './loading.module.css'
+import PremiumLoader from '@/components/ui/PremiumLoader'
 
 export default function Loading() {
-  return (
-    <div className={styles.loadingContainer}>
-      <div className={styles.logoWrapper}>
-        <div className={styles.logoIcon}>G</div>
-        <span className={styles.brandName}>GrayDocket</span>
-      </div>
-    </div>
-  )
+  return <PremiumLoader message="Loading GrayDocket..." />
 }
