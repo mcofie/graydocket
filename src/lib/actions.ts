@@ -2514,6 +2514,8 @@ export async function resubmitApplication(applicationId: string, formData: Recor
 
   if (!app || app.user_id !== user.id) return { error: 'Unauthorized: You do not have permission to edit this record.' }
 
+  const isDraft = app.status === 'draft'
+
   // 2. Prepare new form data (clearing old corrections)
   const newFormData = { ...formData }
   if (newFormData.corrections) {
@@ -2521,9 +2523,11 @@ export async function resubmitApplication(applicationId: string, formData: Recor
   }
 
   // 3. Update application
+  const businessName = (newFormData.formData as any)?.businessName || (newFormData as any).businessName || 'Untitled Business'
   const { error: updateErr } = await supabase
     .from('applications')
     .update({
+      business_name: businessName,
       form_data: newFormData,
       status: 'submitted', 
       updated_at: new Date().toISOString()
@@ -2533,11 +2537,11 @@ export async function resubmitApplication(applicationId: string, formData: Recor
   if (updateErr) return { error: updateErr.message }
 
   await sendDiscordNotification({
-    title: '🔁 APPLICATION RESUBMITTED',
+    title: isDraft ? '📝 APPLICATION SUBMITTED' : '🔁 APPLICATION RESUBMITTED',
     color: DiscordColors.INFO,
     fields: [
       { name: 'Tracking ID', value: `\`${applicationId.substring(0, 8)}...\``, inline: true },
-      { name: 'Business', value: ('business_name' in app && typeof app.business_name === 'string' ? app.business_name : 'N/A'), inline: true }
+      { name: 'Business', value: businessName, inline: true }
     ]
   })
 
@@ -2545,9 +2549,51 @@ export async function resubmitApplication(applicationId: string, formData: Recor
   await supabase.from('application_status_history').insert({
     application_id: applicationId,
     status: 'submitted',
-    notes: 'Application resubmitted after requested institutional corrections.',
+    notes: isDraft ? 'Application submitted from draft portfolio.' : 'Application resubmitted after requested institutional corrections.',
     updated_by: user.id
   })
+
+  revalidatePath('/dashboard')
+  revalidatePath('/dashboard/applications')
+  revalidatePath(`/dashboard/applications/${applicationId}`)
+  
+  return { success: true }
+}
+
+export async function updateApplicationDraft(applicationId: string, formData: Record<string, unknown>) {
+  const { createClient } = await import('@/lib/supabase/server')
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Authentication required for saving draft.' }
+
+  // 1. Fetch current application to verify ownership and draft status
+  const { data: app } = await supabase
+    .from('applications')
+    .select('user_id, status')
+    .eq('id', applicationId)
+    .single()
+
+  if (!app || app.user_id !== user.id) return { error: 'Unauthorized: You do not have permission to edit this record.' }
+  if (app.status !== 'draft') return { error: 'Unauthorized: This application is not in draft status.' }
+
+  // 2. Prepare new form data (clearing old corrections if any)
+  const newFormData = { ...formData }
+  if (newFormData.corrections) {
+      delete newFormData.corrections
+  }
+
+  // 3. Update application
+  const businessName = (newFormData.formData as any)?.businessName || (newFormData as any).businessName || 'Untitled Business'
+  const { error: updateErr } = await supabase
+    .from('applications')
+    .update({
+      business_name: businessName,
+      form_data: newFormData,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', applicationId)
+
+  if (updateErr) return { error: updateErr.message }
 
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/applications')

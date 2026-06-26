@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react'
 import { 
-  getApplicationDetails, resubmitApplication
+  getApplicationDetails, resubmitApplication, updateApplicationDraft
 } from '@/lib/actions'
 import styles from '../../new/new.module.css'
 import {
@@ -25,6 +25,9 @@ export default function EditSubmissionContent({ applicationId }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [corrections, setCorrections] = useState<Record<string, string>>({})
+  const [appStatus, setAppStatus] = useState<string>('draft')
+  const [savingDraft, setSavingDraft] = useState(false)
+  const [draftSavedMessage, setDraftSavedMessage] = useState('')
 
   // ---- Form State (initialized with defaults, then loaded from DB) ----
   const [formData, setFormData] = useState({
@@ -72,6 +75,10 @@ export default function EditSubmissionContent({ applicationId }: Props) {
          setSubmitError(`Data Load Error: ${res.error}`)
          setLoading(false)
          return
+      }
+
+      if (res.application) {
+        setAppStatus(res.application.status || 'draft')
       }
 
       if (res.application && res.application.form_data) {
@@ -199,6 +206,37 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     setCompanyDetails((prev) => ({ ...prev, [field]: value }))
   }
 
+  const handleSaveDraft = async () => {
+    setSavingDraft(true)
+    setSubmitError('')
+    setDraftSavedMessage('')
+
+    const fullFormData = {
+      formData,
+      businessType: selectedType,
+      ...(isCompany
+        ? {
+            directors,
+            secretary,
+            shareholders,
+            companyDetails,
+          }
+        : {
+            proprietor,
+          }),
+    }
+
+    const result = await updateApplicationDraft(applicationId, fullFormData)
+
+    if (result.error) {
+      setSubmitError(result.error)
+    } else {
+      setDraftSavedMessage('Draft saved successfully!')
+      setTimeout(() => setDraftSavedMessage(''), 3000)
+    }
+    setSavingDraft(false)
+  }
+
   const handleSubmit = async () => {
     setSubmitting(true)
     setSubmitError('')
@@ -266,9 +304,26 @@ export default function EditSubmissionContent({ applicationId }: Props) {
   return (
     <div className={styles.newReg}>
       <div className={styles.newRegHeader}>
-        <h1>Fix & Resubmit</h1>
-        <p>Your application was flagged for corrections. Please update the necessary fields below.</p>
+        <h1>{appStatus === 'draft' ? 'Edit Application Draft' : 'Fix & Resubmit'}</h1>
+        <p>
+          {appStatus === 'draft' 
+            ? 'Complete and submit your application draft.' 
+            : 'Your application was flagged for corrections. Please update the necessary fields below.'}
+        </p>
       </div>
+
+      {draftSavedMessage && (
+        <div style={{ background: 'var(--color-success-light)', color: 'var(--color-success)', padding: '12px 16px', borderRadius: '10px', margin: '0 auto 24px auto', maxWidth: '800px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-success)', fontWeight: 600 }}>
+          <Check size={18} />
+          {draftSavedMessage}
+        </div>
+      )}
+      {submitError && (
+        <div style={{ background: 'var(--color-error-light)', color: 'var(--color-error)', padding: '12px 16px', borderRadius: '10px', margin: '0 auto 24px auto', maxWidth: '800px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-error)', fontWeight: 600 }}>
+          <AlertCircle size={18} />
+          {submitError}
+        </div>
+      )}
 
       <div className={styles.progressBar}>
         {progressSteps.map((ps, i) => {
@@ -455,6 +510,11 @@ export default function EditSubmissionContent({ applicationId }: Props) {
           </div>
 
           <div className={styles.stepNav}>
+            {appStatus === 'draft' && (
+              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
+                {savingDraft ? 'Saving...' : 'Save Draft'}
+              </button>
+            )}
             <button className="btn btn-primary" onClick={() => setStep(2)}>
               Continue <ArrowRight size={16} />
             </button>
@@ -475,7 +535,14 @@ export default function EditSubmissionContent({ applicationId }: Props) {
           <PersonForm person={proprietor} onChange={handleProprietorChange} prefix="prop" title="Proprietor" />
           <div className={styles.stepNav}>
             <button className="btn btn-ghost" onClick={() => setStep(1)}><ArrowLeft size={16} /> Back</button>
-            <button className="btn btn-primary" onClick={() => setStep(lastStep)}>Review & Resubmit</button>
+            {appStatus === 'draft' && (
+              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
+                {savingDraft ? 'Saving...' : 'Save Draft'}
+              </button>
+            )}
+            <button className="btn btn-primary" onClick={() => setStep(lastStep)}>
+              {appStatus === 'draft' ? 'Review & Submit' : 'Review & Resubmit'}
+            </button>
           </div>
         </div>
       )}
@@ -502,6 +569,11 @@ export default function EditSubmissionContent({ applicationId }: Props) {
           ))}
           <div className={styles.stepNav}>
             <button className="btn btn-ghost" onClick={() => setStep(1)}><ArrowLeft size={16} /> Back</button>
+            {appStatus === 'draft' && (
+              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
+                {savingDraft ? 'Saving...' : 'Save Draft'}
+              </button>
+            )}
             <button className="btn btn-primary" onClick={() => setStep(3)}>Continue <ArrowRight size={16} /></button>
           </div>
         </div>
@@ -543,7 +615,14 @@ export default function EditSubmissionContent({ applicationId }: Props) {
 
           <div className={styles.stepNav}>
             <button className="btn btn-ghost" onClick={() => setStep(2)}><ArrowLeft size={16} /> Back</button>
-            <button className="btn btn-primary" onClick={() => setStep(lastStep)}>Review & Resubmit</button>
+            {appStatus === 'draft' && (
+              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
+                {savingDraft ? 'Saving...' : 'Save Draft'}
+              </button>
+            )}
+            <button className="btn btn-primary" onClick={() => setStep(lastStep)}>
+              {appStatus === 'draft' ? 'Review & Submit' : 'Review & Resubmit'}
+            </button>
           </div>
         </div>
       )}
@@ -567,11 +646,17 @@ export default function EditSubmissionContent({ applicationId }: Props) {
 
           <div className={styles.stepNav}>
              <button className="btn btn-ghost" onClick={() => setStep(step - 1)}><ArrowLeft size={16} /> Back</button>
+             {appStatus === 'draft' && (
+               <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
+                 {savingDraft ? 'Saving...' : 'Save Draft'}
+               </button>
+             )}
              <button className="btn btn-primary btn-lg" onClick={handleSubmit} disabled={submitting}>
-                {submitting ? 'Resubmitting...' : 'Submit Corrections'}
+                {submitting 
+                  ? (appStatus === 'draft' ? 'Submitting...' : 'Resubmitting...') 
+                  : (appStatus === 'draft' ? 'Submit Application' : 'Submit Corrections')}
              </button>
           </div>
-          {submitError && <p style={{ color: 'red', marginTop: '10px' }}>{submitError}</p>}
         </div>
       )}
 

@@ -62,6 +62,24 @@ export default function ApplicationDetailContent({ app, appId }: { app: any, app
         </div>
       )}
 
+      {/* DRAFT ALERT BANNER */}
+      {currentStatus === 'draft' && (
+        <div className={styles.correctionBanner} style={{ background: 'var(--color-info-light)', border: '1px solid #93c5fd' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--color-info)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <FileText color="white" size={24} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <h3 style={{ color: '#1e3a8a', fontWeight: 800, fontSize: '18px', marginBottom: '8px' }}>Draft Application</h3>
+            <p style={{ color: 'var(--color-neutral-700)', fontSize: '14px', lineHeight: 1.5, marginBottom: '16px' }}>
+              This application has not been submitted yet. You can edit and complete it before final submission.
+            </p>
+            <Link href={`/dashboard/applications/${appId}/edit`} className="btn btn-primary" style={{ height: '44px', gap: '8px' }}>
+               Edit & Complete Draft <ArrowLeft size={16} style={{ transform: 'rotate(180deg)' }} />
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* DOCUMENT VIEWER MODAL */}
       {selectedDoc && (
         <div className={styles.modalOverlay}>
@@ -121,6 +139,11 @@ export default function ApplicationDetailContent({ app, appId }: { app: any, app
             </div>
           </div>
           <div className={styles.headerActions}>
+             {currentStatus === 'draft' && (
+               <Link href={`/dashboard/applications/${appId}/edit`} className="btn btn-secondary" style={{ height: '44px', gap: '8px', display: 'inline-flex', alignItems: 'center' }}>
+                  Edit Draft
+               </Link>
+             )}
              <button className="btn btn-secondary" style={{ height: '44px', width: '44px', padding: 0 }}>
                 <MoreVertical size={18} />
              </button>
