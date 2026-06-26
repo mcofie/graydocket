@@ -2602,6 +2602,114 @@ export async function updateApplicationDraft(applicationId: string, formData: Re
   return { success: true }
 }
 
+export async function checkBusinessNameAvailability(name: string) {
+  if (!name || name.trim().length < 3) {
+    return { available: true, message: 'Name too short' }
+  }
+
+  const cleanName = name.trim()
+
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 8000)
+
+    const getRes = await fetch("https://rgdonline.gegov.gov.gh/orc-app/", {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      }
+    })
+
+    clearTimeout(timeoutId)
+
+    if (!getRes.ok) {
+      throw new Error(`Main page load failed: ${getRes.status}`)
+    }
+
+    const getHtml = await getRes.text()
+    const setCookie = getRes.headers.get("set-cookie")
+
+    const csrfMatch = getHtml.match(/name="_csrf"\s+value="([^"]+)"/) || getHtml.match(/value="([^"]+)"\s+name="_csrf"/)
+    if (!csrfMatch) {
+      throw new Error("CSRF token not found in page HTML.")
+    }
+
+    const csrfToken = csrfMatch[1]
+    
+    let cookieHeader = ""
+    if (setCookie) {
+      cookieHeader = setCookie.split(",").map(c => c.split(";")[0].trim()).join("; ")
+    }
+
+    const postParams = new URLSearchParams()
+    postParams.append("_csrf", csrfToken)
+    postParams.append("bizName", cleanName)
+    postParams.append("searchType", "cn") // Contains search to capture partial matches
+
+    const postController = new AbortController()
+    const postTimeoutId = setTimeout(() => postController.abort(), 8000)
+
+    const postRes = await fetch("https://rgdonline.gegov.gov.gh/orc-app/search-for-name", {
+      method: "POST",
+      signal: postController.signal,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "Cookie": cookieHeader,
+        "HX-Request": "true",
+        "HX-Trigger": "saveRequest",
+        "HX-Target": "search-results",
+        "HX-Current-URL": "https://rgdonline.gegov.gov.gh/orc-app/"
+      },
+      body: postParams.toString()
+    })
+
+    clearTimeout(postTimeoutId)
+
+    if (!postRes.ok) {
+      throw new Error(`Search request failed: ${postRes.status}`)
+    }
+
+    const postHtml = await postRes.text()
+    const taken = !postHtml.includes("No data found")
+
+    const matches: Array<{ name: string; type: string }> = []
+    const trRegex = /<tr[^>]*data-bizname="([^"]+)"[^>]*>([\s\S]*?)<\/tr>/gi
+    let trMatch
+    while ((trMatch = trRegex.exec(postHtml)) !== null) {
+      const bizName = trMatch[1]
+      const innerHtml = trMatch[2]
+      
+      const spanRegex = /<span>([\s\S]*?)<\/span>/gi
+      let spanMatch
+      const spans: string[] = []
+      while ((spanMatch = spanRegex.exec(innerHtml)) !== null) {
+        spans.push(spanMatch[1].trim())
+      }
+      
+      const bizType = spans[0] || "Unknown Type"
+      
+      if (!matches.some(m => m.name === bizName)) {
+        matches.push({ name: bizName, type: bizType })
+      }
+    }
+
+    return { 
+      available: !taken, 
+      matches: matches.slice(0, 5),
+      error: null 
+    }
+
+  } catch (err: any) {
+    console.error(`[ORC Name Search Error]`, err.message || err)
+    return { 
+      available: true, 
+      error: "unreachable", 
+      message: "Unable to verify name availability via ORC database at this time. We will verify this manually during processing." 
+    }
+  }
+}
+
 export async function adminCreateApplication(data: {
   userId: string
   businessTypeId: string

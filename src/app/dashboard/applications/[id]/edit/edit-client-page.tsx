@@ -4,7 +4,8 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react'
 import { 
-  getApplicationDetails, resubmitApplication, updateApplicationDraft
+  getApplicationDetails, resubmitApplication, updateApplicationDraft,
+  checkBusinessNameAvailability
 } from '@/lib/actions'
 import styles from '../../new/new.module.css'
 import {
@@ -28,6 +29,13 @@ export default function EditSubmissionContent({ applicationId }: Props) {
   const [appStatus, setAppStatus] = useState<string>('draft')
   const [savingDraft, setSavingDraft] = useState(false)
   const [draftSavedMessage, setDraftSavedMessage] = useState('')
+  const [checkingAvailability, setCheckingAvailability] = useState(false)
+  const [availabilityResult, setAvailabilityResult] = useState<{
+    available: boolean
+    matches?: Array<{ name: string; type: string }> | string[]
+    error?: string | null
+    message?: string
+  } | null>(null)
 
   // ---- Form State (initialized with defaults, then loaded from DB) ----
   const [formData, setFormData] = useState({
@@ -48,6 +56,35 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     alternatePhone: '',
     email: '',
   })
+
+  useEffect(() => {
+    if (!formData.businessName || formData.businessName.trim().length < 3) {
+      setAvailabilityResult(null)
+      return
+    }
+
+    const nameToCheck = formData.businessName.trim()
+    setCheckingAvailability(true)
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await checkBusinessNameAvailability(nameToCheck)
+        if (nameToCheck === formData.businessName.trim()) {
+          setAvailabilityResult(res)
+        }
+      } catch (error) {
+        console.error(error)
+      } finally {
+        if (nameToCheck === formData.businessName.trim()) {
+          setCheckingAvailability(false)
+        }
+      }
+    }, 700)
+
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [formData.businessName])
   const [proprietor, setProprietor] = useState<PersonEntry>({ ...emptyPerson })
   const [directors, setDirectors] = useState<PersonEntry[]>([{ ...emptyPerson }, { ...emptyPerson }])
   const [secretary, setSecretary] = useState<PersonEntry>({ ...emptyPerson })
@@ -382,6 +419,58 @@ export default function EditSubmissionContent({ applicationId }: Props) {
                 onChange={(e) => handleInputChange('businessName', e.target.value)}
                 required
               />
+
+              <style dangerouslySetInnerHTML={{__html: `
+                @keyframes spin {
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+              `}} />
+
+              {formData.businessName.trim().length >= 3 && (
+                <div style={{ marginTop: '8px', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {checkingAvailability && (
+                    <div style={{ color: 'var(--color-neutral-500)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ width: '12px', height: '12px', borderRadius: '50%', border: '2px solid var(--color-neutral-300)', borderTopColor: 'var(--color-primary-500)', display: 'inline-block', animation: 'spin 1s linear infinite' }} />
+                      <span>Verifying name availability in ORC registry...</span>
+                    </div>
+                  )}
+                  {!checkingAvailability && availabilityResult && (
+                    <>
+                      {availabilityResult.error === 'unreachable' ? (
+                        <div style={{ color: '#d97706', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontWeight: 800 }}>⚠</span>
+                          <span>{availabilityResult.message || 'ORC registry lookup offline. We will verify availability manually.'}</span>
+                        </div>
+                      ) : availabilityResult.available ? (
+                        <div style={{ color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+                          <span>✓</span>
+                          <span>Name is likely available (No exact/partial conflicts found in ORC).</span>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ color: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+                            <span>✗</span>
+                            <span>Potential conflict found in ORC registry.</span>
+                          </div>
+                          {availabilityResult.matches && availabilityResult.matches.length > 0 && (
+                            <div style={{ padding: '8px 12px', background: 'var(--color-error-light)', borderRadius: '8px', border: '1px solid var(--color-error-light)', color: 'var(--color-neutral-800)', fontSize: '12px' }}>
+                              <strong style={{ display: 'block', marginBottom: '4px', color: 'var(--color-error)' }}>Conflicting registrations:</strong>
+                              <ul style={{ listStyleType: 'disc', paddingLeft: '16px', margin: 0 }}>
+                                {availabilityResult.matches.map((m: any) => (
+                                  <li key={typeof m === 'string' ? m : m.name} style={{ fontWeight: 600 }}>
+                                    {typeof m === 'string' ? m : `${m.name} (${m.type})`}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
             <div className={`form-group ${styles.formFull}`}>
               {renderCorrection('businessNameAlt')}
