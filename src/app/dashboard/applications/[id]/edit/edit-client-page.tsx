@@ -22,6 +22,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
   const router = useRouter()
   const [step, setStep] = useState(1)
   const [selectedType, setSelectedType] = useState<string | null>(null)
+  const isCompany = selectedType === 'limited_by_shares' || selectedType === 'limited_by_guarantee'
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -36,6 +37,16 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     error?: string | null
     message?: string
   } | null>(null)
+  const [checkingAvailabilityAlt, setCheckingAvailabilityAlt] = useState(false)
+  const [availabilityResultAlt, setAvailabilityResultAlt] = useState<{
+    available: boolean
+    matches?: Array<{ name: string; type: string }> | string[]
+    error?: string | null
+    message?: string
+  } | null>(null)
+  const [retryTrigger, setRetryTrigger] = useState(0)
+  const [isAutosaving, setIsAutosaving] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [initialLoaded, setInitialLoaded] = useState(false)
 
   // ---- Form State (initialized with defaults, then loaded from DB) ----
   const [formData, setFormData] = useState({
@@ -55,6 +66,25 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     mobilePhone: '',
     alternatePhone: '',
     email: '',
+  })
+
+  const [proprietor, setProprietor] = useState<PersonEntry>({ ...emptyPerson })
+  const [directors, setDirectors] = useState<PersonEntry[]>([{ ...emptyPerson }, { ...emptyPerson }])
+  const [secretary, setSecretary] = useState<PersonEntry>({ ...emptyPerson })
+  const [shareholders, setShareholders] = useState<ShareholderEntry[]>([{ ...emptyShareholder }])
+  const [companyDetails, setCompanyDetails] = useState({
+    constitutionType: 'standard',
+    objectsOfCompany: '',
+    authorizedShares: '',
+    issuedShares: '',
+    statedCapital: '',
+    auditorName: '',
+    auditorFirm: '',
+    auditorLicense: '',
+    beneficialOwnerName: '',
+    beneficialOwnerNationality: '',
+    beneficialOwnerAddress: '',
+    beneficialOwnerDOB: '',
   })
 
   useEffect(() => {
@@ -84,25 +114,75 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     return () => {
       clearTimeout(timer)
     }
-  }, [formData.businessName])
-  const [proprietor, setProprietor] = useState<PersonEntry>({ ...emptyPerson })
-  const [directors, setDirectors] = useState<PersonEntry[]>([{ ...emptyPerson }, { ...emptyPerson }])
-  const [secretary, setSecretary] = useState<PersonEntry>({ ...emptyPerson })
-  const [shareholders, setShareholders] = useState<ShareholderEntry[]>([{ ...emptyShareholder }])
-  const [companyDetails, setCompanyDetails] = useState({
-    constitutionType: 'standard',
-    objectsOfCompany: '',
-    authorizedShares: '',
-    issuedShares: '',
-    statedCapital: '',
-    auditorName: '',
-    auditorFirm: '',
-    auditorLicense: '',
-    beneficialOwnerName: '',
-    beneficialOwnerNationality: '',
-    beneficialOwnerAddress: '',
-    beneficialOwnerDOB: '',
-  })
+  }, [formData.businessName, retryTrigger])
+
+  useEffect(() => {
+    if (!formData.businessNameAlt || formData.businessNameAlt.trim().length < 3) {
+      setAvailabilityResultAlt(null)
+      return
+    }
+
+    const nameToCheck = formData.businessNameAlt.trim()
+    setCheckingAvailabilityAlt(true)
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await checkBusinessNameAvailability(nameToCheck)
+        if (nameToCheck === formData.businessNameAlt.trim()) {
+          setAvailabilityResultAlt(res)
+        }
+      } catch (error) {
+        console.error(error)
+      } finally {
+        if (nameToCheck === formData.businessNameAlt.trim()) {
+          setCheckingAvailabilityAlt(false)
+        }
+      }
+    }, 700)
+
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [formData.businessNameAlt, retryTrigger])
+
+  useEffect(() => {
+    if (!initialLoaded || appStatus !== 'draft') return
+
+    const fullFormData = {
+      formData,
+      businessType: selectedType,
+      ...(isCompany
+        ? {
+            directors,
+            secretary,
+            shareholders,
+            companyDetails,
+          }
+        : {
+            proprietor,
+          }),
+    }
+
+    setIsAutosaving('saving')
+    const timer = setTimeout(async () => {
+      try {
+        const result = await updateApplicationDraft(applicationId, fullFormData)
+        if (result.error) {
+          setIsAutosaving('error')
+        } else {
+          setIsAutosaving('saved')
+          setTimeout(() => setIsAutosaving('idle'), 3000)
+        }
+      } catch (error) {
+        console.error(error)
+        setIsAutosaving('error')
+      }
+    }, 4000)
+
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [formData, proprietor, directors, secretary, shareholders, companyDetails, initialLoaded, appStatus])
 
   useEffect(() => {
     async function loadApp() {
@@ -184,6 +264,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
         
         if (data.corrections) setCorrections(data.corrections)
         setStep(1)
+        setTimeout(() => setInitialLoaded(true), 1500)
       } else {
         setSubmitError('Application data could not be retrieved. Please check your connection.')
       }
@@ -192,7 +273,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     loadApp()
   }, [applicationId])
 
-  const isCompany = selectedType === 'limited_by_shares' || selectedType === 'limited_by_guarantee'
+
 
   const progressSteps = isCompany
     ? [
@@ -338,6 +419,49 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     return false
   }
 
+  const renderAutosaveIndicator = () => {
+    if (appStatus !== 'draft') return null
+    return (
+      <div style={{ 
+        fontSize: '12px', 
+        fontWeight: 700, 
+        color: isAutosaving === 'saving' 
+          ? 'var(--color-neutral-400)' 
+          : isAutosaving === 'saved' 
+            ? 'var(--color-success)' 
+            : 'transparent', 
+        textAlign: 'right', 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '6px', 
+        justifyContent: 'flex-end', 
+        minHeight: '18px', 
+        transition: 'all 0.2s', 
+        marginBottom: '-18px' 
+      }}>
+        {isAutosaving === 'saving' ? (
+          <>
+            <span style={{ 
+              width: '8px', 
+              height: '8px', 
+              borderRadius: '50%', 
+              border: '1.5px solid var(--color-neutral-300)', 
+              borderTopColor: 'var(--color-primary-500)', 
+              display: 'inline-block', 
+              animation: 'spin 1s linear infinite' 
+            }} />
+            <span>Saving draft progress...</span>
+          </>
+        ) : isAutosaving === 'saved' ? (
+          <>
+            <span>✓</span>
+            <span>Draft autosaved</span>
+          </>
+        ) : null}
+      </div>
+    )
+  }
+
   return (
     <div className={styles.newReg}>
       <div className={styles.newRegHeader}>
@@ -348,6 +472,13 @@ export default function EditSubmissionContent({ applicationId }: Props) {
             : 'Your application was flagged for corrections. Please update the necessary fields below.'}
         </p>
       </div>
+
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}} />
 
       {draftSavedMessage && (
         <div style={{ background: 'var(--color-success-light)', color: 'var(--color-success)', padding: '12px 16px', borderRadius: '10px', margin: '0 auto 24px auto', maxWidth: '800px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-success)', fontWeight: 600 }}>
@@ -390,6 +521,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
 
       {step === 1 && (
         <div className={styles.stepCard}>
+          {renderAutosaveIndicator()}
           {hasSectionCorrection(1) && (
             <div style={{ background: 'var(--color-error-light)', color: 'var(--color-error)', padding: '12px 16px', borderRadius: '10px', marginBottom: '24px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-error)' }}>
               <AlertCircle size={18} />
@@ -440,7 +572,16 @@ export default function EditSubmissionContent({ applicationId }: Props) {
                       {availabilityResult.error === 'unreachable' ? (
                         <div style={{ color: '#d97706', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span style={{ fontWeight: 800 }}>⚠</span>
-                          <span>{availabilityResult.message || 'ORC registry lookup offline. We will verify availability manually.'}</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {availabilityResult.message || 'ORC registry lookup offline. We will verify availability manually.'}
+                            <button 
+                              type="button" 
+                              onClick={() => setRetryTrigger(prev => prev + 1)}
+                              style={{ border: 'none', background: 'none', color: 'var(--color-primary-600)', textDecoration: 'underline', cursor: 'pointer', fontSize: '13px', fontWeight: 700, padding: 0 }}
+                            >
+                              Retry lookup
+                            </button>
+                          </span>
                         </div>
                       ) : availabilityResult.available ? (
                         <div style={{ color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
@@ -476,6 +617,60 @@ export default function EditSubmissionContent({ applicationId }: Props) {
               {renderCorrection('businessNameAlt')}
               <label className="form-label" htmlFor="businessNameAlt">Alternative Name (optional)</label>
               <input id="businessNameAlt" type="text" className="form-input" placeholder="Backup name if first choice is unavailable" value={formData.businessNameAlt} onChange={(e) => handleInputChange('businessNameAlt', e.target.value)} />
+              
+              {formData.businessNameAlt.trim().length >= 3 && (
+                <div style={{ marginTop: '8px', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {checkingAvailabilityAlt && (
+                    <div style={{ color: 'var(--color-neutral-500)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ width: '12px', height: '12px', borderRadius: '50%', border: '2px solid var(--color-neutral-300)', borderTopColor: 'var(--color-primary-500)', display: 'inline-block', animation: 'spin 1s linear infinite' }} />
+                      <span>Verifying name availability in ORC registry...</span>
+                    </div>
+                  )}
+                  {!checkingAvailabilityAlt && availabilityResultAlt && (
+                    <>
+                      {availabilityResultAlt.error === 'unreachable' ? (
+                        <div style={{ color: '#d97706', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontWeight: 800 }}>⚠</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {availabilityResultAlt.message || 'ORC registry lookup offline. We will verify availability manually.'}
+                            <button 
+                              type="button" 
+                              onClick={() => setRetryTrigger(prev => prev + 1)}
+                              style={{ border: 'none', background: 'none', color: 'var(--color-primary-600)', textDecoration: 'underline', cursor: 'pointer', fontSize: '13px', fontWeight: 700, padding: 0 }}
+                            >
+                              Retry lookup
+                            </button>
+                          </span>
+                        </div>
+                      ) : availabilityResultAlt.available ? (
+                        <div style={{ color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+                          <span>✓</span>
+                          <span>Name is likely available (No exact/partial conflicts found in ORC).</span>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ color: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+                            <span>✗</span>
+                            <span>Potential conflict found in ORC registry.</span>
+                          </div>
+                          {availabilityResultAlt.matches && availabilityResultAlt.matches.length > 0 && (
+                            <div style={{ padding: '8px 12px', background: 'var(--color-error-light)', borderRadius: '8px', border: '1px solid var(--color-error-light)', color: 'var(--color-neutral-800)', fontSize: '12px' }}>
+                              <strong style={{ display: 'block', marginBottom: '4px', color: 'var(--color-error)' }}>Conflicting registrations:</strong>
+                              <ul style={{ listStyleType: 'disc', paddingLeft: '16px', margin: 0 }}>
+                                {availabilityResultAlt.matches.map((m: any) => (
+                                  <li key={typeof m === 'string' ? m : m.name} style={{ fontWeight: 600 }}>
+                                    {typeof m === 'string' ? m : `${m.name} (${m.type})`}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -613,6 +808,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
 
       {step === 2 && !isCompany && (
         <div className={styles.stepCard}>
+          {renderAutosaveIndicator()}
           {hasSectionCorrection(2) && (
             <div style={{ background: 'var(--color-error-light)', color: 'var(--color-error)', padding: '12px 16px', borderRadius: '10px', marginBottom: '24px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-error)' }}>
               <AlertCircle size={18} />
@@ -638,6 +834,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
 
       {step === 2 && isCompany && (
         <div className={styles.stepCard}>
+          {renderAutosaveIndicator()}
           {hasSectionCorrection(2) && (
             <div style={{ background: 'var(--color-error-light)', color: 'var(--color-error)', padding: '12px 16px', borderRadius: '10px', marginBottom: '24px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-error)' }}>
               <AlertCircle size={18} />
@@ -670,6 +867,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
 
       {step === 3 && isCompany && (
         <div className={styles.stepCard}>
+          {renderAutosaveIndicator()}
           {hasSectionCorrection(3) && (
             <div style={{ background: 'var(--color-error-light)', color: 'var(--color-error)', padding: '12px 16px', borderRadius: '10px', marginBottom: '24px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-error)' }}>
               <AlertCircle size={18} />
@@ -718,6 +916,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
 
       {step === lastStep && (
         <div className={styles.stepCard}>
+          {renderAutosaveIndicator()}
           <h2 className={styles.stepTitle}>Final Review</h2>
           <p>Check everything again before resubmitting. No additional payment is required for corrections.</p>
           

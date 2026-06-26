@@ -1,7 +1,39 @@
-import { useState } from 'react'
-import { ScanFace, ChevronDown, ChevronUp, CheckCircle2, UploadCloud, X } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { ScanFace, ChevronDown, ChevronUp, CheckCircle2, UploadCloud, X, AlertCircle } from 'lucide-react'
 import { PersonEntry, ghanaRegions } from './constants'
 import styles from './new.module.css'
+
+// =====================================================
+// Helpers
+// =====================================================
+const formatGhanaCard = (value: string): string => {
+  let clean = value.replace(/[^A-Za-z0-9]/g, '').toUpperCase()
+  if (clean.length > 0 && !clean.startsWith('G')) {
+    clean = 'GHA' + clean
+  } else if (clean.length > 1 && !clean.startsWith('GH')) {
+    clean = 'GHA' + clean.slice(1)
+  } else if (clean.length > 2 && !clean.startsWith('GHA')) {
+    clean = 'GHA' + clean.slice(2)
+  }
+
+  let formatted = ''
+  if (clean.length > 0) {
+    formatted += 'GHA'
+  }
+  const digits = clean.slice(3, 13)
+  if (digits.length > 0) {
+    formatted += '-' + digits.slice(0, 9)
+  }
+  if (digits.length > 9) {
+    formatted += '-' + digits.slice(9, 10)
+  }
+  return formatted
+}
+
+const isValidGhanaCard = (val: string): boolean => {
+  if (!val) return true
+  return /^GHA-\d{9}-\d$/.test(val)
+}
 
 interface PersonFormProps {
   person: PersonEntry
@@ -14,34 +46,104 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
   const [openSection, setOpenSection] = useState<'personal' | 'id' | 'address'>('personal')
   const [isScanning, setIsScanning] = useState(false)
   const [scanned, setScanned] = useState(false)
+  const [scanError, setScanError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleScan = () => {
-    setIsScanning(true)
-    setTimeout(() => {
-      onChange('title', 'Mr')
-      onChange('firstName', 'Kwame')
-      onChange('surname', 'Mensah')
-      onChange('dateOfBirth', '1985-10-14')
+  const handleGhanaCardChange = (val: string) => {
+    const formatted = formatGhanaCard(val)
+    onChange('ghanaCardNumber', formatted)
+  }
+
+  const handleScanClick = () => {
+    setScanError('')
+    fileInputRef.current?.click()
+  }
+
+  const parseGhanaCardText = (text: string) => {
+    const cardIdMatch = text.match(/GHA-\d{9}-\d/) || text.match(/GHA-\d{9}-[A-Z0-9]/)
+    if (cardIdMatch) {
+      onChange('ghanaCardNumber', cardIdMatch[0])
+    }
+
+    const dobMatch = text.match(/(\d{2})[-./](\d{2})[-./](\d{4})/)
+    if (dobMatch) {
+      const day = dobMatch[1]
+      const month = dobMatch[2]
+      const year = dobMatch[3]
+      onChange('dateOfBirth', `${year}-${month}-${day}`)
+    }
+
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+    const surnameIdx = lines.findIndex(l => l.toUpperCase().includes('SURNAME') || l.toUpperCase().includes('NOM'))
+    if (surnameIdx !== -1 && lines[surnameIdx + 1]) {
+      onChange('surname', lines[surnameIdx + 1].replace(/[^A-Za-z]/g, ''))
+    }
+
+    const givenNameIdx = lines.findIndex(l => l.toUpperCase().includes('GIVEN NAMES') || l.toUpperCase().includes('PRENOMS'))
+    if (givenNameIdx !== -1 && lines[givenNameIdx + 1]) {
+      const names = lines[givenNameIdx + 1].split(' ')
+      onChange('firstName', names[0].replace(/[^A-Za-z]/g, ''))
+      if (names.slice(1).length > 0) {
+        onChange('otherNames', names.slice(1).join(' ').replace(/[^A-Za-z\s]/g, ''))
+      }
+    }
+
+    if (text.toUpperCase().includes('SEX: M') || text.toUpperCase().includes('SEX M') || text.toUpperCase().includes('MALE')) {
       onChange('gender', 'Male')
-      onChange('ghanaCardNumber', 'GHA-712345678-9')
+    } else if (text.toUpperCase().includes('SEX: F') || text.toUpperCase().includes('SEX F') || text.toUpperCase().includes('FEMALE')) {
+      onChange('gender', 'Female')
+    }
+
+    if (text.toUpperCase().includes('GHANA') || text.toUpperCase().includes('GHANAIAN')) {
       onChange('nationality', 'Ghanaian')
-      
-      // Additional extraction
-      onChange('tinNumber', 'C0012345678')
+    }
+
+    setScanned(true)
+    setOpenSection('id')
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsScanning(true)
+    setScanError('')
+
+    try {
+      const { createWorker } = await import('tesseract.js')
+      const worker = await createWorker('eng')
+      const { data: { text } } = await worker.recognize(file)
+      await worker.terminate()
+
+      console.log("[OCR Raw Text]:", text)
+      parseGhanaCardText(text)
+    } catch (err: any) {
+      console.error("[OCR Scan Error]", err)
+      setScanError('Failed to parse card image. Please ensure the photo is clear and well-lit.')
+    } finally {
       setIsScanning(false)
-      setScanned(true)
-      setOpenSection('address') // Move them to the next unfilled section
-    }, 1500)
+      e.target.value = ''
+    }
   }
 
   return (
     <div className={styles.personFormContainer}>
       <div className={styles.personFormHeader}>
         <h3 className={styles.personFormTitle}>{title}</h3>
+        <input 
+          type="file" 
+          accept="image/*" 
+          ref={fileInputRef} 
+          style={{ display: 'none' }} 
+          onChange={handleFileChange} 
+        />
         {!scanned ? (
-          <button type="button" onClick={handleScan} className="btn btn-secondary btn-sm" disabled={isScanning} style={{ height: '40px' }}>
-            {isScanning ? 'Scanning Card...' : <><ScanFace size={16} /> Scan Ghana Card to Auto-fill</>}
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
+            <button type="button" onClick={handleScanClick} className="btn btn-secondary btn-sm" disabled={isScanning} style={{ height: '40px' }}>
+              {isScanning ? 'Scanning Card...' : <><ScanFace size={16} /> Scan Ghana Card to Auto-fill</>}
+            </button>
+            {scanError && <span style={{ color: 'var(--color-error)', fontSize: '11px', fontWeight: 600 }}>{scanError}</span>}
+          </div>
         ) : (
           <span style={{ color: 'var(--color-success)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
             <CheckCircle2 size={16} /> Data Extracted Successfully
@@ -121,7 +223,19 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
             <div className={styles.formGrid}>
                <div className="form-group">
                 <label className="form-label">Ghana Card Number *</label>
-                <input type="text" className="form-input" placeholder="GHA-XXXXXXXXX-X" value={person.ghanaCardNumber} onChange={(e) => onChange('ghanaCardNumber', e.target.value)} required />
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="GHA-XXXXXXXXX-X" 
+                  value={person.ghanaCardNumber} 
+                  onChange={(e) => handleGhanaCardChange(e.target.value)} 
+                  required 
+                />
+                {!isValidGhanaCard(person.ghanaCardNumber) && (
+                  <span style={{ color: 'var(--color-error)', fontSize: '12px', marginTop: '-12px', marginBottom: '12px', display: 'block', fontWeight: 600 }}>
+                    Invalid format. Expected: GHA-XXXXXXXXX-X
+                  </span>
+                )}
               </div>
               <div className="form-group">
                 <label className="form-label">TIN *</label>
