@@ -95,8 +95,8 @@
   gap: 8px;
   font-size: 12px;
   font-weight: 600;
-  color: #059669;
-  background: #ecfdf5;
+  color: var(--brand-ink);
+  background: var(--brand-soft);
   padding: 4px 12px;
   border-radius: 20px;
 }

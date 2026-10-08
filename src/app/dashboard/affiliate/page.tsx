@@ -243,7 +243,7 @@ export default function AffiliateDashboard() {
             <div className={affStyles.referralHeader}>
                <h3 style={{ fontSize: '18px', fontWeight: 750, color: 'var(--color-neutral-900)', margin: 0 }}>Elite Referral Tool</h3>
                <div className={affStyles.activeBadge}>
-                 <div style={{ width: '6px', height: '6px', background: '#059669', borderRadius: '50%' }} /> Active Tracking
+                 <div style={{ width: '6px', height: '6px', background: 'var(--brand-ink)', borderRadius: '50%' }} /> Active Tracking
                </div>
             </div>
             
@@ -300,8 +300,8 @@ export default function AffiliateDashboard() {
                             textTransform: 'uppercase', 
                             padding: '4px 10px', 
                             borderRadius: '20px',
-                            background: c.status === 'paid' ? '#ecfdf5' : c.status === 'approved' ? '#eff6ff' : '#fff7ed',
-                            color: c.status === 'paid' ? '#059669' : c.status === 'approved' ? '#2563eb' : '#c2410c'
+                            background: c.status === 'paid' ? 'var(--brand-soft)' : c.status === 'approved' ? '#eff6ff' : '#fff7ed',
+                            color: c.status === 'paid' ? 'var(--brand-ink)' : c.status === 'approved' ? '#2563eb' : '#c2410c'
                           }}>
                             {c.status}
                           </span>

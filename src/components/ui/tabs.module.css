@@ -48,7 +48,7 @@
   bottom: -1px;
   height: 2px;
   border-radius: 2px;
-  background: #111827;
+  background: var(--brand-ink);
   transform: scaleX(0);
   transition: transform 0.2s ease;
 }
@@ -83,7 +83,7 @@
 }
 
 .active .count {
-  background: #111827;
+  background: var(--brand-ink);
   color: #ffffff;
 }
 

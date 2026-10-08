@@ -1168,7 +1168,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
                       
                       <div className={styles.documentActions}>
                         {d.verification_status === 'approved' ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#10b981', fontSize: '11px', fontWeight: 600, background: '#10b98115', padding: '4px 8px', borderRadius: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--brand)', fontSize: '11px', fontWeight: 600, background: 'color-mix(in srgb, var(--brand) 9%, transparent)', padding: '4px 8px', borderRadius: '6px' }}>
                             <CheckCircle size={14} /> VERIFIED
                           </div>
                         ) : d.verification_status === 'rejected' ? (
@@ -1179,7 +1179,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
                           <>
                              <button 
                                onClick={() => handleVerify(d.url, 'approved')}
-                               style={{ border: 'none', background: '#10b98115', color: '#10b981', padding: '6px', borderRadius: '6px', cursor: 'pointer' }}
+                               style={{ border: 'none', background: 'color-mix(in srgb, var(--brand) 9%, transparent)', color: 'var(--brand)', padding: '6px', borderRadius: '6px', cursor: 'pointer' }}
                                title="Approve"
                              >
                                 <CheckCircle size={16} />

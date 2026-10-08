@@ -86,7 +86,7 @@
 }
 
 .shellLogo {
-  color: #111827;
+  color: var(--brand);
   margin-bottom: 20px;
   border-radius: 10px;
   transition: transform 0.2s ease;
@@ -568,8 +568,8 @@
 }
 
 .authSuccess {
-  background: #ecfdf5;
-  color: #047857;
+  background: var(--brand-soft);
+  color: var(--brand-ink);
 }
 
 @media (max-width: 480px) {

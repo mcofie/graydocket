@@ -1,0 +1,189 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+
+.thumbButton {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: none;
+  cursor: pointer;
+}
+
+.thumbButton:focus-visible {
+  outline: 2px solid var(--brand-ink);
+  outline-offset: 2px;
+}
+
+.thumb,
+.player {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.thumb {
+  background: color-mix(in srgb, var(--accent, var(--brand)) 26%, #ffffff);
+}
+
+.player {
+  background: #0b0d10;
+}
+
+.thumbImg {
+  object-fit: cover;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.thumbButton:hover .thumbImg {
+  transform: scale(1.03);
+}
+
+/* Fallback artwork: soft shapes in the accent colour */
+.fallback {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 0% 0%, rgba(255, 255, 255, 0.55), transparent 60%);
+}
+
+.fallbackShape,
+.fallbackShape2 {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--accent, var(--brand));
+}
+
+.fallbackShape {
+  width: 46%;
+  aspect-ratio: 1;
+  right: -8%;
+  bottom: -22%;
+  opacity: 0.55;
+}
+
+.fallbackShape2 {
+  width: 22%;
+  aspect-ratio: 1;
+  left: 8%;
+  top: 14%;
+  opacity: 0.3;
+}
+
+.play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 48px;
+  height: 48px;
+  margin: -24px 0 0 -24px;
+  padding-left: 3px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.95);
+  color: #111827;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s ease;
+}
+
+.thumbButton:hover .play {
+  transform: scale(1.08);
+}
+
+.duration,
+.soon {
+  position: absolute;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.duration {
+  right: 10px;
+  bottom: 10px;
+  background: rgba(17, 24, 39, 0.72);
+  color: #ffffff;
+}
+
+.soon {
+  left: 10px;
+  top: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #374151;
+}
+
+.caption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 20px;
+  color: #111827;
+}
+
+.blurb {
+  font-size: 13px;
+  line-height: 18px;
+  color: #8a8a90;
+}
+
+/* Compact: a grey row with a small thumbnail beside the title (matches the audio and guide rows) */
+.compact {
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 14px 8px 8px;
+  border-radius: 14px;
+  background: #f7f7f8;
+}
+
+.compact .thumbButton,
+.compact > .thumb,
+.compact > .player {
+  flex-shrink: 0;
+  width: 112px;
+}
+
+.compact .thumb,
+.compact .player {
+  border-radius: 10px;
+}
+
+.compact .play {
+  width: 32px;
+  height: 32px;
+  margin: -16px 0 0 -16px;
+}
+
+.compact .duration,
+.compact .soon {
+  display: none;
+}
+
+.compact .title {
+  font-size: 14px;
+}
+
+.compact .blurb {
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thumbImg,
+  .play {
+    transition: none;
+  }
+}

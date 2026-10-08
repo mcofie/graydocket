@@ -61,6 +61,8 @@ export const viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: "cover" as const,
+  // Mobile browser bar blends into the white header; the brand green lives in the page itself
+  themeColor: "#ffffff",
 };
 
 import { Suspense } from "react";

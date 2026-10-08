@@ -23,9 +23,9 @@ const statusColors: Record<string, { bg: string; text: string }> = {
   submitted: { bg: '#eff6ff', text: '#2563eb' },
   name_search: { bg: '#fffbeb', text: '#d97706' },
   under_review: { bg: '#fffbeb', text: '#d97706' },
-  approved: { bg: '#ecfdf5', text: '#059669' },
+  approved: { bg: 'var(--brand-soft)', text: 'var(--brand-ink)' },
   rejected: { bg: '#fef2f2', text: '#dc2626' },
-  completed: { bg: '#ecfdf5', text: '#059669' },
+  completed: { bg: 'var(--brand-soft)', text: 'var(--brand-ink)' },
   cancelled: { bg: '#f9fafb', text: '#9ca3af' },
 }
 

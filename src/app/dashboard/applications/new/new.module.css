@@ -103,11 +103,11 @@
 }
 
 .segDone {
-  background: #111827;
+  background: var(--brand);
 }
 
 .segActive {
-  background: #9ca3af;
+  background: var(--brand-border);
 }
 
 .textBtn {
@@ -172,11 +172,11 @@
 }
 
 .progressDot.completed {
-  background: #111827;
+  background: var(--brand);
 }
 
 .progressDot.active {
-  background: #9ca3af;
+  background: var(--brand-border);
 }
 
 .progressLabel {
@@ -467,7 +467,7 @@
   gap: 6px;
   font-size: 13px;
   font-weight: 500;
-  color: #047857;
+  color: var(--brand-ink);
 }
 
 .scanError,
@@ -586,7 +586,7 @@
 }
 
 .nameChecking { color: #6b7280; }
-.nameOk { color: #047857; font-weight: 500; }
+.nameOk { color: var(--brand-ink); font-weight: 500; }
 .nameWarn { color: #b45309; }
 .nameBad { color: #b91c1c; font-weight: 500; }
 
@@ -776,8 +776,8 @@
   margin-left: 8px;
   font-size: 11px;
   font-weight: 600;
-  color: #047857;
-  background: #ecfdf5;
+  color: var(--brand-ink);
+  background: var(--brand-soft);
   padding: 2px 6px;
   border-radius: 6px;
 }
@@ -872,8 +872,8 @@
   height: 64px;
   margin: 0 auto 20px;
   border-radius: 50%;
-  background: #ecfdf5;
-  color: #047857;
+  background: var(--brand-soft);
+  color: var(--brand-ink);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1127,8 +1127,8 @@
 }
 
 .completionDone {
-  background: #ecfdf5;
-  color: #047857;
+  background: var(--brand-soft);
+  color: var(--brand-ink);
 }
 
 .sectionLabel {
@@ -1138,7 +1138,7 @@
 }
 
 .sectionTick {
-  color: #047857;
+  color: var(--brand-ink);
 }
 
 /* ---------- Add later ---------- */
@@ -1185,8 +1185,8 @@
 }
 
 .typeOption.selected {
-  border-color: #111827;
-  box-shadow: 0 0 0 1px #111827;
+  border-color: var(--brand-ink);
+  box-shadow: 0 0 0 1px var(--brand-ink);
 }
 
 .typeOption.disabled {
@@ -1230,7 +1230,7 @@
   height: 20px;
   border-radius: 50%;
   border: 2px solid #ffffff;
-  background: #111827;
+  background: var(--brand-ink);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -1315,7 +1315,7 @@
 .typeNeeds svg {
   flex-shrink: 0;
   margin-top: 2px;
-  color: #047857;
+  color: var(--brand-ink);
 }
 
 @media (max-width: 600px) {

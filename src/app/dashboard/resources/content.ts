@@ -1,12 +1,18 @@
-// Knowledge base content for /dashboard/resources.
-// Videos: set `src` to a file under /public (e.g. "/videos/business-types.mp4") or a full URL to publish one.
+// Knowledge base content for /dashboard/resources and /resources.
+// Videos: set `src` to a file under /public (e.g. "/videos/business-types.mp4") or a full URL to publish one,
+// and `thumbnail` to an image (16:9, e.g. "/thumbnails/business-types.jpg") for the card and player still.
 
 export type ResourceVideo = {
   id: string
   title: string
   duration: string
+  /** One line under the title, e.g. what the video covers */
+  blurb: string
   src?: string
-  poster?: string
+  /** 16:9 image under /public or a full URL. Without one, the card shows a designed fallback in `accent`. */
+  thumbnail?: string
+  /** Colour for the fallback thumbnail (a CSS colour or variable) */
+  accent: string
 }
 
 export type ResourceAudio = {
@@ -33,10 +39,34 @@ export type Article = {
 }
 
 export const videos: ResourceVideo[] = [
-  { id: 'business-types', title: 'Which business type is right for you?', duration: '1:10' },
-  { id: 'how-it-works', title: 'How registration works on GrayDocket', duration: '0:50' },
-  { id: 'name-search', title: 'Choosing a name that gets approved', duration: '0:45' },
-  { id: 'annual-returns', title: 'Annual returns in under a minute', duration: '0:55' },
+  {
+    id: 'business-types',
+    title: 'Which business type is right for you?',
+    blurb: 'Sole proprietorship, limited company or non-profit, in plain English.',
+    duration: '1:10',
+    accent: 'var(--accent-blue)',
+  },
+  {
+    id: 'how-it-works',
+    title: 'How registration works on GrayDocket',
+    blurb: 'From your first answer to your certificate, step by step.',
+    duration: '0:50',
+    accent: 'var(--accent-green)',
+  },
+  {
+    id: 'name-search',
+    title: 'Choosing a name that gets approved',
+    blurb: 'What the ORC looks for, and names to avoid.',
+    duration: '0:45',
+    accent: 'var(--accent-gold)',
+  },
+  {
+    id: 'annual-returns',
+    title: 'Annual returns in under a minute',
+    blurb: 'What they are, when they’re due, and how we file them for you.',
+    duration: '0:55',
+    accent: 'var(--accent-orange)',
+  },
 ]
 
 // Short audio explainers. Ids for business types match new/constants.ts so the quiz can pick the right one.

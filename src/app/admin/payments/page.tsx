@@ -109,7 +109,7 @@ export default function AdminRevenueDashboard() {
 
         <div style={{ background: 'white', padding: 'var(--space-6)', borderRadius: '16px', border: '1px solid var(--color-neutral-200)', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-4)' }}>
-            <div style={{ padding: '8px', background: '#ecfdf5', borderRadius: '8px' }}><TrendingUp size={20} color="#059669" /></div>
+            <div style={{ padding: '8px', background: 'var(--brand-soft)', borderRadius: '8px' }}><TrendingUp size={20} color="var(--brand-ink)" /></div>
           </div>
           <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-neutral-500)', fontWeight: 600 }}>Past 30 Days</div>
           <div style={{ fontSize: '28px', fontWeight: 700, marginTop: '4px', color: 'var(--color-neutral-900)' }}>GH₵ {recentRevenue.toLocaleString()}</div>
@@ -215,7 +215,7 @@ export default function AdminRevenueDashboard() {
                                GD {gdShare.toFixed(1)}
                              </div>
                              {affiliateShare > 0 && (
-                               <div style={{ padding: '2px 8px', background: '#ecfdf5', borderRadius: '6px', fontSize: '10px', fontWeight: 700, color: '#065f46' }} title="Affiliate Commission">
+                               <div style={{ padding: '2px 8px', background: 'var(--brand-soft)', borderRadius: '6px', fontSize: '10px', fontWeight: 700, color: 'var(--brand-ink)' }} title="Affiliate Commission">
                                  AFF {affiliateShare.toFixed(1)}
                                </div>
                              )}
@@ -230,9 +230,9 @@ export default function AdminRevenueDashboard() {
                           fontWeight: 800, 
                           textTransform: 'uppercase',
                           letterSpacing: '0.05em',
-                          background: isPaid ? '#ecfdf5' : '#fff7ed',
-                          color: isPaid ? '#059669' : '#c2410c',
-                          border: `1px solid ${isPaid ? '#d1fae5' : '#ffedd5'}`
+                          background: isPaid ? 'var(--brand-soft)' : '#fff7ed',
+                          color: isPaid ? 'var(--brand-ink)' : '#c2410c',
+                          border: `1px solid ${isPaid ? 'var(--brand-soft)' : '#ffedd5'}`
                         }}>
                           {p.payment_status || 'Pending'}
                         </div>

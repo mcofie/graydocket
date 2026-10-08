@@ -114,7 +114,7 @@
 .statIconWrapper.success {
   background: var(--color-success-light);
   color: var(--color-success);
-  border: 1px solid #a7f3d0;
+  border: 1px solid var(--brand-border);
 }
 
 .statIconWrapper.accent {
@@ -145,7 +145,7 @@
 }
 
 .trendPositive {
-  color: #065f46;
+  color: var(--brand-ink);
   background: var(--color-success-light);
 }
 

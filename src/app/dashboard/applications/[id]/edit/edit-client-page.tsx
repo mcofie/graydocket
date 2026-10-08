@@ -5,8 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Check, ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react'
 import { 
-  getApplicationDetails, resubmitApplication, updateApplicationDraft,
-  checkBusinessNameAvailability
+  getApplicationDetails, resubmitApplication, updateApplicationDraft
 } from '@/lib/actions'
 import styles from '../../new/new.module.css'
 import {
@@ -14,7 +13,8 @@ import {
   PersonEntry, emptyPerson, ShareholderEntry, emptyShareholder
 } from '../../new/constants'
 import PersonForm from '../../new/PersonForm'
-import NameCheck, { type NameAvailability } from '../../new/NameCheck'
+import NameCheck from '../../new/NameCheck'
+import { useNameCheck, warmNameCheck } from '../../new/useNameCheck'
 
 interface Props {
   applicationId: string
@@ -32,11 +32,6 @@ export default function EditSubmissionContent({ applicationId }: Props) {
   const [appStatus, setAppStatus] = useState<string>('draft')
   const [savingDraft, setSavingDraft] = useState(false)
   const [draftSavedMessage, setDraftSavedMessage] = useState('')
-  const [checkingAvailability, setCheckingAvailability] = useState(false)
-  const [availabilityResult, setAvailabilityResult] = useState<NameAvailability | null>(null)
-  const [checkingAvailabilityAlt, setCheckingAvailabilityAlt] = useState(false)
-  const [availabilityResultAlt, setAvailabilityResultAlt] = useState<NameAvailability | null>(null)
-  const [retryTrigger, setRetryTrigger] = useState(0)
   const [isAutosaving, setIsAutosaving] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [initialLoaded, setInitialLoaded] = useState(false)
 
@@ -79,63 +74,9 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     beneficialOwnerDOB: '',
   })
 
-  useEffect(() => {
-    if (!formData.businessName || formData.businessName.trim().length < 3) {
-      setAvailabilityResult(null)
-      return
-    }
-
-    const nameToCheck = formData.businessName.trim()
-    setCheckingAvailability(true)
-
-    const timer = setTimeout(async () => {
-      try {
-        const res = await checkBusinessNameAvailability(nameToCheck)
-        if (nameToCheck === formData.businessName.trim()) {
-          setAvailabilityResult(res)
-        }
-      } catch (error) {
-        console.error(error)
-      } finally {
-        if (nameToCheck === formData.businessName.trim()) {
-          setCheckingAvailability(false)
-        }
-      }
-    }, 700)
-
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [formData.businessName, retryTrigger])
-
-  useEffect(() => {
-    if (!formData.businessNameAlt || formData.businessNameAlt.trim().length < 3) {
-      setAvailabilityResultAlt(null)
-      return
-    }
-
-    const nameToCheck = formData.businessNameAlt.trim()
-    setCheckingAvailabilityAlt(true)
-
-    const timer = setTimeout(async () => {
-      try {
-        const res = await checkBusinessNameAvailability(nameToCheck)
-        if (nameToCheck === formData.businessNameAlt.trim()) {
-          setAvailabilityResultAlt(res)
-        }
-      } catch (error) {
-        console.error(error)
-      } finally {
-        if (nameToCheck === formData.businessNameAlt.trim()) {
-          setCheckingAvailabilityAlt(false)
-        }
-      }
-    }, 700)
-
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [formData.businessNameAlt, retryTrigger])
+  // Live ORC checks for the main and backup names
+  const nameCheck = useNameCheck(formData.businessName)
+  const altNameCheck = useNameCheck(formData.businessNameAlt)
 
   useEffect(() => {
     if (!initialLoaded || appStatus !== 'draft') return
@@ -505,23 +446,24 @@ export default function EditSubmissionContent({ applicationId }: Props) {
                 placeholder={isCompany ? 'e.g., Asante Tech Solutions Limited' : 'e.g., Asante Tech Solutions'}
                 value={formData.businessName}
                 onChange={(e) => handleInputChange('businessName', e.target.value)}
+                onFocus={warmNameCheck}
                 required
               />
               {renderCorrection('businessName')}
               <NameCheck
-                checking={checkingAvailability}
-                result={formData.businessName.trim().length >= 3 ? availabilityResult : null}
-                onRetry={() => setRetryTrigger((prev) => prev + 1)}
+                checking={nameCheck.checking}
+                result={nameCheck.result}
+                onRetry={nameCheck.retry}
               />
             </div>
             <div className={`form-group ${styles.formFull}`}>
               <label className="form-label" htmlFor="businessNameAlt">Alternative Name (optional)</label>
-              <input id="businessNameAlt" type="text" className="form-input" placeholder="Backup name if first choice is unavailable" value={formData.businessNameAlt} onChange={(e) => handleInputChange('businessNameAlt', e.target.value)} />
+              <input id="businessNameAlt" type="text" className="form-input" placeholder="Backup name if first choice is unavailable" value={formData.businessNameAlt} onChange={(e) => handleInputChange('businessNameAlt', e.target.value)} onFocus={warmNameCheck} />
               {renderCorrection('businessNameAlt')}
               <NameCheck
-                checking={checkingAvailabilityAlt}
-                result={formData.businessNameAlt.trim().length >= 3 ? availabilityResultAlt : null}
-                onRetry={() => setRetryTrigger((prev) => prev + 1)}
+                checking={altNameCheck.checking}
+                result={altNameCheck.result}
+                onRetry={altNameCheck.retry}
               />
             </div>
           </div>

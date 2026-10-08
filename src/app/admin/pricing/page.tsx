@@ -609,7 +609,7 @@ export default function AdminPricingPage() {
                       <span style={{ color: '#6b7280' }}>GD ({100 - parseFloat(formData.affiliate_share)}%):</span> <strong style={{ color: 'var(--color-primary-600)' }}>GH₵ {(parseFloat(formData.returns_portion) * (1 - (parseFloat(formData.affiliate_share)/100))).toFixed(2)}</strong>
                     </div>
                     <div style={{ fontSize: '11px' }}>
-                      <span style={{ color: '#6b7280' }}>Affiliate ({formData.affiliate_share}%):</span> <strong style={{ color: '#059669' }}>GH₵ {(parseFloat(formData.returns_portion) * (parseFloat(formData.affiliate_share)/100)).toFixed(2)}</strong>
+                      <span style={{ color: '#6b7280' }}>Affiliate ({formData.affiliate_share}%):</span> <strong style={{ color: 'var(--brand-ink)' }}>GH₵ {(parseFloat(formData.returns_portion) * (parseFloat(formData.affiliate_share)/100)).toFixed(2)}</strong>
                     </div>
                   </div>
                 </div>

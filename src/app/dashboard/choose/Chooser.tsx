@@ -1,14 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, ArrowRight, Check, Play, BookOpen, RotateCcw, Clock, Search } from 'lucide-react'
-import { checkBusinessNameAvailability } from '@/lib/actions'
-import NameCheck, { type NameAvailability } from '../applications/new/NameCheck'
+import { ArrowLeft, ArrowRight, Check, BookOpen, RotateCcw, Clock, Search } from 'lucide-react'
+import NameCheck from '../applications/new/NameCheck'
+import { useNameCheck, warmNameCheck } from '../applications/new/useNameCheck'
 import { businessTypes } from '../applications/new/constants'
 import type { PriceLine } from '../applications/new/pricing'
 import { videos, audios } from '../resources/content'
 import AudioPlayer from '@/components/ui/AudioPlayer'
+import VideoCard from '@/components/ui/VideoCard'
 import { questions, firstQuestion, results, type QuizResult } from './quiz'
 import styles from './choose.module.css'
 
@@ -22,6 +23,8 @@ type Stage =
   | { kind: 'price'; typeId: TypeId }
 
 const overviewVideo = videos.find((v) => v.id === 'business-types')
+const howItWorksVideo = videos.find((v) => v.id === 'how-it-works')
+const nameVideo = videos.find((v) => v.id === 'name-search')
 const overviewAudio = audios.find((a) => a.id === 'business-types')
 
 const money = (n: number) => `GH₵ ${n.toLocaleString()}`
@@ -39,39 +42,11 @@ export default function Chooser({ prices, mode = 'dashboard' }: Props) {
   const [history, setHistory] = useState<Stage[]>([{ kind: 'question', id: firstQuestion }])
   const [confirmed, setConfirmed] = useState(false)
   const [proposedName, setProposedName] = useState('')
-  const [checking, setChecking] = useState(false)
-  const [nameResult, setNameResult] = useState<NameAvailability | null>(null)
-  const [retry, setRetry] = useState(0)
   const stage = history[history.length - 1]
 
-  // Typing resets the result straight away; the effect below only runs the debounced lookup
-  const updateName = (value: string) => {
-    setProposedName(value)
-    const long = value.trim().length >= 3
-    setChecking(long)
-    if (!long) setNameResult(null)
-  }
-
-  // Debounced ORC name lookup, same check the registration form runs
-  useEffect(() => {
-    const name = proposedName.trim()
-    if (name.length < 3) return
-    let cancelled = false
-    const timer = setTimeout(async () => {
-      try {
-        const res = await checkBusinessNameAvailability(name)
-        if (!cancelled) setNameResult(res)
-      } catch {
-        if (!cancelled) setNameResult({ available: false, error: 'unreachable' })
-      } finally {
-        if (!cancelled) setChecking(false)
-      }
-    }, 700)
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [proposedName, retry])
+  // Live ORC check, shared with the registration form (answers carry over between them)
+  const { checking, result: nameResult, retry: retryNameCheck } = useNameCheck(proposedName)
+  const updateName = (value: string) => setProposedName(value)
 
   const go = (next: Stage) => setHistory((h) => [...h, next])
   const back = () => setHistory((h) => (h.length > 1 ? h.slice(0, -1) : h))
@@ -131,27 +106,7 @@ export default function Chooser({ prices, mode = 'dashboard' }: Props) {
             <aside className={styles.learn}>
               <p className={styles.learnTitle}>Not sure? Watch, listen or read first</p>
               <div className={styles.learnItems}>
-                {overviewVideo && (
-                  overviewVideo.src ? (
-                    <video
-                      className={styles.video}
-                      src={overviewVideo.src}
-                      poster={overviewVideo.poster}
-                      controls
-                      playsInline
-                      preload="metadata"
-                      aria-label={overviewVideo.title}
-                    />
-                  ) : (
-                    <div className={styles.videoPlaceholder}>
-                      <span className={styles.play}><Play size={16} fill="currentColor" /></span>
-                      <span>
-                        <strong>{overviewVideo.title}</strong>
-                        <small>Video coming soon · {overviewVideo.duration}</small>
-                      </span>
-                    </div>
-                  )
-                )}
+                {overviewVideo && <VideoCard video={overviewVideo} layout="compact" />}
                 {overviewAudio && (
                   <AudioPlayer title={overviewAudio.title} duration={overviewAudio.duration} src={overviewAudio.src} />
                 )}
@@ -180,9 +135,10 @@ export default function Chooser({ prices, mode = 'dashboard' }: Props) {
 
             {(() => {
               const audio = audios.find((a) => a.id === stage.typeId)
-              return audio ? (
-                <div className={styles.listen}>
-                  <AudioPlayer title={audio.title} duration={audio.duration} src={audio.src} />
+              return audio || howItWorksVideo ? (
+                <div className={`${styles.listen} ${styles.learnItems}`}>
+                  {howItWorksVideo && <VideoCard video={howItWorksVideo} layout="compact" />}
+                  {audio && <AudioPlayer title={audio.title} duration={audio.duration} src={audio.src} />}
                 </div>
               ) : null
             })()}
@@ -242,6 +198,7 @@ export default function Chooser({ prices, mode = 'dashboard' }: Props) {
                   className={styles.nameInput}
                   value={proposedName}
                   onChange={(e) => updateName(e.target.value)}
+                  onFocus={warmNameCheck}
                   placeholder={isCompany ? 'e.g. Asante Tech Solutions Limited' : 'e.g. Asante Tech Solutions'}
                   autoComplete="off"
                   autoFocus
@@ -255,11 +212,8 @@ export default function Chooser({ prices, mode = 'dashboard' }: Props) {
 
             <NameCheck
               checking={checking}
-              result={trimmed.length >= 3 ? nameResult : null}
-              onRetry={() => {
-                setChecking(true)
-                setRetry((r) => r + 1)
-              }}
+              result={nameResult}
+              onRetry={retryNameCheck}
             />
 
             {conflict && (
@@ -267,6 +221,12 @@ export default function Chooser({ prices, mode = 'dashboard' }: Props) {
                 Try adding a distinctive word, or use a name that doesn&apos;t resemble an existing business. You can also
                 add a backup name in the registration form.
               </p>
+            )}
+
+            {nameVideo && (
+              <div className={styles.listen}>
+                <VideoCard video={nameVideo} layout="compact" />
+              </div>
             )}
 
             <div className={styles.actions}>

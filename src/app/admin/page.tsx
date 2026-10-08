@@ -103,16 +103,16 @@ export default function AdminDashboardPage() {
           {stats.role === 'admin' ? (
             <>
               {/* Revenue Card */}
-              <div className={styles.statCard} style={{ borderBottom: '4px solid #10b981' }}>
+              <div className={styles.statCard} style={{ borderBottom: '4px solid var(--brand)' }}>
                 <div className={styles.statHeader}>
                   <h3 className={styles.statTitle}>MTD Revenue (GHS)</h3>
-                  <div className={`${styles.statIconWrapper}`} style={{ background: '#10b98115', color: '#10b981' }}>
+                  <div className={`${styles.statIconWrapper}`} style={{ background: 'color-mix(in srgb, var(--brand) 9%, transparent)', color: 'var(--brand)' }}>
                     <TrendingUp size={20} />
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                   <span className={styles.statValue}>¢{stats.monthlyRevenue.toLocaleString()}</span>
-                  <span style={{ fontSize: '12px', color: '#10b981', fontWeight: 600 }}>Active Month</span>
+                  <span style={{ fontSize: '12px', color: 'var(--brand)', fontWeight: 600 }}>Active Month</span>
                 </div>
               </div>
             </>

@@ -7,8 +7,7 @@ import { Check, ArrowLeft, ArrowRight, Plus, Trash2, Clock, AlertTriangle, Check
 import { usePaystackPayment } from 'react-paystack'
 import { 
   submitApplication, getBusinessTypes, getSystemFee, 
-  saveApplicationDraft, getLatestDraft, getServices,
-  checkBusinessNameAvailability, getMyProfile, discardDraft
+  saveApplicationDraft, getLatestDraft, getServices, getMyProfile, discardDraft
 } from '@/lib/actions'
 import styles from './new.module.css'
 import {
@@ -16,7 +15,8 @@ import {
   PersonEntry, emptyPerson, ShareholderEntry, emptyShareholder
 } from './constants'
 import PersonForm from './PersonForm'
-import NameCheck, { type NameAvailability } from './NameCheck'
+import NameCheck from './NameCheck'
+import { useNameCheck, warmNameCheck } from './useNameCheck'
 import { priceForType, addOnsWithPrices } from './pricing'
 import { regionFromDigitalAddress, todayISO, splitFullName, personDisplayName, missingPersonFields, missingLine } from './helpers'
 import { results as typeRequirements } from '../../choose/quiz'
@@ -176,11 +176,6 @@ function NewRegistrationContent() {
   const [submitting, setSubmitting] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
   const [resultTrackingId, setResultTrackingId] = useState('')
-  const [checkingAvailability, setCheckingAvailability] = useState(false)
-  const [availabilityResult, setAvailabilityResult] = useState<NameAvailability | null>(null)
-  const [checkingAvailabilityAlt, setCheckingAvailabilityAlt] = useState(false)
-  const [availabilityResultAlt, setAvailabilityResultAlt] = useState<NameAvailability | null>(null)
-  const [retryTrigger, setRetryTrigger] = useState(0)
   
   const searchParams = useSearchParams()
   // Hold affiliate code in state so user can edit it
@@ -231,63 +226,9 @@ function NewRegistrationContent() {
   const [formData, setFormData] = useState(initialFormData)
 
 
-  useEffect(() => {
-    if (!formData.businessName || formData.businessName.trim().length < 3) {
-      setAvailabilityResult(null)
-      return
-    }
-
-    const nameToCheck = formData.businessName.trim()
-    setCheckingAvailability(true)
-
-    const timer = setTimeout(async () => {
-      try {
-        const res = await checkBusinessNameAvailability(nameToCheck)
-        if (nameToCheck === formData.businessName.trim()) {
-          setAvailabilityResult(res)
-        }
-      } catch (error) {
-        console.error(error)
-      } finally {
-        if (nameToCheck === formData.businessName.trim()) {
-          setCheckingAvailability(false)
-        }
-      }
-    }, 700)
-
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [formData.businessName, retryTrigger])
-
-  useEffect(() => {
-    if (!formData.businessNameAlt || formData.businessNameAlt.trim().length < 3) {
-      setAvailabilityResultAlt(null)
-      return
-    }
-
-    const nameToCheck = formData.businessNameAlt.trim()
-    setCheckingAvailabilityAlt(true)
-
-    const timer = setTimeout(async () => {
-      try {
-        const res = await checkBusinessNameAvailability(nameToCheck)
-        if (nameToCheck === formData.businessNameAlt.trim()) {
-          setAvailabilityResultAlt(res)
-        }
-      } catch (error) {
-        console.error(error)
-      } finally {
-        if (nameToCheck === formData.businessNameAlt.trim()) {
-          setCheckingAvailabilityAlt(false)
-        }
-      }
-    }, 700)
-
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [formData.businessNameAlt, retryTrigger])
+  // Live ORC checks for the main and backup names
+  const nameCheck = useNameCheck(formData.businessName)
+  const altNameCheck = useNameCheck(formData.businessNameAlt)
 
   // ---- Form A: Sole Proprietorship specific ----
   const [proprietor, setProprietor] = useState<PersonEntry>({ ...emptyPerson })
@@ -476,8 +417,6 @@ function NewRegistrationContent() {
     setCapitalAuto(true)
     setDeliveryMethod('digital')
     setDeliveryAddress(initialDeliveryAddress())
-    setAvailabilityResult(null)
-    setAvailabilityResultAlt(null)
     setSubmitError('')
 
     if (searchParams.get('type') || searchParams.get('name')) router.replace(pathname)
@@ -1004,6 +943,7 @@ function NewRegistrationContent() {
                 placeholder={isCompany ? 'e.g., Asante Tech Solutions Limited' : 'e.g., Asante Tech Solutions'}
                 value={formData.businessName}
                 onChange={(e) => handleInputChange('businessName', e.target.value)}
+                onFocus={warmNameCheck}
                 required
               />
               <span className="form-hint">
@@ -1013,19 +953,19 @@ function NewRegistrationContent() {
               </span>
 
               <NameCheck
-                checking={checkingAvailability}
-                result={formData.businessName.trim().length >= 3 ? availabilityResult : null}
-                onRetry={() => setRetryTrigger((prev) => prev + 1)}
+                checking={nameCheck.checking}
+                result={nameCheck.result}
+                onRetry={nameCheck.retry}
               />
             </div>
             <div className={`form-group ${styles.formFull}`}>
               <label className="form-label" htmlFor="businessNameAlt">Alternative Name (optional)</label>
-              <input id="businessNameAlt" type="text" className="form-input" placeholder="Backup name if first choice is unavailable" value={formData.businessNameAlt} onChange={(e) => handleInputChange('businessNameAlt', e.target.value)} />
+              <input id="businessNameAlt" type="text" className="form-input" placeholder="Backup name if first choice is unavailable" value={formData.businessNameAlt} onChange={(e) => handleInputChange('businessNameAlt', e.target.value)} onFocus={warmNameCheck} />
               
               <NameCheck
-                checking={checkingAvailabilityAlt}
-                result={formData.businessNameAlt.trim().length >= 3 ? availabilityResultAlt : null}
-                onRetry={() => setRetryTrigger((prev) => prev + 1)}
+                checking={altNameCheck.checking}
+                result={altNameCheck.result}
+                onRetry={altNameCheck.retry}
               />
             </div>
           </div>

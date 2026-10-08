@@ -389,7 +389,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #059669;
+  color: var(--brand-ink);
 }
 
 .resultText {

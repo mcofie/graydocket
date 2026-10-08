@@ -220,7 +220,7 @@
 .included svg {
   flex-shrink: 0;
   margin-top: 2px;
-  color: #047857;
+  color: var(--brand-ink);
 }
 
 /* ---------- Sections ---------- */
@@ -397,7 +397,7 @@
 
 .recSpark {
   flex-shrink: 0;
-  color: #047857;
+  color: var(--brand-ink);
 }
 
 .recommender {
@@ -529,7 +529,7 @@
 
 .planRecommended {
   background: #ffffff;
-  box-shadow: 0 0 0 2px #111827, 0 16px 40px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 0 0 2px var(--brand-ink), 0 16px 40px rgba(4, 120, 87, 0.12);
 }
 
 .recBadge {
@@ -538,7 +538,7 @@
   left: 24px;
   padding: 4px 10px;
   border-radius: 9999px;
-  background: #111827;
+  background: var(--brand-ink);
   color: #ffffff;
   font-size: 12px;
   font-weight: 600;
@@ -662,7 +662,7 @@
 }
 
 .yes {
-  color: #047857;
+  color: var(--brand-ink);
 }
 
 .no {
@@ -788,8 +788,8 @@
   }
 
   .compareChipActive {
-    border-color: #111827;
-    background: #111827;
+    border-color: var(--brand-ink);
+    background: var(--brand-ink);
     color: #ffffff;
   }
 

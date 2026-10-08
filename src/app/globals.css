@@ -4,9 +4,17 @@
 
 /* CSS Custom Properties / Design Tokens */
 :root {
+  /* Brand: green says "go" and "handled". Use --brand for fills and icons, --brand-ink
+     whenever green has to be read (text, links), and keep primary buttons ink black. */
+  --brand: #44c67f;
+  --brand-ink: #047857;
+  --brand-soft: #ecfdf5;
+  --brand-border: #c7eed8;
+  --brand-ink-hover: #065f46;
+
   /* Accent colours (blue, green, orange, gold) for highlights, illustrations and the page loader */
   --accent-blue: #4dafff;
-  --accent-green: #44c67f;
+  --accent-green: var(--brand);
   --accent-orange: #ff5310;
   --accent-gold: #f5b442;
 
@@ -16,8 +24,8 @@
   --btn-height-sm: 40px;
   --btn-font-size: 16px;
   --btn-font-size-sm: 14px;
-  --btn-primary-bg: #111827;
-  --btn-primary-hover: #000000;
+  --btn-primary-bg: var(--brand-ink);
+  --btn-primary-hover: var(--brand-ink-hover);
   --btn-primary-text: #ffffff;
   --btn-secondary-bg: #f1f1f3;
   --btn-secondary-hover: #e7e7ea;
@@ -72,8 +80,8 @@
   --color-neutral-950: #020617;
 
   /* Semantic Colors */
-  --color-success: #10b981;
-  --color-success-light: #d1fae5;
+  --color-success: var(--brand-ink);
+  --color-success-light: var(--brand-soft);
   --color-warning: #f59e0b;
   --color-warning-light: #fef3c7;
   --color-error: #ef4444;
@@ -170,6 +178,11 @@
     --type-lead: 15px;
     --type-body: 15px;
   }
+}
+
+::selection {
+  background: color-mix(in srgb, var(--brand) 28%, #ffffff);
+  color: #111827;
 }
 
 /* =====================================================
@@ -460,7 +473,7 @@ ul, ol {
 
 .badge-success {
   background: var(--color-success-light);
-  color: #065f46;
+  color: var(--brand-ink);
 }
 
 .badge-warning {

@@ -139,7 +139,7 @@ export default function AdminSettingsPage() {
               <div style={{ marginTop: 'var(--space-8)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'var(--color-neutral-50)', borderRadius: '12px', fontSize: '13px', border: '1px solid var(--color-neutral-200)' }}>
                     <span style={{ color: 'var(--color-neutral-500)', fontWeight: 600 }}>Account Status</span>
-                    <span style={{ color: 'var(--color-success)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: '#ecfdf5', borderRadius: '20px' }}><Check size={14} strokeWidth={3} /> ACTIVE</span>
+                    <span style={{ color: 'var(--color-success)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'var(--brand-soft)', borderRadius: '20px' }}><Check size={14} strokeWidth={3} /> ACTIVE</span>
                  </div>
               </div>
            </div>

@@ -16,9 +16,13 @@ export default function PublicResourcesPage() {
       <main className={styles.main}>
         <header className={styles.hero}>
           <h1 className={styles.title}>Resources</h1>
-          <p className={styles.lead}>Short videos and plain-English guides to starting a business in Ghana. Learn what you need, and leave the paperwork to us.</p>
+          <p className={styles.lead}>Everything you need to start a business in Ghana, in the order you need it. Plain English, no jargon, and we handle the paperwork.</p>
         </header>
-        <ResourcesView quizHref="/find-your-business-type" articleBase="/guides" />
+        <ResourcesView
+          quizHref="/find-your-business-type"
+          articleBase="/guides"
+          supportHref="/support"
+        />
       </main>
       <Footer />
     </div>

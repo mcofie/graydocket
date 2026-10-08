@@ -39,7 +39,7 @@
 }
 
 .phaseActive .phaseDot {
-  background: #111827;
+  background: var(--brand-ink);
   color: #ffffff;
 }
 
@@ -48,8 +48,8 @@
 }
 
 .phaseDone .phaseDot {
-  background: #ecfdf5;
-  color: #047857;
+  background: var(--brand-soft);
+  color: var(--brand-ink);
 }
 
 .back {
@@ -92,7 +92,7 @@
 .eyebrow {
   font-size: 13px;
   font-weight: 600;
-  color: #047857;
+  color: var(--brand-ink);
   margin-bottom: 6px;
 }
 
@@ -280,7 +280,7 @@
 .checklist svg {
   flex-shrink: 0;
   margin-top: 3px;
-  color: #047857;
+  color: var(--brand-ink);
 }
 
 .inlineLink {

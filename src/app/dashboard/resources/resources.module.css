@@ -1,15 +1,21 @@
 .column {
-  max-width: 640px;
+  max-width: 680px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 40px;
+  gap: 48px;
 }
 
 .section {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .sectionTitle {
@@ -18,106 +24,204 @@
   color: #111827;
 }
 
-/* ---------- Videos ---------- */
-.videoGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.video {
+/* ---------- Start here path ---------- */
+.path {
+  list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 10px;
 }
 
-.videoFrame {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: 14px;
-  background: #0b0d10;
-  display: block;
-}
-
-.videoPlaceholder {
+.step {
   position: relative;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: linear-gradient(135deg, #1a1d24 0%, #0b0d10 100%);
-  color: #ffffff;
+  gap: 16px;
+  padding-bottom: 28px;
 }
 
-.play {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.14);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding-left: 2px;
-}
-
-.soon {
-  font-size: 12px;
-  color: #9ca3af;
-}
-
-.duration {
+/* Line joining each number to the next */
+.step:not(:last-child)::before {
+  content: '';
   position: absolute;
-  right: 10px;
-  bottom: 10px;
-  font-size: 11px;
-  font-weight: 600;
-  background: rgba(0, 0, 0, 0.55);
-  padding: 2px 7px;
-  border-radius: 6px;
+  left: 17px;
+  top: 40px;
+  bottom: 4px;
+  width: 2px;
+  border-radius: 2px;
+  background: #ececee;
 }
 
-.videoTitle {
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 20px;
+.step:last-child {
+  padding-bottom: 0;
+}
+
+.stepNum {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--accent) 20%, #ffffff);
+  color: #111827;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.stepBody {
+  flex: 1;
+  min-width: 0;
+  padding-top: 6px;
+}
+
+.stepTitle {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   color: #111827;
 }
 
-/* ---------- Article list ---------- */
-.list {
+.stepDesc {
+  margin-top: 4px;
+  font-size: 15px;
+  line-height: 22px;
+  color: #6b7280;
+}
+
+.stepLinks {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.stepPrimary {
+  margin-right: 4px;
+}
+
+.stepLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #eeeeef;
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.stepLink:hover {
+  border-color: #d4d4d8;
+  background: #fafafa;
+}
+
+.stepLink svg {
+  flex-shrink: 0;
+  color: #a1a1aa;
+}
+
+.stepMins {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-weight: 400;
+  color: #8a8a90;
+}
+
+/* ---------- Watch and listen ---------- */
+.soonPill {
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: #f3f4f6;
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.videoGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px 16px;
+}
+
+
+
+
+.mediaGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
-.row {
+.mediaTile {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px;
-  border: 1px solid #eeeeef;
-  border-radius: 16px;
-  background: #ffffff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #f7f7f8;
 }
 
-.row:hover {
-  border-color: #e2e2e5;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
-}
-
-.icon {
+.mediaIcon {
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: #f3f4f6;
-  color: #4b5563;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #ffffff;
+  color: #6b7280;
+}
+
+
+.mediaTitle {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 19px;
+  color: #111827;
+}
+
+.mediaMeta {
+  font-size: 12px;
+  color: #8a8a90;
+}
+
+/* ---------- All guides ---------- */
+.guideGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.groupTitle {
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #8a8a90;
+}
+
+.guideList {
+  list-style: none;
+}
+
+.guideList li + li {
+  border-top: 1px solid #f1f1f3;
+}
+
+.guideRow {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.guideRow:hover .rowTitle {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(17, 24, 39, 0.3);
 }
 
 .rowText {
@@ -146,6 +250,9 @@
 
 .readTime {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
   color: #a1a1aa;
 }
@@ -153,6 +260,40 @@
 .chevron {
   flex-shrink: 0;
   color: #c4c4c8;
+}
+
+/* ---------- Help card ---------- */
+.helpCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px;
+  border-radius: 20px;
+  background: var(--brand-soft);
+}
+
+.helpTitle {
+  font-size: 17px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.helpText {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 21px;
+  color: #4b5563;
+}
+
+.helpActions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 8px;
+}
+
+.helpActions :global(.btn-secondary) {
+  background: #ffffff;
 }
 
 /* ---------- Article (plain, reading-first) ---------- */
@@ -264,11 +405,118 @@
 
 @media (max-width: 560px) {
   .videoGrid {
-    grid-template-columns: minmax(0, 1fr);
+    display: flex;
+    gap: 12px;
+    margin: 0 -16px;
+    padding: 0 16px 4px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding: 0 16px;
+    scrollbar-width: none;
+  }
+
+  .videoGrid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .videoGrid > * {
+    flex: 0 0 80%;
+    scroll-snap-align: start;
   }
 
   .readTime {
     display: none;
+  }
+
+  .column {
+    gap: 40px;
+  }
+
+  /* Media: a swipeable row instead of a tall stack */
+  .mediaGrid {
+    display: flex;
+    gap: 10px;
+    margin: 0 -16px;
+    padding: 0 16px 4px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding: 0 16px;
+    scrollbar-width: none;
+  }
+
+  .mediaGrid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mediaTile {
+    flex: 0 0 72%;
+    scroll-snap-align: start;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  /* Steps: smaller numbers so the text gets the width */
+  .step {
+    gap: 12px;
+    padding-bottom: 24px;
+  }
+
+  .stepNum {
+    width: 30px;
+    height: 30px;
+    font-size: 14px;
+  }
+
+  .step:not(:last-child)::before {
+    left: 14px;
+    top: 34px;
+  }
+
+  .stepBody {
+    padding-top: 3px;
+  }
+
+  .stepTitle {
+    font-size: 16px;
+  }
+
+  .stepDesc {
+    font-size: 14px;
+    line-height: 21px;
+  }
+
+  /* Links become even, full-width rows */
+  .stepLinks {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .stepPrimary {
+    width: 100%;
+    margin-right: 0;
+  }
+
+  .stepLink {
+    justify-content: space-between;
+    min-height: 44px;
+    padding: 0 12px 0 14px;
+  }
+
+  .stepLink .stepMins {
+    margin-left: auto;
+  }
+
+  .helpCard {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 20px;
+  }
+
+  .helpActions {
+    flex-direction: column;
   }
 
   /* Smaller reading sizes on phones */
@@ -314,31 +562,4 @@
     font-size: var(--type-body);
     line-height: var(--type-body-lh);
   }
-}
-
-/* ---------- Quiz entry ---------- */
-.quizCard {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 16px;
-  border-radius: 18px;
-  background: #f7f7f8;
-  transition: background-color 0.15s ease;
-}
-
-.quizCard:hover {
-  background: #efeff1;
-}
-
-.quizIcon {
-  flex-shrink: 0;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: #111827;
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
