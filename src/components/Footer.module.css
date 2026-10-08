@@ -177,12 +177,34 @@
 }
 
 .navHeader {
+  display: block;
   font-family: var(--font-sans);
   font-size: 14px;
   font-weight: 600;
   color: #111827;
   letter-spacing: -0.01em;
   margin: 0;
+}
+
+/* On desktop the heading is just a label; it only toggles on phones */
+.navToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  pointer-events: none;
+}
+
+.navChevron {
+  display: none;
+  color: #9ca3af;
+  transition: transform 0.25s ease;
 }
 
 .navList {
@@ -280,12 +302,59 @@
     padding: 48px 16px 32px;
   }
 
+  .bottomContainer {
+    gap: 28px;
+  }
+
+  /* Link groups become tap-to-open rows */
   .navGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 28px 20px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    border-top: 1px solid #f1f1f3;
+  }
+
+  .navCol {
+    gap: 0;
+    border-bottom: 1px solid #f1f1f3;
+  }
+
+  .navToggle {
+    min-height: 52px;
+    font-size: 15px;
+    pointer-events: auto;
+    cursor: pointer;
+  }
+
+  .navChevron {
+    display: block;
+  }
+
+  .navToggle[aria-expanded='true'] .navChevron {
+    transform: rotate(180deg);
+  }
+
+  .navList {
+    display: none;
+    gap: 0;
+    padding-bottom: 10px;
+  }
+
+  .navList[data-open='true'] {
+    display: flex;
+  }
+
+  .navList li a {
+    display: block;
+    padding: 9px 0;
+    font-size: 15px;
   }
 
   .legalBar {
     flex-direction: column;
+    margin-top: 28px;
+    padding-top: 0;
+    border-top: 0;
+    font-size: 12px;
+    line-height: 18px;
   }
 }

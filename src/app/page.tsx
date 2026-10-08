@@ -110,9 +110,12 @@ export default function Home() {
             </Link>
           </div>
           <Link href="/find-your-business-type" className={styles.quizLink}>
-            <Compass size={16} strokeWidth={2} />
-            <span>Not sure which business type? Take the 1-minute quiz</span>
-            <ArrowRight size={14} />
+            <Compass size={16} strokeWidth={2} className={styles.quizIcon} />
+            <span className={styles.quizText}>
+              <span className={styles.quizAsk}>Not sure which business type?</span>{' '}
+              <span className={styles.quizAction}>Take the 1-minute quiz</span>
+            </span>
+            <ArrowRight size={14} className={styles.quizArrow} />
           </Link>
         </section>
 

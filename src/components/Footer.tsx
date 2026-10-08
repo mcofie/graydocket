@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { ArrowRight, Mail } from 'lucide-react'
+import FooterNavColumn from './FooterNavColumn'
 import styles from './Footer.module.css'
 
 const SUPPORT_EMAIL = 'support@graydocket.com'
@@ -93,20 +94,7 @@ export default function Footer() {
 
           <nav className={styles.navGrid} aria-label="Footer">
             {COLUMNS.map((col) => (
-              <div key={col.title} className={styles.navCol}>
-                <h4 className={styles.navHeader}>{col.title}</h4>
-                <ul className={styles.navList}>
-                  {col.links.map((link) => (
-                    <li key={link.label}>
-                      {link.href.startsWith('mailto:') ? (
-                        <a href={link.href}>{link.label}</a>
-                      ) : (
-                        <Link href={link.href}>{link.label}</Link>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <FooterNavColumn key={col.title} title={col.title} links={col.links} />
             ))}
           </nav>
         </div>
