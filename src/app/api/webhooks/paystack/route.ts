@@ -84,17 +84,17 @@ export async function POST(req: Request) {
       // 4. Integrity Check (Security fallback)
       const expectedAmountPesewas = Math.round(matchedApplication.total_amount * 100);
       if (actualAmountPesewas < expectedAmountPesewas || currency !== 'GHS') {
-        const { sendDiscordNotification, DiscordColors } = await import('@/lib/discord');
-        await sendDiscordNotification({
-          title: '🚨 WEBHOOK INTEGRITY ALERT',
-          color: DiscordColors.DANGER,
-          description: 'A Paystack webhook reported success, but the amount or currency is incorrect.',
+        const { notify, money, code } = await import('@/lib/discord');
+        notify({
+          channel: 'alerts',
+          title: '🚨 Paystack amount mismatch',
+          summary: 'Paystack reported a successful payment, but the amount or currency is wrong. The application was not marked as paid.',
+          application: { id: matchedApplication.id },
           fields: [
-            { name: 'Expt Pesewas', value: expectedAmountPesewas.toString(), inline: true },
-            { name: 'Got Pesewas', value: actualAmountPesewas.toString(), inline: true },
-            { name: 'Currency', value: currency || 'N/A', inline: true },
-            { name: 'App ID', value: `\`${matchedApplication.id}\``, inline: false }
-          ]
+            ['Expected', money(expectedAmountPesewas / 100)],
+            ['Received', `${(actualAmountPesewas / 100).toLocaleString()} ${currency || '?'}`],
+            ['Paystack ref', code(reference), false],
+          ],
         });
         console.warn(`Paystack Webhook: Integrity violation for reference ${reference}. Expected ${expectedAmountPesewas} GHS, got ${actualAmountPesewas} ${currency}`);
         return NextResponse.json({ received: true });
@@ -131,6 +131,14 @@ export async function POST(req: Request) {
       
       // 7. Optional: Log to History
       if (matchedApplication.payment_status !== 'paid') {
+        const { notify, money, code } = await import('@/lib/discord');
+        notify({
+          channel: 'payments',
+          title: `💰 Payment confirmed · ${money(actualAmountPesewas / 100)}`,
+          summary: 'Paystack confirmed a payment that was still pending. The application is now paid.',
+          application: { id: matchedApplication.id },
+          fields: [['Paystack ref', code(reference), false]],
+        });
         await adminClient.from('application_status_history').insert({
           application_id: matchedApplication.id,
           status: matchedApplication.status,

@@ -3,7 +3,7 @@ import crypto from 'crypto'
 
 import { createClient as createSupabaseServerClient } from '@/lib/supabase/server'
 import { formatPhoneNumber } from '@/lib/sms'
-import { sendDiscordNotification, DiscordColors } from '@/lib/discord'
+import { notify } from '@/lib/discord'
 
 function isMockOtpEnabled() {
   return process.env.NODE_ENV === 'development' && process.env.ALLOW_MOCK_OTP === 'true'
@@ -167,6 +167,8 @@ export async function verifyZendOtp(id: string, code: string, phone: string, ful
       .or(`phone.eq.${normalizedPhone},phone.eq.${legacyPhone},phone.eq.${barePhone},phone.eq.${localPhone}`)
       .limit(1)
     let profiles = existingProfiles
+    // New accounts get their own "New account" notice, so skip the login one for them
+    let isNewAccount = false
 
     // Bridge for Registration: If no account exists, create one!
     if (!profiles || profiles.length === 0) {
@@ -196,20 +198,18 @@ export async function verifyZendOtp(id: string, code: string, phone: string, ful
       }
 
       // Notify on new account
-      await sendDiscordNotification({
-        title: '🆕 NEW ACCOUNT CREATED',
-        color: DiscordColors.SUCCESS,
-        description: `New user registered via Phone OTP.`,
-        fields: [
-          { name: 'Phone', value: normalizedPhone, inline: true },
-          { name: 'Full Name', value: fullName || 'N/A', inline: true },
-          { name: 'User ID', value: `\`${newUser.user.id}\``, inline: false }
-        ]
+      notify({
+        channel: 'accounts',
+        title: `🆕 New account · ${fullName || 'No name yet'}`,
+        summary: 'Someone signed up with their phone number.',
+        user: { name: fullName, phone: normalizedPhone, email: providedEmail || null },
+        fields: [['Email', providedEmail || 'Not given']],
       })
 
       // Profile is likely created via DB Trigger (handle_new_user), 
       // but let's re-fetch or ensure it exists
       profiles = [{ id: newUser.user.id, email: emailToUse }]
+      isNewAccount = true
     }
 
     // Tag this user as a GrayDocket user (works for both new and returning users)
@@ -253,14 +253,9 @@ export async function verifyZendOtp(id: string, code: string, phone: string, ful
     }
 
     // Notify on successful login
-    await sendDiscordNotification({
-      title: '🔑 USER LOGIN',
-      color: DiscordColors.INFO,
-      fields: [
-        { name: 'User', value: fullName || email || 'Unknown', inline: true },
-        { name: 'Identifier', value: normalizedPhone || email || 'N/A', inline: true }
-      ]
-    })
+    if (!isNewAccount) {
+      notify({ channel: 'activity', title: '👋 Customer logged in', user: { id: userId } })
+    }
 
     return { success: true }
   }

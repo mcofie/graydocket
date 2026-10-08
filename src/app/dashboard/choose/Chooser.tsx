@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, ArrowRight, Check, BookOpen, RotateCcw, Clock, Search } from 'lucide-react'
 import NameCheck from '../applications/new/NameCheck'
@@ -47,6 +47,31 @@ export default function Chooser({ prices, mode = 'dashboard' }: Props) {
   // Live ORC check, shared with the registration form (answers carry over between them)
   const { checking, result: nameResult, retry: retryNameCheck } = useNameCheck(proposedName)
   const updateName = (value: string) => setProposedName(value)
+
+  // Tell the team when someone reaches the price (the end of the quiz), once per visit to that step
+  const reported = useRef(new Set<string>())
+  useEffect(() => {
+    if (stage.kind !== 'price') return
+    const key = `${history.length}:${stage.typeId}`
+    if (reported.current.has(key)) return
+    reported.current.add(key)
+    const name = proposedName.trim()
+    fetch('/api/activity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      keepalive: true,
+      body: JSON.stringify({
+        event: 'quiz_completed',
+        typeId: stage.typeId,
+        price: prices[stage.typeId]?.total,
+        name: name || undefined,
+        nameAvailable: name && nameResult && !nameResult.error ? nameResult.available : null,
+        where: mode,
+      }),
+    }).catch(() => {})
+    // Only the step change should trigger this, not later edits to the name
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, history.length])
 
   const go = (next: Stage) => setHistory((h) => [...h, next])
   const back = () => setHistory((h) => (h.length > 1 ? h.slice(0, -1) : h))

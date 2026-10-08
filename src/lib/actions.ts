@@ -4,7 +4,7 @@ import crypto from 'crypto'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { formatPhoneNumber } from '@/lib/sms'
-import { sendDiscordNotification, DiscordColors } from '@/lib/discord'
+import { notify, money, code, statusLabel, describeChanges, adminApplicationLink } from '@/lib/discord'
 import { parseAvatarChoice, type AvatarChoice } from '@/lib/avatar'
 
 type JsonPrimitive = string | number | boolean | null
@@ -358,15 +358,17 @@ export async function submitApplication(data: {
 
         if (actualAmountPesewas < expectedAmountPesewas || !currencyMatch) {
               console.warn(`Payment integrity violation: Expected ${expectedAmountPesewas} GHS, got ${actualAmountPesewas} ${verifyData.data.currency}`)
-              await sendDiscordNotification({
-                title: '🚨 PAYMENT INTEGRITY ALERT',
-                color: DiscordColors.DANGER,
-                description: 'A payment was detected that does not match the expected amount or currency.',
+              notify({
+                channel: 'alerts',
+                title: '🚨 Payment amount mismatch',
+                summary: 'Paystack confirmed a payment that doesn’t match the application total. The application was not submitted.',
+                user: { id: user.id },
                 fields: [
-                  { name: 'Expected', value: `${data.totalAmount} GHS`, inline: true },
-                  { name: 'Actual', value: `${actualAmountPesewas / 100} ${verifyData.data.currency}`, inline: true },
-                  { name: 'Reference', value: `\`${paystackReference}\``, inline: false }
-                ]
+                  ['Business', data.businessName],
+                  ['Expected', money(data.totalAmount)],
+                  ['Received', `${(actualAmountPesewas / 100).toLocaleString()} ${verifyData.data.currency}`],
+                  ['Paystack ref', code(paystackReference), false],
+                ],
               })
               return { error: 'Payment integrity check failed. Amount or currency mismatch detected.' }
         }
@@ -407,26 +409,34 @@ export async function submitApplication(data: {
     }
 
     if (application.payment_status === 'paid') {
-      await sendDiscordNotification({
-        title: '💰 NEW PAID APPLICATION',
-        color: DiscordColors.SUCCESS,
+      notify({
+        channel: 'payments',
+        title: `💰 Paid application · ${application.business_name}`,
+        summary: `${data.businessTypeName} registration submitted and paid. Ready for review.`,
+        link: adminApplicationLink(application.id),
+        user: { id: user.id },
         fields: [
-          { name: 'Business Name', value: application.business_name, inline: true },
-          { name: 'Type', value: data.businessTypeName, inline: true },
-          { name: 'Amount Paid', value: `GH₵ ${application.total_amount.toLocaleString()}`, inline: true },
-          { name: 'Tracking ID', value: `\`${application.tracking_id}\``, inline: false },
-          { name: 'Ref', value: application.paystack_reference || application.form_data?.paystack_reference || 'N/A', inline: true }
-        ]
+          ['Amount', money(application.total_amount)],
+          ['Type', data.businessTypeName],
+          ['Delivery', data.deliveryMethod === 'digital' ? 'Digital' : 'Courier'],
+          ['Tracking ID', code(application.tracking_id)],
+          ['Paystack ref', code(application.paystack_reference || (application.form_data?.paystack_reference as string | undefined))],
+          ['Add-ons', data.selectedAddOns.length ? data.selectedAddOns.join(', ') : null, false],
+          ['Referred by', data.affiliateCode ? code(data.affiliateCode) : null],
+        ],
       })
     } else {
-      await sendDiscordNotification({
-        title: '📥 NEW APPLICATION SUBMITTED (Pending)',
-        color: DiscordColors.WARNING,
+      notify({
+        channel: 'applications',
+        title: `📥 Submitted, awaiting payment · ${application.business_name}`,
+        summary: `${data.businessTypeName} registration submitted. Payment hasn’t been confirmed yet.`,
+        link: adminApplicationLink(application.id),
+        user: { id: user.id },
         fields: [
-          { name: 'Business Name', value: application.business_name, inline: true },
-          { name: 'Type', value: data.businessTypeName, inline: true },
-          { name: 'Tracking ID', value: `\`${application.tracking_id}\``, inline: false }
-        ]
+          ['Amount due', money(application.total_amount)],
+          ['Type', data.businessTypeName],
+          ['Tracking ID', code(application.tracking_id)],
+        ],
       })
     }
   }
@@ -646,13 +656,17 @@ export async function saveApplicationDraft(data: {
     if (error) return { error: error.message }
     
     // Notify on new draft
-    await sendDiscordNotification({
-      title: '📝 NEW DRAFT STARTED',
-      color: DiscordColors.INFO,
+    notify({
+      channel: 'activity',
+      title: `📝 Registration started · ${payload.business_name || 'Unnamed business'}`,
+      summary: 'A customer started a registration and saved a draft.',
+      link: adminApplicationLink(newDraft.id),
+      user: { id: user.id },
       fields: [
-        { name: 'Business Name', value: payload.business_name, inline: true },
-        { name: 'Tracking (Temp)', value: `\`${trackingId}\``, inline: true }
-      ]
+        ['Type', data.businessTypeId.replace(/_/g, ' ')],
+        ['Reached step', data.step + 1],
+        ['Estimated total', money(data.totalAmount)],
+      ],
     })
     
     return { success: true, applicationId: newDraft.id }
@@ -667,14 +681,26 @@ export async function discardDraft(applicationId: string) {
 
   // Only ever deletes the caller's own application, and only while it is still a draft
   const adminClient = await createAdminClient()
-  const { error } = await adminClient
+  const { data: removed, error } = await adminClient
     .from('applications')
     .delete()
     .eq('id', applicationId)
     .eq('user_id', user.id)
     .eq('status', 'draft')
+    .select('business_name, tracking_id')
 
   if (error) return { error: error.message }
+
+  if (removed && removed.length > 0) {
+    notify({
+      channel: 'activity',
+      title: `↩️ Registration discarded · ${removed[0].business_name || 'Unnamed business'}`,
+      summary: 'The customer chose “Start over” and deleted their draft.',
+      user: { id: user.id },
+      fields: [['Draft', code(removed[0].tracking_id)]],
+    })
+  }
+
   revalidatePath('/dashboard')
   return { error: null }
 }
@@ -1192,13 +1218,12 @@ export async function updateBusinessType(id: string, updates: BusinessTypeMutati
     .eq('id', id)
 
   if (!error) {
-    await sendDiscordNotification({
-      title: '🏷️ PRICING STRATEGY UPDATED',
-      color: DiscordColors.WARNING,
-      description: `Business type \`${id}\` updated.`,
-      fields: [
-        { name: 'Updates', value: `\`\`\`json\n${JSON.stringify(updates, null, 2)}\n\`\`\``, inline: false }
-      ]
+    notify({
+      channel: 'team',
+      title: '🏷️ Pricing updated',
+      summary: `Changes to the ${id.replace(/_/g, ' ')} price.`,
+      link: '/admin/pricing',
+      fields: [['Changes', describeChanges(updates as Record<string, unknown>), false]],
     })
   }
 
@@ -1218,10 +1243,11 @@ export async function deleteBusinessType(id: string) {
     .eq('id', id)
 
   if (!error) {
-    await sendDiscordNotification({
-      title: '🗑️ BUSINESS TYPE REMOVED',
-      color: DiscordColors.DANGER,
-      fields: [{ name: 'ID', value: id, inline: true }]
+    notify({
+      channel: 'team',
+      title: '🗑️ Business type removed',
+      link: '/admin/pricing',
+      fields: [['Business type', id.replace(/_/g, ' ')]],
     })
   }
 
@@ -1241,13 +1267,11 @@ export async function updateBankingPartner(id: string, updates: BankingPartnerMu
     .eq('id', id)
 
   if (!error) {
-    await sendDiscordNotification({
-      title: '🏦 BANKING PARTNER UPDATED',
-      color: DiscordColors.INFO,
-      fields: [
-        { name: 'Partner', value: updates.name || id, inline: true },
-        { name: 'Status', value: updates.is_active ? 'Active' : 'Inactive', inline: true }
-      ]
+    notify({
+      channel: 'team',
+      title: `🏦 Banking partner updated · ${updates.name || id}`,
+      link: '/admin/banking',
+      fields: [['Status', updates.is_active === undefined ? null : updates.is_active ? 'Active' : 'Inactive']],
     })
   }
 
@@ -1300,14 +1324,15 @@ export async function updateApplicationStatus(id: string, status: string, adminN
   if (updateErr) return { error: updateErr.message }
 
   // Notify on Status Change
-  await sendDiscordNotification({
-    title: '🔄 STATUS SHIFT',
-    color: DiscordColors.PURPLE,
+  notify({
+    channel: 'applications',
+    title: `🔄 Status changed to ${statusLabel(status)}`,
+    application: { id },
     fields: [
-      { name: 'Track ID', value: `\`${id.substring(0, 8)}...\``, inline: true },
-      { name: 'New Status', value: status.toUpperCase(), inline: true },
-      { name: 'Note', value: adminNotes || 'No specific note', inline: false }
-    ]
+      ['From', statusLabel(currentApp?.status)],
+      ['To', statusLabel(status)],
+      ['Note', adminNotes, false],
+    ],
   })
 
   // 2. Fetch full application for history, commission, and SMS (Using Admin Client to bypass RLS)
@@ -1483,14 +1508,13 @@ export async function updateUserRole(id: string, role: 'user' | 'admin' | 'regis
     .eq('id', id)
 
   if (!error) {
-    await sendDiscordNotification({
-      title: '🛡️ ROLE ESCALATION',
-      color: DiscordColors.PURPLE,
-      description: `User role modified.`,
-      fields: [
-        { name: 'User ID', value: id, inline: true },
-        { name: 'New Role', value: role.toUpperCase(), inline: true }
-      ]
+    notify({
+      channel: 'team',
+      title: `🛡️ Role changed to ${role.replace(/_/g, ' ')}`,
+      summary: 'A team member’s access level changed.',
+      link: '/admin/users',
+      user: { id },
+      fields: [['New role', role.replace(/_/g, ' ')]],
     })
   }
 
@@ -1535,10 +1559,11 @@ export async function deleteService(id: string) {
     .eq('id', id)
 
   if (!error) {
-    await sendDiscordNotification({
-      title: '🗑️ SERVICE REMOVED',
-      color: DiscordColors.DANGER,
-      fields: [{ name: 'Service ID', value: id, inline: true }]
+    notify({
+      channel: 'team',
+      title: '🗑️ Service removed',
+      link: '/admin/services',
+      fields: [['Service', code(id)]],
     })
   }
 
@@ -1557,10 +1582,11 @@ export async function deleteBankingPartner(id: string) {
     .eq('id', id)
 
   if (!error) {
-    await sendDiscordNotification({
-      title: '🗑️ BANKING PARTNER REMOVED',
-      color: DiscordColors.DANGER,
-      fields: [{ name: 'Partner ID', value: id, inline: true }]
+    notify({
+      channel: 'team',
+      title: '🗑️ Banking partner removed',
+      link: '/admin/banking',
+      fields: [['Partner', code(id)]],
     })
   }
 
@@ -1617,13 +1643,11 @@ export async function setSystemFee(feeName: string, price: number) {
       category: 'system' 
     })
     if (error) return { error: error.message }
-    await sendDiscordNotification({
-      title: '🏷️ SYSTEM FEE UPDATED',
-      color: DiscordColors.WARNING,
-      fields: [
-        { name: 'Fee', value: feeName, inline: true },
-        { name: 'New Price', value: `GH₵ ${price}`, inline: true }
-      ]
+    notify({
+      channel: 'team',
+      title: `🏷️ ${feeName} fee updated`,
+      link: '/admin/pricing',
+      fields: [['New price', money(price)]],
     })
   }
 
@@ -1718,14 +1742,12 @@ export async function processAffiliateCommission(applicationId: string) {
     return { error: insertErr.message }
   }
 
-  await sendDiscordNotification({
-    title: '💸 COMMISSION LOGGED',
-    color: DiscordColors.GOLD,
-    fields: [
-      { name: 'Affiliate ID', value: `\`${app.referred_by_id}\``, inline: true },
-      { name: 'Amount', value: `GH₵ ${commissionAmount.toFixed(2)}`, inline: true },
-      { name: 'Application', value: `\`${applicationId.substring(0, 8)}...\``, inline: false }
-    ]
+  notify({
+    channel: 'partners',
+    title: `💸 Commission earned · ${money(commissionAmount)}`,
+    summary: 'A referred customer paid, so their partner earned a commission.',
+    application: { id: applicationId },
+    fields: [['Partner', null], ['Amount', money(commissionAmount)]],
   })
 
   return { success: true }
@@ -1765,14 +1787,16 @@ export async function updateAffiliateCommissionStatus(
 
   if (updateError) return { error: updateError.message }
 
-  await sendDiscordNotification({
-    title: toStatus === 'paid' ? '🏦 AFFILIATE PAYOUT SETTLED' : '🧾 AFFILIATE PAYOUT APPROVED',
-    color: toStatus === 'paid' ? DiscordColors.SUCCESS : DiscordColors.INFO,
+  notify({
+    channel: 'partners',
+    title: toStatus === 'paid' ? `🏦 Partner payout sent · ${money(totalAmount)}` : `🧾 Partner payout approved · ${money(totalAmount)}`,
+    link: '/admin/affiliates',
+    user: { id: affiliateId },
+    userLabel: 'Partner',
     fields: [
-      { name: 'Affiliate ID', value: `\`${affiliateId}\``, inline: true },
-      { name: 'Entries', value: ids.length.toString(), inline: true },
-      { name: 'Amount', value: `GH₵ ${totalAmount.toFixed(2)}`, inline: true },
-    ]
+      ['Commissions', ids.length],
+      ['Total', money(totalAmount)],
+    ],
   })
 
   revalidatePath('/admin/affiliates')
@@ -1818,13 +1842,14 @@ export async function applyToBeAffiliate() {
     .eq('id', user.id)
 
   if (!error) {
-    await sendDiscordNotification({
-      title: '🤝 NEW PARTNER ONBOARDED',
-      color: DiscordColors.GOLD,
-      description: `New affiliate created for user \`${user.id}\``,
-      fields: [
-        { name: 'Affiliate Code', value: `\`${code}\``, inline: true }
-      ]
+    notify({
+      channel: 'partners',
+      title: '🤝 New partner joined',
+      summary: 'A customer signed up to refer others.',
+      link: '/admin/affiliates',
+      user: { id: user.id },
+      userLabel: 'Partner',
+      fields: [['Referral code', `\`${code}\``]],
     })
   }
 
@@ -1846,13 +1871,12 @@ export async function updatePayoutInfo(method: string, address: string) {
     .eq('id', user.id)
 
   if (!error) {
-    await sendDiscordNotification({
-      title: '💳 PAYOUT INFO UPDATED',
-      color: DiscordColors.INFO,
-      fields: [
-        { name: 'Method', value: method, inline: true },
-        { name: 'User', value: user.id, inline: true }
-      ]
+    notify({
+      channel: 'partners',
+      title: '💳 Partner payout details updated',
+      user: { id: user.id },
+      userLabel: 'Partner',
+      fields: [['Method', method.replace(/_/g, ' ')]],
     })
   }
 
@@ -2048,13 +2072,11 @@ export async function uploadApplicationDocument(id: string, formData: FormData) 
     .eq('id', id)
 
   if (!updateError) {
-    await sendDiscordNotification({
-      title: '📁 NEW DOCUMENT UPLOADED',
-      color: DiscordColors.WARNING,
-      fields: [
-        { name: 'Document', value: title, inline: true },
-        { name: 'Application', value: `\`${id.substring(0, 8)}...\``, inline: true }
-      ]
+    notify({
+      channel: 'applications',
+      title: `📁 Document added · ${title}`,
+      summary: 'A document was added to the customer’s application.',
+      application: { id },
     })
   }
 
@@ -2241,6 +2263,16 @@ export async function updateMyProfile(updates: {
     if (metaError) return { error: metaError.message }
   }
 
+  // Name changes are worth knowing about (they appear on filings); avatar changes aren't
+  if (profileUpdates.full_name) {
+    notify({
+      channel: 'accounts',
+      title: '✏️ Customer changed their name',
+      user: { id: user.id, name: profileUpdates.full_name, phone: user.phone ? `+${user.phone.replace(/^\+/, '')}` : null },
+      fields: [['Previous name', (user.user_metadata?.full_name as string | undefined) || null]],
+    })
+  }
+
   revalidatePath('/dashboard/settings')
   return { error: null }
 }
@@ -2286,13 +2318,12 @@ export async function assignApplication(applicationId: string, registrarId: stri
     .eq('id', applicationId)
 
   if (!error) {
-    await sendDiscordNotification({
-      title: '👤 CASE ASSIGNED',
-      color: DiscordColors.INFO,
-      fields: [
-        { name: 'Application', value: `\`${applicationId.substring(0, 8)}...\``, inline: true },
-        { name: 'Registrar ID', value: registrarId, inline: true }
-      ]
+    notify({
+      channel: 'applications',
+      title: '👤 Application assigned',
+      application: { id: applicationId },
+      user: { id: registrarId },
+      userLabel: 'Assigned to',
     })
   }
 
@@ -2523,14 +2554,12 @@ export async function requestFieldCorrection(applicationId: string, fieldKey: st
   if (updateErr) return { error: updateErr.message }
 
   // Notify on correction request
-  await sendDiscordNotification({
-    title: '🚩 CORRECTION REQUESTED',
-    color: DiscordColors.DANGER,
-    fields: [
-      { name: 'Field', value: `\`${fieldKey}\``, inline: true },
-      { name: 'Reason', value: reason, inline: false },
-      { name: 'Application', value: `\`${applicationId.substring(0, 8)}...\``, inline: true }
-    ]
+  notify({
+    channel: 'applications',
+    title: `🚩 Correction requested · ${fieldKey.replace(/([A-Z])/g, ' $1').toLowerCase()}`,
+    summary: 'The customer has been asked to fix something on their application.',
+    application: { id: applicationId, businessName: application?.business_name, trackingId: application?.tracking_id },
+    fields: [['Reason', reason, false]],
   })
 
   // 4. Log to history
@@ -2624,13 +2653,12 @@ export async function resubmitApplication(applicationId: string, formData: Recor
 
   if (updateErr) return { error: updateErr.message }
 
-  await sendDiscordNotification({
-    title: isDraft ? '📝 APPLICATION SUBMITTED' : '🔁 APPLICATION RESUBMITTED',
-    color: DiscordColors.INFO,
-    fields: [
-      { name: 'Tracking ID', value: `\`${applicationId.substring(0, 8)}...\``, inline: true },
-      { name: 'Business', value: businessName, inline: true }
-    ]
+  notify({
+    channel: 'applications',
+    title: isDraft ? `📨 Application submitted · ${businessName}` : `🔁 Corrections sent back · ${businessName}`,
+    summary: isDraft ? 'A saved draft was submitted for review.' : 'The customer fixed the requested details and resubmitted.',
+    application: { id: applicationId, businessName },
+    user: { id: user.id },
   })
 
   // 4. Log to history
