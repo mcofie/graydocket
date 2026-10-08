@@ -5,8 +5,8 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { sendZendOtp, verifyZendOtp, checkPhoneExists } from '../zendActions'
 import styles from '../auth.module.css'
-import Header from '@/components/Header'
 import PhoneInput from '@/components/ui/PhoneInput'
+import AuthShell from '../AuthShell'
 
 function RegisterContent() {
   const router = useRouter()
@@ -47,8 +47,8 @@ function RegisterContent() {
       } else {
         setError(res.error || 'Failed to send OTP')
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to send OTP. Please try again.')
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to send OTP. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -67,129 +67,107 @@ function RegisterContent() {
       } else {
         setError(res.message || 'Invalid verification code')
       }
-    } catch (err: any) {
+    } catch {
       setError('Verification failed. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
+  const loginHref = redirectTo ? `/auth/login?redirect=${encodeURIComponent(redirectTo)}` : '/auth/login'
+
   return (
-    <div className={styles.authPage}>
-      <Header />
-      <div className={styles.authLeft}>
-        <div className={styles.authCard}>
-          <h1 className={styles.authTitle}>
-            {step === 'phone' ? 'Start your business' : 'Verify Your Identity'}
-          </h1>
-          <p className={styles.authSubtitle}>
-            {step === 'phone' 
-              ? 'Create your account. We’ll take care of the paperwork from here.' 
-              : `We've sent a 6-digit code to ${phone}`}
+    <AuthShell pill={{ text: 'Not sure which business type?', label: 'Take the quiz', href: '/find-your-business-type' }}>
+      {step === 'phone' ? (
+        <>
+          <h1 className={styles.shellTitle}>Start your business with GrayDocket</h1>
+          <p className={styles.shellSubtitle}>Create your account. We&apos;ll handle the paperwork.</p>
+
+          {error && <div className={styles.shellError} role="alert">{error}</div>}
+
+          <form onSubmit={handleSendOTP} className={styles.shellForm}>
+            <label className="sr-only" htmlFor="fullName">Full name</label>
+            <input
+              id="fullName"
+              type="text"
+              className={styles.shellInput}
+              placeholder="Full name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              autoComplete="name"
+              required
+              autoFocus
+            />
+            <label className="sr-only" htmlFor="email">Email</label>
+            <input
+              id="email"
+              type="email"
+              className={styles.shellInput}
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              required
+            />
+            <label className="sr-only" htmlFor="phone">Phone number</label>
+            <PhoneInput id="phone" value={phone} onChange={setPhone} required />
+            <div className={styles.shellReveal} data-open={phone ? 'true' : 'false'} inert={!phone}>
+              <div>
+                <button type="submit" className={styles.shellBtn} disabled={loading || !fullName.trim() || !email.trim()} id="send-otp">
+                  {loading ? 'Sending code…' : 'Continue'}
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <p className={styles.shellHint}>
+            {phone ? (
+              <>
+                By continuing, you agree to our <Link href="/terms">Terms</Link> and{' '}
+                <Link href="/privacy">Privacy Policy</Link>, and to receive an SMS with a one-time code.
+              </>
+            ) : (
+              <>Already have an account? <Link href={loginHref}>Log in</Link></>
+            )}
           </p>
+        </>
+      ) : (
+        <>
+          <h1 className={styles.shellTitle}>Check your phone</h1>
+          <p className={styles.shellSubtitle}>Enter the 6-digit code we sent to {phone}.</p>
 
-          {error && <div className={styles.authError}>{error}</div>}
+          {error && <div className={styles.shellError} role="alert">{error}</div>}
 
-          {step === 'phone' ? (
-            <form onSubmit={handleSendOTP} className={styles.authForm}>
-              <div className="form-group">
-                <label className="form-label" htmlFor="fullName">
-                  Full Name
-                </label>
-                <input
-                  id="fullName"
-                  type="text"
-                  className="form-input"
-                  placeholder="Kwame Asante"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required
-                />
+          <form onSubmit={handleVerifyOTP} className={styles.shellForm}>
+            <label className="sr-only" htmlFor="otp">Verification code</label>
+            <input
+              id="otp"
+              type="text"
+              className={`${styles.shellInput} ${styles.shellCode}`}
+              placeholder="000000"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              maxLength={6}
+              required
+            />
+            <div className={styles.shellReveal} data-open="true">
+              <div>
+                <button type="submit" className={styles.shellBtn} disabled={loading || otp.length < 6} id="verify-otp">
+                  {loading ? 'Verifying…' : 'Create account'}
+                </button>
               </div>
+            </div>
+          </form>
 
-              <div className="form-group">
-                <label className="form-label" htmlFor="email">
-                  Email Address
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  className="form-input"
-                  placeholder="name@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="phone">
-                  Phone Number
-                </label>
-                <PhoneInput
-                  value={phone}
-                  onChange={setPhone}
-                  required
-                />
-                <span className="form-hint">
-                  Use your WhatsApp or primary mobile number
-                </span>
-              </div>
-
-              <button
-                type="submit"
-                className="btn btn-primary btn-lg"
-                disabled={loading}
-                id="send-otp"
-              >
-                {loading ? 'Sending Code...' : 'Register & Continue'}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleVerifyOTP} className={styles.authForm}>
-              <div className="form-group">
-                <label className="form-label" htmlFor="otp">
-                  Verification Code
-                </label>
-                <input
-                  id="otp"
-                  type="text"
-                  className="form-input"
-                  placeholder="X X X X X X"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  maxLength={6}
-                  required
-                  autoFocus
-                  style={{ letterSpacing: '0.4em', textAlign: 'center', fontSize: '1.5rem' }}
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="btn btn-primary btn-lg"
-                disabled={loading}
-                id="verify-otp"
-              >
-                {loading ? 'Verifying...' : 'Complete Registration'}
-              </button>
-              
-              <button type="button" onClick={() => setStep('phone')} className={styles.authTextBtn}>
-                Change phone number
-              </button>
-            </form>
-          )}
-
-
-          <div className={styles.authFooter}>
-            Already have an account? <Link href={redirectTo ? `/auth/login?redirect=${encodeURIComponent(redirectTo)}` : '/auth/login'}>Sign in</Link>
-            <span className={styles.authLegal}>
-              GrayDocket is an administrative automation platform and does not provide legal advice. By continuing, you agree to our <Link href="/terms">Terms</Link> and <Link href="/privacy">Privacy Policy</Link>.
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
+          <button type="button" onClick={() => { setStep('phone'); setOtp(''); setError('') }} className={styles.shellTextBtn}>
+            Use a different number
+          </button>
+        </>
+      )}
+    </AuthShell>
   )
 }
 

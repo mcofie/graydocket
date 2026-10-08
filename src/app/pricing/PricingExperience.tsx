@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowRight, Check, Clock, Info, RotateCcw, Sparkles, Minus } from 'lucide-react'
+import { ArrowRight, Check, ChevronDown, Clock, Info, RotateCcw, Sparkles, Minus } from 'lucide-react'
 import Tabs from '@/components/ui/Tabs'
 import { PRICE_LINE_NOTES, type PriceLine } from '@/app/dashboard/applications/new/pricing'
 import { questions, firstQuestion, results, type QuizResult } from '@/app/dashboard/choose/quiz'
@@ -20,6 +20,11 @@ export type Plan = {
 
 export type Extra = { id: string; name: string; desc: string; price: number }
 export type ComplianceService = { id: string; name: string; desc: string; href: string; price: number | null }
+
+/** "10 - 15 working days" and "10-15 working days" both read "10–15 working days" */
+function formatTimeline(timeline: string) {
+  return timeline.replace(/(\d)\s*-\s*(\d)/g, '$1–$2')
+}
 
 type Props = {
   plans: Plan[]
@@ -119,6 +124,8 @@ export default function PricingExperience({ plans, extras, courierFee, complianc
   const [view, setView] = useState<'new' | 'existing'>(initialView)
   const [recommended, setRecommended] = useState<Plan['id'] | null>(null)
   // On phones the comparison table shows one plan at a time; this picks which
+  // One toggle opens the details on every card, so they stay side by side for comparing
+  const [showDetails, setShowDetails] = useState(false)
   const [comparePlan, setComparePlan] = useState<Plan['id']>(plans[0]?.id ?? 'sole_proprietorship')
   const cardRefs = useRef<Record<string, HTMLElement | null>>({})
 
@@ -166,10 +173,10 @@ export default function PricingExperience({ plans, extras, courierFee, complianc
                   <p className={styles.audience}>{plan.audience}</p>
 
                   <p className={styles.price}>{money(plan.total)}</p>
-                  <p className={styles.priceNote}>One-off payment. Includes government fees.</p>
+                  <p className={styles.priceNote}>One-off · Government fees included</p>
                   {plan.timeline && (
                     <p className={styles.timeline}>
-                      <Clock size={14} /> Usually {plan.timeline}
+                      <Clock size={14} /> {formatTimeline(plan.timeline)}
                     </p>
                   )}
 
@@ -177,27 +184,46 @@ export default function PricingExperience({ plans, extras, courierFee, complianc
                     Start my business <ArrowRight size={15} />
                   </Link>
 
-                  <div className={styles.breakdown}>
-                    {plan.lines.map((l) => (
-                      <div key={l.label} className={styles.breakdownRow}>
-                        <span className={styles.lineLabel}>
-                          {l.label}
-                          {PRICE_LINE_NOTES[l.label] && <InfoTip text={PRICE_LINE_NOTES[l.label]} />}
-                          {l.paidTo === 'government' && <span className={styles.paidTo}>To the ORC</span>}
-                        </span>
-                        <span>{money(l.amount)}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <button
+                    type="button"
+                    className={styles.detailsToggle}
+                    aria-expanded={showDetails}
+                    aria-controls={`details-${plan.id}`}
+                    onClick={() => setShowDetails((open) => !open)}
+                  >
+                    {showDetails ? 'Hide details' : 'What’s included'}
+                    <ChevronDown size={16} className={styles.detailsChevron} />
+                  </button>
 
-                  <ul className={styles.included}>
-                    {plan.included.map((item) => (
-                      <li key={item}>
-                        <Check size={16} strokeWidth={2.5} />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <div
+                    id={`details-${plan.id}`}
+                    className={styles.details}
+                    data-open={showDetails}
+                    inert={!showDetails}
+                  >
+                    <div>
+                      <div className={styles.breakdown}>
+                        {plan.lines.map((l) => (
+                          <div key={l.label} className={styles.breakdownRow}>
+                            <span className={styles.lineLabel}>
+                              {l.label}
+                              {PRICE_LINE_NOTES[l.label] && <InfoTip text={PRICE_LINE_NOTES[l.label]} />}
+                            </span>
+                            <span>{money(l.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <ul className={styles.included}>
+                        {plan.included.map((item) => (
+                          <li key={item}>
+                            <Check size={16} strokeWidth={2.5} />
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
                 </article>
               )
             })}

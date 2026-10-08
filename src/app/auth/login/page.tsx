@@ -3,16 +3,16 @@
 import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { sendZendOtp, verifyZendOtp } from '../zendActions'
 import styles from '../auth.module.css'
-import Header from '@/components/Header'
-
 import PhoneInput from '@/components/ui/PhoneInput'
+import AuthShell from '../AuthShell'
 
 function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const redirectParam = searchParams.get('redirect')
+  const registerHref = redirectParam ? `/auth/register?redirect=${encodeURIComponent(redirectParam)}` : '/auth/register'
   
   // OTP State
   const [phone, setPhone] = useState('')
@@ -55,7 +55,6 @@ function LoginContent() {
       const res = await verifyZendOtp(otpId, code, phone)
       if (res.success) {
         // Only follow same-site paths so a crafted link can't send users off-site after login
-        const redirectParam = searchParams.get('redirect')
         const redirectTo = redirectParam?.startsWith('/') && !redirectParam.startsWith('//') ? redirectParam : null
         router.push(redirectTo || '/dashboard')
         router.refresh()
@@ -70,69 +69,71 @@ function LoginContent() {
   }
 
   return (
-    <div className={styles.authPage}>
-      <Header />
-      <div className={styles.authLeft}>
-        <div className={styles.authCard}>
-          <h1 className={styles.authTitle}>Welcome back</h1>
-          <p className={styles.authSubtitle}>
-            Sign in with your mobile number
-          </p>
+    <AuthShell pill={{ text: 'New to GrayDocket?', label: 'Start my business', href: registerHref }}>
+      {!otpSent ? (
+        <>
+          <h1 className={styles.shellTitle}>Welcome back to GrayDocket</h1>
+          <p className={styles.shellSubtitle}>Log in with your phone number.</p>
 
-          {error && <div className={styles.authError}>{error}</div>}
+          {error && <div className={styles.shellError} role="alert">{error}</div>}
 
-          {!otpSent ? (
-               <form onSubmit={handleSendOtp} className={styles.authForm}>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="phone">Phone Number</label>
-                  <PhoneInput
-                    value={phone}
-                    onChange={setPhone}
-                    required
-                  />
-                </div>
-                <button type="submit" className="btn btn-primary btn-lg" disabled={loading || !isPhoneValid}>
-                  {loading ? 'Sending OTP...' : 'Continue with Phone'}
+          <form onSubmit={handleSendOtp} className={styles.shellForm}>
+            <label className="sr-only" htmlFor="phone">Phone number</label>
+            <PhoneInput id="phone" autoFocus value={phone} onChange={setPhone} required />
+            <div className={styles.shellReveal} data-open={phone ? 'true' : 'false'} inert={!phone}>
+              <div>
+                <button type="submit" className={styles.shellBtn} disabled={loading || !isPhoneValid}>
+                  {loading ? 'Sending code…' : 'Continue'}
                 </button>
-              </form>
+              </div>
+            </div>
+          </form>
+
+          <p className={styles.shellHint}>
+            {phone ? (
+              'By continuing, you agree to receive an SMS with a one-time code to verify your phone number.'
             ) : (
-               <form onSubmit={handleVerifyOtp} className={styles.authForm}>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="code">Enter Verification Code</label>
-                  <p className={styles.authNote}>We sent a code to {phone}</p>
-                  <input
-                    id="code"
-                    type="text"
-                    className="form-input"
-                    placeholder="123456"
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    required
-                    maxLength={6}
-                    style={{ letterSpacing: '0.2em', fontSize: '1.2rem', textAlign: 'center' }}
-                  />
-                </div>
-                <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
-                  {loading ? 'Verifying...' : 'Verify & Sign In'}
-                </button>
-                <button type="button" onClick={() => setOtpSent(false)} className={styles.authTextBtn}>
-                  Change phone number
-                </button>
-              </form>
-            )
-          }
+              <>Don&apos;t have an account? <Link href={registerHref}>Create one</Link></>
+            )}
+          </p>
+        </>
+      ) : (
+        <>
+          <h1 className={styles.shellTitle}>Check your phone</h1>
+          <p className={styles.shellSubtitle}>Enter the 6-digit code we sent to {phone}.</p>
 
+          {error && <div className={styles.shellError} role="alert">{error}</div>}
 
-          <div className={styles.authFooter}>
-            Don&apos;t have an account?{' '}
-            <Link href={searchParams.get('redirect') ? `/auth/register?redirect=${encodeURIComponent(searchParams.get('redirect')!)}` : '/auth/register'}>Create one</Link>
-            <span className={styles.authLegal}>
-              GrayDocket is an administrative automation platform and does not provide legal advice.
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
+          <form onSubmit={handleVerifyOtp} className={styles.shellForm}>
+            <label className="sr-only" htmlFor="code">Verification code</label>
+            <input
+              id="code"
+              type="text"
+              className={`${styles.shellInput} ${styles.shellCode}`}
+              placeholder="000000"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              required
+              maxLength={6}
+            />
+            <div className={styles.shellReveal} data-open="true">
+              <div>
+                <button type="submit" className={styles.shellBtn} disabled={loading || code.length < 6}>
+                  {loading ? 'Verifying…' : 'Log in'}
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <button type="button" onClick={() => { setOtpSent(false); setCode(''); setError('') }} className={styles.shellTextBtn}>
+            Use a different number
+          </button>
+        </>
+      )}
+    </AuthShell>
   )
 }
 

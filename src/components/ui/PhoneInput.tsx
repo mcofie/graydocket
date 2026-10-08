@@ -8,9 +8,12 @@ interface PhoneInputProps {
   onChange: (value: string) => void
   placeholder?: string
   required?: boolean
+  /** Lets a <label htmlFor> point at the input */
+  id?: string
+  autoFocus?: boolean
 }
 
-export default function PhoneInput({ value, onChange, placeholder = '24 000 0000', required = false }: PhoneInputProps) {
+export default function PhoneInput({ value, onChange, placeholder = '24 000 0000', required = false, id, autoFocus = false }: PhoneInputProps) {
   const localPart = value.startsWith('+233') ? value.replace('+233', '') : value === '' ? '' : value
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -40,13 +43,14 @@ export default function PhoneInput({ value, onChange, placeholder = '24 000 0000
         <span className={styles.prefix}>+233</span>
       </div>
       <input
+        id={id}
         type="tel"
         className={styles.input}
         placeholder={placeholder}
         value={localPart}
         onChange={handleInputChange}
         required={required}
-        autoFocus
+        autoFocus={autoFocus}
         autoComplete="tel"
       />
     </div>

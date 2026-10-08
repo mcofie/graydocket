@@ -128,8 +128,73 @@
   background: #000000;
 }
 
+.detailsToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  color: #4b5563;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.detailsToggle:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: #111827;
+}
+
+.detailsChevron {
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.detailsToggle[aria-expanded='true'] .detailsChevron {
+  transform: rotate(180deg);
+}
+
+/* Fee breakdown and inclusions slide open under the button */
+.details {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease;
+}
+
+.details[data-open='true'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.details > div {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Once fully open, stop clipping so the fee tooltips can show */
+.details[data-open='true'] > div {
+  animation: detailsUnclip 0s 0.35s forwards;
+}
+
+@keyframes detailsUnclip {
+  to { overflow: visible; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .details,
+  .detailsChevron {
+    transition: none;
+  }
+}
+
 .breakdown {
-  margin-top: 22px;
+  margin-top: 10px;
   padding: 4px 14px;
   border-radius: 14px;
   background: #ffffff;
@@ -443,14 +508,6 @@
   gap: 6px;
 }
 
-.paidTo {
-  padding: 1px 7px;
-  border-radius: 9999px;
-  background: #f3f4f6;
-  font-size: 11px;
-  font-weight: 500;
-  color: #4b5563;
-}
 
 .tip {
   position: relative;
