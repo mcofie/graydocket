@@ -3,8 +3,8 @@ import InfoPageLayout from '@/components/InfoPageLayout'
 export default function PrivacyPage() {
   return (
     <InfoPageLayout 
-      title="Privacy Policy" 
-      subtitle="How we protect your data and corporate identity."
+      title="Privacy policy" 
+      subtitle="What we collect, why we collect it, and how we protect it."
     >
       <section>
         <h2>1. Data Collection</h2>
@@ -23,7 +23,7 @@ export default function PrivacyPage() {
       <section>
         <h2>3. Data Protection (DPC)</h2>
         <p>
-          GrayDocket is a registered Data Controller with the Data Protection Commission (DPC) of Ghana. we adhere to the Data Protection Act, 2012 (Act 843) to ensure your information is handled with the highest level of security.
+          GrayDocket is a registered Data Controller with the Data Protection Commission (DPC) of Ghana. We adhere to the Data Protection Act, 2012 (Act 843) to ensure your information is handled with the highest level of security.
         </p>
       </section>
 
@@ -37,7 +37,7 @@ export default function PrivacyPage() {
       <section>
         <h2>5. Security</h2>
         <p>
-          We employ industry-standard encryption and security protocols to protect your documents in our Digital Vault.
+          We employ industry-standard encryption and security protocols to protect the documents in your account.
         </p>
       </section>
     </InfoPageLayout>

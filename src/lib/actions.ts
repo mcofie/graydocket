@@ -5,6 +5,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { formatPhoneNumber } from '@/lib/sms'
 import { sendDiscordNotification, DiscordColors } from '@/lib/discord'
+import { parseAvatarChoice, type AvatarChoice } from '@/lib/avatar'
 
 type JsonPrimitive = string | number | boolean | null
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[]
@@ -477,7 +478,7 @@ export async function submitApplication(data: {
           }
           return null
         })
-        .filter(Boolean)
+        .filter((insert): insert is NonNullable<typeof insert> => insert !== null)
 
       if (serviceInserts.length > 0) {
         await supabase.from('application_services').insert(serviceInserts)
@@ -658,6 +659,26 @@ export async function saveApplicationDraft(data: {
   }
 }
 
+/** Delete one of the signed-in user's drafts (used by "Start over" in the registration form). */
+export async function discardDraft(applicationId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  // Only ever deletes the caller's own application, and only while it is still a draft
+  const adminClient = await createAdminClient()
+  const { error } = await adminClient
+    .from('applications')
+    .delete()
+    .eq('id', applicationId)
+    .eq('user_id', user.id)
+    .eq('status', 'draft')
+
+  if (error) return { error: error.message }
+  revalidatePath('/dashboard')
+  return { error: null }
+}
+
 export async function getLatestDraft(businessTypeId?: string) {
   const supabase = await createClient()
 
@@ -701,6 +722,21 @@ export async function getMyApplications() {
   }
 
   return { applications: applications || [], error: null }
+}
+
+export async function getMyProfile() {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name, email, phone, avatar_url')
+    .eq('id', user.id)
+    .single()
+
+  return { profile, user }
 }
 
 export async function getDashboardStats() {
@@ -2155,6 +2191,58 @@ export async function updateAdminAvatar(formData: FormData) {
 
   revalidatePath('/admin/settings')
   return { error: null, avatarUrl: publicUrl }
+}
+
+export async function updateMyProfile(updates: {
+  full_name?: string
+  avatar_url?: null
+  avatar_choice?: AvatarChoice | null
+}) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const profileUpdates: { full_name?: string; avatar_url?: null } = {}
+  const metadataUpdates: { full_name?: string; avatar_choice?: AvatarChoice | null } = {}
+
+  if (updates.full_name !== undefined) {
+    const fullName = updates.full_name.trim()
+    if (!fullName) return { error: 'Please enter your full name.' }
+    profileUpdates.full_name = fullName
+    // Keep auth metadata in sync, since parts of the app read the name from there
+    metadataUpdates.full_name = fullName
+  }
+
+  // Only clearing the photo is allowed here; uploads go through updateAdminAvatar
+  if (updates.avatar_url === null) profileUpdates.avatar_url = null
+
+  if (updates.avatar_choice !== undefined) {
+    if (updates.avatar_choice === null) {
+      metadataUpdates.avatar_choice = null
+    } else {
+      const choice = parseAvatarChoice(updates.avatar_choice)
+      if (!choice) return { error: 'That avatar option is not available.' }
+      metadataUpdates.avatar_choice = choice
+      // An emoji or icon replaces any uploaded photo
+      profileUpdates.avatar_url = null
+    }
+  }
+
+  if (Object.keys(profileUpdates).length > 0) {
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update(profileUpdates)
+      .eq('id', user.id)
+    if (profileError) return { error: profileError.message }
+  }
+
+  if (Object.keys(metadataUpdates).length > 0) {
+    const { error: metaError } = await supabase.auth.updateUser({ data: metadataUpdates })
+    if (metaError) return { error: metaError.message }
+  }
+
+  revalidatePath('/dashboard/settings')
+  return { error: null }
 }
 
 export async function forceFetchProfile(userId: string) {

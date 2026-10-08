@@ -1,25 +1,30 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import {
-  LayoutGrid,
-  ClipboardList,
-  Building2,
-  FolderOpen,
-  Settings,
-  Users,
-  Bell,
-  LogOut,
-  Menu,
-  X,
-  ShieldCheck,
-  TrendingUp,
-} from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { Briefcase, FolderOpen, BookOpen, ShieldCheck, Menu, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { getDashboardStats } from '@/lib/actions'
-import dashStyles from './dashboard.module.css'
+import UserAvatar from '@/components/ui/UserAvatar'
+import { parseAvatarChoice } from '@/lib/avatar'
+import styles from './shell.module.css'
+
+type ShellUser = {
+  profile?: { full_name?: string; role?: string; avatar_url?: string } | null
+  user?: { user_metadata?: { avatar_choice?: unknown } } | null
+}
+
+const STAFF_ROLES = ['admin', 'registrar', 'bank_manager', 'service_manager']
+
+function getPageTitle(pathname: string) {
+  if (pathname === '/dashboard/applications/new') return 'New Registration'
+  if (pathname.startsWith('/dashboard/applications/')) return 'Registration'
+  if (pathname.startsWith('/dashboard/choose')) return 'Find your business type'
+  if (pathname.startsWith('/dashboard/documents')) return 'Documents'
+  if (pathname.startsWith('/dashboard/resources')) return 'Resources'
+  if (pathname.startsWith('/dashboard/settings')) return 'Account'
+  return 'Your Businesses'
+}
 
 export default function DashboardLayout({
   children,
@@ -27,162 +32,113 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
-  const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [userData, setUserData] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const [userData, setUserData] = useState<ShellUser | null>(null)
 
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true)
-      const stats = await getDashboardStats()
-      if (stats) {
-        setUserData(stats)
-      }
-      setLoading(false)
+    // Read the profile straight from Supabase in the browser rather than via a server action:
+    // Next runs server actions one at a time, so an action here would delay each page's own data.
+    const load = async () => {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      const [{ data: { user } }, { data: profile }] = await Promise.all([
+        supabase.auth.getUser(),
+        supabase.from('profiles').select('full_name, role, avatar_url').eq('id', session.user.id).single(),
+      ])
+      setUserData({ profile, user })
     }
-    loadData()
+    load()
+    // The account page fires this after a name or photo change so the sidebar avatar stays current
+    window.addEventListener('profile-updated', load)
+    return () => window.removeEventListener('profile-updated', load)
   }, [])
 
-  const handleSignOut = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/')
-    router.refresh()
-  }
-
-  const isAffiliate = userData?.profile?.is_affiliate
-  const isPartner = ['admin', 'registrar', 'bank_manager', 'service_manager'].includes(userData?.profile?.role)
+  const isStaff = STAFF_ROLES.includes(userData?.profile?.role ?? '')
 
   const navItems = [
-    { label: 'Overview', href: '/dashboard', icon: LayoutGrid },
-    { label: 'Registrations', href: '/dashboard/applications', icon: ClipboardList },
-    { label: 'Banking Hub', href: '/dashboard/banking', icon: Building2 },
-    { label: 'Legal Vault', href: '/dashboard/documents', icon: FolderOpen },
+    { label: 'Your Businesses', href: '/dashboard', icon: Briefcase, match: (p: string) => p === '/dashboard' || p.startsWith('/dashboard/applications') || p.startsWith('/dashboard/choose') },
+    { label: 'Documents', href: '/dashboard/documents', icon: FolderOpen, match: (p: string) => p.startsWith('/dashboard/documents') },
+    { label: 'Resources', href: '/dashboard/resources', icon: BookOpen, match: (p: string) => p.startsWith('/dashboard/resources') },
+    ...(isStaff ? [{ label: 'Partner Portal', href: '/admin', icon: ShieldCheck, match: () => false }] : []),
   ]
 
-  const accountItems = [
-    ...(isPartner ? [{ label: 'Partner Portal', href: '/admin', icon: ShieldCheck }] : []),
-    ...(isAffiliate ? [{ label: 'Partner Program', href: '/dashboard/affiliate', icon: TrendingUp }] : []),
-    { label: 'Account & Security', href: '/dashboard/settings', icon: Settings },
-  ]
-
-  const getPageTitle = () => {
-    const allItems = [...navItems, ...accountItems]
-    const item = allItems.find((item) => item.href === pathname)
-    return item ? item.label : 'Dashboard'
-  }
-
-  if (loading) {
-    return (
-      <div className={dashStyles.dashboardLayout}>
-         <div style={{ padding: 'var(--space-12)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', color: 'var(--color-neutral-400)' }}>
-            Initialising your workspace...
-         </div>
-      </div>
-    )
-  }
 
   return (
-    <div className={dashStyles.dashboardLayout}>
-      {/* Mobile Overlay */}
+    <div className={styles.shell}>
       <div
-        className={`${dashStyles.sidebarOverlay} ${sidebarOpen ? dashStyles.open : ''}`}
+        className={`${styles.overlay} ${sidebarOpen ? styles.overlayOpen : ''}`}
         onClick={() => setSidebarOpen(false)}
       />
 
-      {/* Sidebar */}
-      <aside className={`${dashStyles.sidebar} ${sidebarOpen ? dashStyles.open : ''}`}>
-        <div className={dashStyles.sidebarHeader}>
-          <Link href="/dashboard" className={dashStyles.sidebarLogo}>
-            <div className={dashStyles.sidebarLogoIcon}>GD</div>
-            <span>GrayDocket</span>
+      <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
+        <div className={styles.sidebarHeader}>
+          <Link href="/dashboard" className={styles.brand} onClick={() => setSidebarOpen(false)}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7" rx="1.5" fill="currentColor" />
+              <rect x="14" y="3" width="7" height="7" rx="1.5" fill="currentColor" />
+              <rect x="3" y="14" width="7" height="7" rx="1.5" fill="currentColor" />
+              <rect x="14" y="14" width="7" height="7" rx="1.5" fill="currentColor" />
+            </svg>
+            <span>Account</span>
+          </Link>
+
+          <Link
+            href="/dashboard/settings"
+            className={`${styles.avatar} ${pathname.startsWith('/dashboard/settings') ? styles.avatarActive : ''}`}
+            aria-label="Account"
+            onClick={() => setSidebarOpen(false)}
+          >
+            <UserAvatar
+              size={30}
+              name={userData?.profile?.full_name}
+              avatarUrl={userData?.profile?.avatar_url}
+              choice={parseAvatarChoice(userData?.user?.user_metadata?.avatar_choice)}
+            />
           </Link>
         </div>
 
-        <nav className={dashStyles.sidebarNav}>
-          <div className={dashStyles.sidebarSectionTitle}>Main</div>
+        <nav className={styles.nav}>
           {navItems.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+            const active = item.match(pathname)
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`${dashStyles.sidebarLink} ${isActive ? dashStyles.active : ''}`}
+                className={`${styles.navLink} ${active ? styles.navLinkActive : ''}`}
                 onClick={() => setSidebarOpen(false)}
               >
-                <Icon size={20} />
-                {item.label}
+                <Icon size={20} strokeWidth={1.75} />
+                <span>{item.label}</span>
               </Link>
             )
           })}
-
-          <div className={dashStyles.sidebarSection}>
-            <div className={dashStyles.sidebarSectionTitle}>Account</div>
-            {accountItems.map((item) => {
-              const Icon = item.icon
-              const isActive = pathname === item.href
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`${dashStyles.sidebarLink} ${isActive ? dashStyles.active : ''}`}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <Icon size={20} />
-                  {item.label}
-                </Link>
-              )
-            })}
-          </div>
         </nav>
 
-        <div className={dashStyles.sidebarFooter}>
-          <div className={dashStyles.sidebarUser}>
-            <div className={dashStyles.sidebarAvatar}>
-              {userData?.profile?.full_name?.substring(0, 1).toUpperCase() || 'U'}
-            </div>
-            <div className={dashStyles.sidebarUserInfo}>
-              <div className={dashStyles.sidebarUserName}>{userData?.profile?.full_name}</div>
-              <div className={dashStyles.sidebarUserEmail}>{userData?.user?.email}</div>
-            </div>
-          </div>
-          <button
-            className={dashStyles.sidebarLink}
-            onClick={handleSignOut}
-            style={{ marginTop: 'var(--space-2)', width: '100%', border: 'none', background: 'none' }}
-          >
-            <LogOut size={20} />
-            Sign Out
-          </button>
+        <div className={styles.sidebarFooter}>
+          <Link href="/support">Support</Link>
+          <span aria-hidden="true">·</span>
+          <Link href="/privacy">Privacy</Link>
+          <span aria-hidden="true">·</span>
+          <Link href="/terms">Terms</Link>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <div className={dashStyles.mainContent}>
-        <header className={dashStyles.topBar}>
-          <div className={dashStyles.topBarLeft}>
-            <button
-              className={dashStyles.mobileMenuBtn}
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              aria-label="Toggle sidebar"
-            >
-              {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-            <h1 className={dashStyles.pageTitle}>{getPageTitle()}</h1>
-          </div>
-          <div className={dashStyles.topBarRight}>
-             <span className={dashStyles.statusBadge} style={{ background: '#ecfdf5', color: '#059669', fontSize: '11px' }}>
-                <ShieldCheck size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} /> Official
-             </span>
-            <button className={dashStyles.notifBtn} aria-label="Notifications">
-              <Bell size={20} />
-            </button>
-          </div>
+      <div className={styles.main}>
+        <header className={styles.topBar}>
+          <button
+            type="button"
+            className={styles.menuBtn}
+            onClick={() => setSidebarOpen((o) => !o)}
+            aria-label="Toggle navigation"
+          >
+            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+          <h1 className={styles.pageTitle}>{getPageTitle(pathname)}</h1>
         </header>
 
-        <main className={dashStyles.content}>{children}</main>
+        <main className={styles.content}>{children}</main>
       </div>
     </div>
   )

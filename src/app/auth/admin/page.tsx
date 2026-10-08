@@ -148,7 +148,7 @@ function AdminLoginContent() {
 
 export default function AdminLoginPage() {
   return (
-    <Suspense fallback={<div className={styles.authPage}>Loading...</div>}>
+    <Suspense fallback={null}>
       <AdminLoginContent />
     </Suspense>
   )

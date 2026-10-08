@@ -5,6 +5,7 @@ import { getAdminUsers, markUserAsAffiliate, createAdminUser, deleteAdminUser, u
 import styles from '../../dashboard/overview.module.css'
 import { Plus, RefreshCw, AlertCircle, Edit2, Trash2, UserPlus, Mail, Smartphone, Shield } from 'lucide-react'
 import Modal from '../components/Modal'
+import EmptyState from '@/components/ui/EmptyState'
 
 type UserRole = 'user' | 'admin' | 'registrar' | 'bank_manager' | 'service_manager'
 
@@ -158,11 +159,7 @@ export default function AdminUsersPage() {
       )}
 
       {users.length === 0 ? (
-        <div className={styles.emptyState}>
-          <div className={styles.emptyIcon}>👥</div>
-          <h3>No users yet</h3>
-          <p>Registered users will appear here.</p>
-        </div>
+        <EmptyState variant="people" message="No users yet. Registered users will appear here." />
       ) : (
         <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>

@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { ScanFace, ChevronDown, ChevronUp, CheckCircle2, UploadCloud, X, AlertCircle } from 'lucide-react'
 import { PersonEntry, ghanaRegions } from './constants'
 import styles from './new.module.css'
+import { PERSON_REQUIRED, regionFromDigitalAddress } from './helpers'
 
 // =====================================================
 // Helpers
@@ -42,7 +43,18 @@ interface PersonFormProps {
   title: string
 }
 
+// Required fields grouped by accordion section, for the completion indicators
+const SECTION_FIELDS: Record<'personal' | 'id' | 'address', Array<keyof PersonEntry>> = {
+  personal: ['surname', 'firstName', 'dateOfBirth', 'gender', 'nationality', 'occupation'],
+  id: ['ghanaCardNumber', 'tinNumber'],
+  address: ['residentialAddress', 'city', 'region', 'phone', 'email'],
+}
+
 export default function PersonForm({ person, onChange, prefix, title }: PersonFormProps) {
+  const isFilled = (key: keyof PersonEntry) => Boolean(String(person[key] ?? '').trim())
+  const remaining = PERSON_REQUIRED.filter(([key]) => !isFilled(key)).length
+  const sectionDone = (section: keyof typeof SECTION_FIELDS) => SECTION_FIELDS[section].every(isFilled)
+
   const [openSection, setOpenSection] = useState<'personal' | 'id' | 'address'>('personal')
   const [isScanning, setIsScanning] = useState(false)
   const [scanned, setScanned] = useState(false)
@@ -129,24 +141,29 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
   return (
     <div className={styles.personFormContainer}>
       <div className={styles.personFormHeader}>
-        <h3 className={styles.personFormTitle}>{title}</h3>
+        <div className={styles.personFormTitleRow}>
+          <h3 className={styles.personFormTitle}>{title}</h3>
+          <span className={`${styles.completion} ${remaining === 0 ? styles.completionDone : ''}`}>
+            {remaining === 0 ? <><CheckCircle2 size={13} /> Complete</> : `${remaining} detail${remaining > 1 ? 's' : ''} left`}
+          </span>
+        </div>
         <input 
           type="file" 
           accept="image/*" 
           ref={fileInputRef} 
-          style={{ display: 'none' }} 
+          hidden
           onChange={handleFileChange} 
         />
         {!scanned ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
-            <button type="button" onClick={handleScanClick} className="btn btn-secondary btn-sm" disabled={isScanning} style={{ height: '40px' }}>
-              {isScanning ? 'Scanning Card...' : <><ScanFace size={16} /> Scan Ghana Card to Auto-fill</>}
+          <div className={styles.scanWrap}>
+            <button type="button" onClick={handleScanClick} className="btn btn-secondary btn-sm" disabled={isScanning}>
+              {isScanning ? 'Scanning card…' : <><ScanFace size={16} /> Scan Ghana Card to fill in</>}
             </button>
-            {scanError && <span style={{ color: 'var(--color-error)', fontSize: '11px', fontWeight: 600 }}>{scanError}</span>}
+            {scanError && <span className={styles.scanError}>{scanError}</span>}
           </div>
         ) : (
-          <span style={{ color: 'var(--color-success)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
-            <CheckCircle2 size={16} /> Data Extracted Successfully
+          <span className={styles.scanOk}>
+            <CheckCircle2 size={16} /> Details filled from card
           </span>
         )}
       </div>
@@ -157,9 +174,8 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
           type="button" 
           onClick={() => setOpenSection(openSection === 'personal' ? 'personal' : 'personal')} 
           className={styles.accordionTrigger}
-          style={{ background: openSection === 'personal' ? 'var(--color-neutral-50)' : 'var(--color-neutral-0)' }}
         >
-          <span>1. Personal Information</span> {openSection === 'personal' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          <span className={styles.sectionLabel}>{sectionDone('personal') && <CheckCircle2 size={15} className={styles.sectionTick} />}1. Personal information</span> {openSection === 'personal' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
         {openSection === 'personal' && (
           <div className={styles.accordionContent}>
@@ -179,7 +195,7 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
                 <input type="text" className="form-input" value={person.firstName} onChange={(e) => onChange('firstName', e.target.value)} required />
               </div>
                <div className="form-group">
-                <label className="form-label">Other Names</label>
+                <label className="form-label">Other Names (optional)</label>
                 <input type="text" className="form-input" value={person.otherNames} onChange={(e) => onChange('otherNames', e.target.value)} />
               </div>
                <div className="form-group">
@@ -201,8 +217,8 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
                 <input type="text" className="form-input" value={person.occupation} onChange={(e) => onChange('occupation', e.target.value)} required />
               </div>
             </div>
-            <div style={{ marginTop: 'var(--space-6)', textAlign: 'right' }}>
-              <button type="button" className="btn btn-secondary btn-sm" style={{ height: '40px', padding: '0 20px' }} onClick={() => setOpenSection('id')}>Next Section</button>
+            <div className={styles.sectionNext}>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpenSection('id')}>Next section</button>
             </div>
           </div>
         )}
@@ -214,9 +230,8 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
           type="button" 
           onClick={() => setOpenSection(openSection === 'id' ? 'personal' : 'id')} 
           className={styles.accordionTrigger}
-          style={{ background: openSection === 'id' ? 'var(--color-neutral-50)' : 'var(--color-neutral-0)' }}
         >
-          <span>2. Identification</span> {openSection === 'id' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          <span className={styles.sectionLabel}>{sectionDone('id') && <CheckCircle2 size={15} className={styles.sectionTick} />}2. Identification</span> {openSection === 'id' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
         {openSection === 'id' && (
           <div className={styles.accordionContent}>
@@ -232,7 +247,7 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
                   required 
                 />
                 {!isValidGhanaCard(person.ghanaCardNumber) && (
-                  <span style={{ color: 'var(--color-error)', fontSize: '12px', marginTop: '-12px', marginBottom: '12px', display: 'block', fontWeight: 600 }}>
+                  <span className={styles.fieldError}>
                     Invalid format. Expected: GHA-XXXXXXXXX-X
                   </span>
                 )}
@@ -243,22 +258,14 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
               </div>
               <div className={`form-group ${styles.formFull}`}>
                 <label className="form-label">Upload ID Photos (Front, Back, etc.)</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-                  <label 
-                    style={{ 
-                      display: 'flex', alignItems: 'center', gap: '8px', 
-                      padding: '10px 16px', background: 'var(--color-neutral-100)', 
-                      border: '1px solid var(--color-neutral-200)', borderRadius: '8px',
-                      cursor: 'pointer', fontSize: '14px', fontWeight: 500, color: 'var(--color-neutral-700)',
-                      width: 'fit-content'
-                    }}
-                  >
-                    <UploadCloud size={16} /> Add Photos
+                <div>
+                  <label className={styles.uploadBtn}>
+                    <UploadCloud size={16} /> Add photos
                     <input 
                       type="file" 
                       accept="image/*" 
                       multiple
-                      style={{ display: 'none' }}
+                      hidden
                       onChange={(e) => {
                         const files = Array.from(e.target.files || [])
                         const promises = files.map(file => new Promise<string>((resolve) => {
@@ -275,23 +282,23 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
                   </label>
                   
                   {((person.idPhotos && person.idPhotos.length > 0) || person.ghanaCardPhotoUrl) && (
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
+                    <div className={styles.photoList}>
                       {person.ghanaCardPhotoUrl && (
-                        <div style={{ position: 'relative', width: '80px', height: '80px' }}>
-                          <img src={person.ghanaCardPhotoUrl} alt="ID" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--color-neutral-200)' }} />
-                          <button type="button" onClick={() => onChange('ghanaCardPhotoUrl', '')} style={{ position: 'absolute', top: '-6px', right: '-6px', background: 'white', border: '1px solid var(--color-error)', color: 'var(--color-error)', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>
+                        <div className={styles.photoThumb}>
+                          <img src={person.ghanaCardPhotoUrl} alt="ID" />
+                          <button type="button" onClick={() => onChange('ghanaCardPhotoUrl', '')} className={styles.photoRemove} aria-label="Remove photo">
                             <X size={12} />
                           </button>
                         </div>
                       )}
                       {person.idPhotos?.map((photo, idx) => (
-                        <div key={idx} style={{ position: 'relative', width: '80px', height: '80px' }}>
-                          <img src={photo} alt="ID" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--color-neutral-200)' }} />
+                        <div key={idx} className={styles.photoThumb}>
+                          <img src={photo} alt="ID" />
                           <button type="button" onClick={() => {
                              const newPhotos = [...(person.idPhotos || [])]
                              newPhotos.splice(idx, 1)
                              onChange('idPhotos', newPhotos)
-                          }} style={{ position: 'absolute', top: '-6px', right: '-6px', background: 'white', border: '1px solid var(--color-error)', color: 'var(--color-error)', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>
+                          }} className={styles.photoRemove} aria-label="Remove photo">
                             <X size={12} />
                           </button>
                         </div>
@@ -301,8 +308,8 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
                 </div>
               </div>
             </div>
-            <div style={{ marginTop: 'var(--space-6)', textAlign: 'right' }}>
-              <button type="button" className="btn btn-secondary btn-sm" style={{ height: '40px', padding: '0 20px' }} onClick={() => setOpenSection('address')}>Next Section</button>
+            <div className={styles.sectionNext}>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpenSection('address')}>Next section</button>
             </div>
           </div>
         )}
@@ -314,9 +321,8 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
           type="button" 
           onClick={() => setOpenSection(openSection === 'address' ? 'id' : 'address')} 
           className={styles.accordionTrigger}
-          style={{ background: openSection === 'address' ? 'var(--color-neutral-50)' : 'var(--color-neutral-0)' }}
         >
-          <span>3. Address & Contact</span> {openSection === 'address' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          <span className={styles.sectionLabel}>{sectionDone('address') && <CheckCircle2 size={15} className={styles.sectionTick} />}3. Address and contact</span> {openSection === 'address' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
         {openSection === 'address' && (
           <div className={styles.accordionContent}>
@@ -337,8 +343,18 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
                 </select>
               </div>
               <div className="form-group">
-                <label className="form-label">Digital Address</label>
-                <input type="text" className="form-input" value={person.digitalAddress} onChange={(e) => onChange('digitalAddress', e.target.value)} />
+                <label className="form-label">Digital Address (optional)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. GA-123-4567"
+                  value={person.digitalAddress}
+                  onChange={(e) => {
+                    onChange('digitalAddress', e.target.value)
+                    const region = !person.region && regionFromDigitalAddress(e.target.value)
+                    if (region) onChange('region', region)
+                  }}
+                />
               </div>
               <div className="form-group">
                 <label className="form-label">Phone *</label>

@@ -1,86 +1,119 @@
 import Link from 'next/link'
+import { ArrowRight, Mail } from 'lucide-react'
 import styles from './Footer.module.css'
+
+const SUPPORT_EMAIL = 'support@graydocket.com'
+
+const COLUMNS: Array<{ title: string; links: Array<{ label: string; href: string }> }> = [
+  {
+    title: 'Products',
+    links: [
+      { label: 'Start', href: '/find-your-business-type' },
+      { label: 'Agent', href: '/pricing?view=existing' },
+      { label: 'Pricing', href: '/pricing' },
+      { label: 'Track an application', href: '/track' },
+    ],
+  },
+  {
+    title: 'Resources',
+    links: [
+      { label: 'Guides & videos', href: '/resources' },
+      { label: 'Choosing a business type', href: '/guides/choosing-a-business-type' },
+      { label: 'Staying compliant', href: '/guides/staying-compliant' },
+      { label: 'Help & support', href: '/support' },
+    ],
+  },
+  {
+    title: 'Company',
+    links: [
+      { label: 'Security', href: '/security' },
+      { label: 'Contact', href: `mailto:${SUPPORT_EMAIL}` },
+      { label: 'Terms of service', href: '/terms' },
+      { label: 'Privacy policy', href: '/privacy' },
+      { label: 'Cookie policy', href: '/cookies' },
+      { label: 'Data protection', href: '/dpc' },
+    ],
+  },
+]
+
+function LogoMark() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3" y="3" width="7" height="7" rx="1.5" fill="currentColor" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" fill="currentColor" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" fill="currentColor" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" fill="currentColor" />
+    </svg>
+  )
+}
 
 export default function Footer() {
   return (
-    <footer className={styles.footer}>
-      <div className={styles.footerGrid}>
-        <div className={styles.footerBrand}>
-          <div className={styles.footerLogo}>
-            <div className={styles.footerLogoIcon}>G</div>
-            <span>GrayDocket</span>
+    <footer className={styles.footerWrapper}>
+      {/* Closing call to action */}
+      <section className={styles.calloutSection}>
+        <div className={styles.calloutContainer}>
+          <div className={styles.calloutContent}>
+            <h2 className={styles.calloutTitle}>Start your business today</h2>
+            <p className={styles.calloutText}>
+              We&apos;ll handle the registration and keep you compliant after, so you can focus on getting your
+              business off the ground.
+            </p>
+            <div className={styles.calloutActions}>
+              <Link href="/auth/register" className={styles.calloutPrimary}>
+                Start my business <ArrowRight size={16} />
+              </Link>
+              <Link href="/find-your-business-type" className={styles.calloutSecondary}>
+                Take the 1-minute quiz
+              </Link>
+            </div>
           </div>
-          <p className={styles.footerDesc}>
-            The digital-first infrastructure for business in Ghana. Automate your incorporation, tax compliance, and corporate banking from a single interface.
-          </p>
-        </div>
 
-        <div className={styles.footerColumn}>
-          <h4>Foundation</h4>
-          <ul>
-            <li><Link href="/services/limited-company">Limited Company</Link></li>
-            <li><Link href="/services/sole-proprietorship">Sole Proprietorship</Link></li>
-            <li><Link href="/services/company-guarantee">Company Guarantee</Link></li>
-            <li><Link href="/services/partnership">Partnership</Link></li>
-            <li><Link href="/services/subsidiary">External Company</Link></li>
-          </ul>
+          <div className={styles.calloutIllo}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- decorative SVG */}
+            <img src="/meadow.svg" alt="" className={styles.illoImg} />
+          </div>
         </div>
+      </section>
 
-        <div className={styles.footerColumn}>
-          <h4>Compliance</h4>
-          <ul>
-            <li><Link href="/compliance/annual-returns">Annual Returns</Link></li>
-            <li><Link href="/compliance/tin">TIN Generation</Link></li>
-            <li><Link href="/compliance/ssnit">SSNIT Registration</Link></li>
-            <li><Link href="/compliance/gra">GRA Tax Activation</Link></li>
-            <li><Link href="/compliance/renewal">Business Renewal</Link></li>
-          </ul>
-        </div>
-
-        <div className={styles.footerColumn}>
-          <h4>Platform</h4>
-          <ul>
-            <li><Link href="/pricing">Pricing Plans</Link></li>
-            <li><Link href="/affiliate">Affiliate Program</Link></li>
-            <li><Link href="/track">Track Application</Link></li>
-            <li><Link href="/support">Support Center</Link></li>
-            <li><Link href="/banking">Partner Banking</Link></li>
-          </ul>
-        </div>
-
-        <div className={styles.footerColumn}>
-          <h4>Legal</h4>
-          <ul>
-            <li><Link href="/terms">Terms of Service</Link></li>
-            <li><Link href="/privacy">Privacy Policy</Link></li>
-            <li><Link href="/security">Security</Link></li>
-            <li><Link href="/dpc">DPC Compliance</Link></li>
-            <li><Link href="/cookies">Cookie Policy</Link></li>
-          </ul>
-        </div>
-      </div>
-
-      <div className={styles.footerBottom}>
-        <div className={styles.footerLegal}>
-          <p>
-            GrayDocket is a technology-enabled corporate service provider, not a law firm or a bank. We facilitate administrative processes with the Office of the Registrar of Companies (ORC) through accredited partners. We are not a law firm and do not provide legal or tax advice.
-          </p>
-          <p style={{ marginTop: '8px' }}>
-            Registered Data Controller with the Data Protection Commission (DPC), Ghana. Compliance with the Data Protection Act, 2012 (Act 843).
-          </p>
-        </div>
-        <div className={styles.footerBottomMeta}>
-          <p className={styles.footerCopy}>
-            © {new Date().getFullYear()} GrayDocket. All rights reserved.
-          </p>
-          <div className={styles.footerSocials}>
-            <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" aria-label="Twitter">
-              𝕏
-            </a>
-            <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
-              in
+      {/* Links */}
+      <div className={styles.bottomFooter}>
+        <div className={styles.bottomContainer}>
+          <div className={styles.brandCol}>
+            <Link href="/" className={styles.brand} aria-label="GrayDocket home">
+              <LogoMark />
+              <span>GrayDocket</span>
+            </Link>
+            <p className={styles.brandText}>Start your business in Ghana. We handle the paperwork.</p>
+            <a href={`mailto:${SUPPORT_EMAIL}`} className={styles.email}>
+              <Mail size={15} />
+              <span>{SUPPORT_EMAIL}</span>
             </a>
           </div>
+
+          <nav className={styles.navGrid} aria-label="Footer">
+            {COLUMNS.map((col) => (
+              <div key={col.title} className={styles.navCol}>
+                <h4 className={styles.navHeader}>{col.title}</h4>
+                <ul className={styles.navList}>
+                  {col.links.map((link) => (
+                    <li key={link.label}>
+                      {link.href.startsWith('mailto:') ? (
+                        <a href={link.href}>{link.label}</a>
+                      ) : (
+                        <Link href={link.href}>{link.label}</Link>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </nav>
+        </div>
+
+        <div className={styles.legalBar}>
+          <span>© {new Date().getFullYear()} GrayDocket. All rights reserved.</span>
+          <span>GrayDocket is a business registration service and does not provide legal advice.</span>
         </div>
       </div>
     </footer>

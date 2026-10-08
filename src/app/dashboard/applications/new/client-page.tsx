@@ -1,22 +1,174 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
-import { Check, ArrowLeft, ArrowRight, Plus, Trash2, Clock, AlertTriangle } from 'lucide-react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
+import { Check, ArrowLeft, ArrowRight, Plus, Trash2, Clock, AlertTriangle, CheckCircle2, User, Building2, HeartHandshake, Users, type LucideIcon } from 'lucide-react'
 import { usePaystackPayment } from 'react-paystack'
 import { 
   submitApplication, getBusinessTypes, getSystemFee, 
   saveApplicationDraft, getLatestDraft, getServices,
-  checkBusinessNameAvailability
+  checkBusinessNameAvailability, getMyProfile, discardDraft
 } from '@/lib/actions'
 import styles from './new.module.css'
 import {
-  businessTypes, businessSectors, ghanaRegions, addOns,
+  businessTypes, businessSectors, ghanaRegions,
   PersonEntry, emptyPerson, ShareholderEntry, emptyShareholder
 } from './constants'
 import PersonForm from './PersonForm'
+import NameCheck, { type NameAvailability } from './NameCheck'
+import { priceForType, addOnsWithPrices } from './pricing'
+import { regionFromDigitalAddress, todayISO, splitFullName, personDisplayName, missingPersonFields, missingLine } from './helpers'
+import { results as typeRequirements } from '../../choose/quiz'
 
+
+// =====================================================
+// Small presentational helpers
+// =====================================================
+
+// Initial values, shared by a fresh form and by "Start over"
+const initialFormData = () => ({
+  // Business Details
+  businessName: '',
+  businessNameAlt: '',
+  businessSector: '',
+  businessSectorOther: '',
+  natureOfBusiness: '',
+  dateOfCommencement: todayISO(),
+
+  // Registered Office / Business Address
+  buildingName: '',
+  streetName: '',
+  city: '',
+  district: '',
+  region: '',
+  digitalAddress: '',
+  postalAddress: '',
+
+  // Contact
+  mobilePhone: '',
+  alternatePhone: '',
+  email: '',
+})
+
+const initialCompanyDetails = () => ({
+  constitutionType: 'standard', // 'standard' (Schedule 2 of Act 992) or 'custom'
+  objectsOfCompany: '',
+  authorizedShares: '',
+  issuedShares: '',
+  statedCapital: '',
+  auditorName: '',
+  auditorFirm: '',
+  auditorLicense: '',
+  beneficialOwnerName: '',
+  beneficialOwnerNationality: 'Ghanaian',
+  beneficialOwnerAddress: '',
+  beneficialOwnerDOB: '',
+})
+
+const initialDeliveryAddress = () => ({
+  street: '',
+  city: '',
+  region: '',
+  digitalAddress: '',
+  phone: '',
+  recipientName: '',
+})
+
+// How each business type is presented on the first step: plain-English, one accent colour each
+const TYPE_PRESENTATION: Record<string, { icon: LucideIcon; accent: string; tagline: string; badge: string; people: string }> = {
+  sole_proprietorship: {
+    icon: User,
+    accent: 'var(--accent-blue)',
+    tagline: 'Just you, trading under a registered business name.',
+    badge: 'Quickest',
+    people: 'Just you',
+  },
+  limited_by_shares: {
+    icon: Building2,
+    accent: 'var(--accent-green)',
+    tagline: 'A company with shareholders. Your personal assets stay separate.',
+    badge: 'Limited liability',
+    people: '2+ directors',
+  },
+  limited_by_guarantee: {
+    icon: HeartHandshake,
+    accent: 'var(--accent-gold)',
+    tagline: 'For NGOs, charities and associations. No shares.',
+    badge: 'Non-profit',
+    people: 'Directors + members',
+  },
+}
+
+function StepNav({
+  onBack,
+  onSave,
+  saving,
+  saveDisabled,
+  onNext,
+  nextLabel = 'Continue',
+  nextDisabled,
+  nextId,
+  missing,
+}: {
+  onBack?: () => void
+  onSave: () => void
+  saving: boolean
+  saveDisabled?: boolean
+  onNext: () => void
+  nextLabel?: string
+  nextDisabled?: boolean
+  nextId?: string
+  /** Human-readable list of what still blocks Continue */
+  missing?: string[]
+}) {
+  const blocked = nextDisabled || (missing?.length ?? 0) > 0
+  return (
+    <>
+    {missing && missing.length > 0 && (
+      <div className={styles.missing} role="status">
+        <span className={styles.missingTitle}>To continue, add:</span>
+        <ul>
+          {missing.slice(0, 6).map((m) => <li key={m}>{m}</li>)}
+          {missing.length > 6 && <li>and {missing.length - 6} more</li>}
+        </ul>
+      </div>
+    )}
+    <div className={styles.stepNav}>
+      {onBack ? (
+        <button type="button" className="btn btn-ghost" onClick={onBack}>
+          <ArrowLeft size={16} /> Back
+        </button>
+      ) : (
+        <span />
+      )}
+      <div className={styles.navRight}>
+        <button type="button" className="btn btn-secondary" onClick={onSave} disabled={saving || saveDisabled}>
+          {saving ? 'Saving…' : 'Save draft'}
+        </button>
+        <button type="button" className="btn btn-primary" onClick={onNext} disabled={blocked} id={nextId}>
+          {nextLabel} <ArrowRight size={16} />
+        </button>
+      </div>
+    </div>
+    </>
+  )
+}
+
+/** "Fill from" shortcuts that copy someone already entered */
+function CopyChips({ label, options }: { label: string; options: Array<{ key: string; text: string; onClick: () => void }> }) {
+  if (options.length === 0) return null
+  return (
+    <div className={styles.copyChips}>
+      <span className={styles.copyLabel}>{label}</span>
+      {options.map((o) => (
+        <button key={o.key} type="button" className={styles.chip} onClick={o.onClick}>
+          {o.text}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 // =====================================================
 // Component
@@ -31,19 +183,9 @@ function NewRegistrationContent() {
   const [savingDraft, setSavingDraft] = useState(false)
   const [resultTrackingId, setResultTrackingId] = useState('')
   const [checkingAvailability, setCheckingAvailability] = useState(false)
-  const [availabilityResult, setAvailabilityResult] = useState<{
-    available: boolean
-    matches?: Array<{ name: string; type: string }> | string[]
-    error?: string | null
-    message?: string
-  } | null>(null)
+  const [availabilityResult, setAvailabilityResult] = useState<NameAvailability | null>(null)
   const [checkingAvailabilityAlt, setCheckingAvailabilityAlt] = useState(false)
-  const [availabilityResultAlt, setAvailabilityResultAlt] = useState<{
-    available: boolean
-    matches?: Array<{ name: string; type: string }> | string[]
-    error?: string | null
-    message?: string
-  } | null>(null)
+  const [availabilityResultAlt, setAvailabilityResultAlt] = useState<NameAvailability | null>(null)
   const [retryTrigger, setRetryTrigger] = useState(0)
   
   const searchParams = useSearchParams()
@@ -85,61 +227,15 @@ function NewRegistrationContent() {
 
   // Dynamic overrides
   const dynamicBusinessTypes = businessTypes.map(t => {
-    const dbMatch = dbBusinessTypes.find(bt => bt.name === t.name)
-    const orcFee = (dbMatch as any)?.orc_fee || 0
-    const agentFee = (dbMatch as any)?.agent_fee || 0
-    const returnsPortion = (dbMatch as any)?.returns_portion || 0
-    const totalFromBreakdown = orcFee + agentFee + returnsPortion
-
-    return {
-      ...t,
-      price: totalFromBreakdown > 0 
-        ? totalFromBreakdown 
-        : (dbMatch ? dbMatch.base_price + dbMatch.service_fee : t.price),
-      timeline: (dbMatch as any)?.processing_timeline || t.timeline
-    }
+    const { total, timeline } = priceForType(t.id, dbBusinessTypes)
+    return { ...t, price: total, timeline }
   })
 
-  const addOnMapping: Record<string, string> = {
-    domain: 'domain_name_purchase',
-    email: 'business_email_setup',
-    website: 'business_website',
-    bank: 'bank_account_setup',
-  }
-
-  const dynamicAddOns = addOns.map(a => {
-    const key = addOnMapping[a.id]
-    const dbMatch = dbServices.find(s => s.name.toLowerCase().replace(/\s+/g, '_') === key)
-    return {
-      ...a,
-      price: dbMatch !== undefined ? dbMatch.price : a.price
-    }
-  })
+  const dynamicAddOns = addOnsWithPrices(dbServices)
 
   // ---- Common fields (both Form A & Form 3) ----
-  const [formData, setFormData] = useState({
-    // Business Details
-    businessName: '',
-    businessNameAlt: '',
-    businessSector: '',
-    businessSectorOther: '',
-    natureOfBusiness: '',
-    dateOfCommencement: '',
+  const [formData, setFormData] = useState(initialFormData)
 
-    // Registered Office / Business Address
-    buildingName: '',
-    streetName: '',
-    city: '',
-    district: '',
-    region: '',
-    digitalAddress: '',
-    postalAddress: '',
-
-    // Contact
-    mobilePhone: '',
-    alternatePhone: '',
-    email: '',
-  })
 
   useEffect(() => {
     if (!formData.businessName || formData.businessName.trim().length < 3) {
@@ -211,40 +307,68 @@ function NewRegistrationContent() {
   const [shareholders, setShareholders] = useState<ShareholderEntry[]>([
     { ...emptyShareholder },
   ])
-  const [companyDetails, setCompanyDetails] = useState({
-    constitutionType: 'standard', // 'standard' (Schedule 2 of Act 992) or 'custom'
-    objectsOfCompany: '',
-    authorizedShares: '',
-    issuedShares: '',
-    statedCapital: '',
-    auditorName: '',
-    auditorFirm: '',
-    auditorLicense: '',
-    beneficialOwnerName: '',
-    beneficialOwnerNationality: '',
-    beneficialOwnerAddress: '',
-    beneficialOwnerDOB: '',
-  })
+  const [companyDetails, setCompanyDetails] = useState(initialCompanyDetails)
+  // Founders without an auditor yet can add one after submitting
+  const [auditorLater, setAuditorLater] = useState(false)
+  // Issued shares / stated capital follow the shareholder table until edited by hand
+  const [capitalAuto, setCapitalAuto] = useState(true)
+
 
   // ---- Delivery Details ----
   const [deliveryMethod, setDeliveryMethod] = useState<'digital' | 'courier'>('digital')
-  const [deliveryAddress, setDeliveryAddress] = useState({
-    street: '',
-    city: '',
-    region: '',
-    digitalAddress: '',
-    phone: '',
-    recipientName: '',
-  })
+  const [deliveryAddress, setDeliveryAddress] = useState(initialDeliveryAddress)
+
 
   const [isDraftLoaded, setIsDraftLoaded] = useState(false)
+  // The saved (database) draft this form is editing, so "Start over" can discard it
+  const draftIdRef = useRef<string | null>(null)
+  const router = useRouter()
+  const pathname = usePathname()
+  const [confirmingReset, setConfirmingReset] = useState(false)
+  const [resetting, setResetting] = useState(false)
+
+  // Fresh application: start the owner and contact details from the signed-in account
+  const prefillFromAccount = async () => {
+    const me = await getMyProfile()
+    if (!me) return
+    const fullName = me.profile?.full_name || (me.user?.user_metadata?.full_name as string | undefined) || ''
+    const phone = me.profile?.phone || (me.user?.user_metadata?.phone as string | undefined) || ''
+    const rawEmail = me.profile?.email || me.user?.email || ''
+    const email = rawEmail.endsWith('@graydocket.user') ? '' : rawEmail
+    const name = splitFullName(fullName)
+    const fill = (p: PersonEntry): PersonEntry => ({
+      ...p,
+      firstName: p.firstName || name.firstName,
+      otherNames: p.otherNames || name.otherNames,
+      surname: p.surname || name.surname,
+      phone: p.phone || phone,
+      email: p.email || email,
+    })
+    setProprietor(fill)
+    setDirectors((prev) => (prev.length ? [fill(prev[0]), ...prev.slice(1)] : prev))
+    setFormData((prev) => ({ ...prev, mobilePhone: prev.mobilePhone || phone, email: prev.email || email }))
+  }
+
 
   // Load from DB (prioritize) or LocalStorage (fallback)
   useEffect(() => {
+    // A ?type= link (e.g. from the landing page guide) preselects the business type,
+    // restarting at the first step if it differs from a saved draft's type
+    const applyTypeParam = (draftType?: string | null) => {
+      const urlType = searchParams.get('type')
+      if (!urlType || !businessTypes.some((t) => t.id === urlType)) return
+      setSelectedType(urlType)
+      if (draftType && draftType !== urlType) setStep(0)
+      // A name checked in the business-type quiz comes through as ?name=
+      const urlName = searchParams.get('name')?.trim().slice(0, 120)
+      if (urlName) setFormData((prev) => ({ ...prev, businessName: urlName }))
+    }
+
     async function loadDraft() {
       // 1. Try DB
       const { draft } = await getLatestDraft()
       if (draft && draft.form_data) {
+        draftIdRef.current = draft.id
         const data = draft.form_data as any
         if (data.currentStep !== undefined) setStep(data.currentStep)
         if (data.businessType) setSelectedType(data.businessType)
@@ -254,28 +378,32 @@ function NewRegistrationContent() {
         if (data.directors) setDirectors(data.directors)
         if (data.secretary) setSecretary(data.secretary)
         if (data.shareholders) setShareholders(data.shareholders)
-        if (data.companyDetails) setCompanyDetails(data.companyDetails)
+        if (data.companyDetails) { setCompanyDetails(data.companyDetails); setAuditorLater(Boolean(data.companyDetails.auditorLater)); setCapitalAuto(data.companyDetails.capitalAuto ?? !data.companyDetails.issuedShares) }
         if (data.deliveryMethod) setDeliveryMethod(data.deliveryMethod)
         if (data.deliveryAddress) setDeliveryAddress(data.deliveryAddress)
         if (data.affiliateCode && !searchParams.get('ref')) setAffiliateCode(data.affiliateCode)
+        applyTypeParam(data.businessType)
         setIsDraftLoaded(true)
         return
       }
 
       // 2. Fallback to LocalStorage
       const saved = localStorage.getItem('graydocket_draft')
+      if (!saved) prefillFromAccount()
+      let savedType: string | null = null
       if (saved) {
         try {
           const data = JSON.parse(saved)
           if(data.step !== undefined) setStep(data.step)
           if(data.selectedType !== undefined) setSelectedType(data.selectedType)
+          savedType = data.selectedType
           if(data.selectedAddOns) setSelectedAddOns(data.selectedAddOns)
           if(data.formData) setFormData(data.formData)
           if(data.proprietor) setProprietor(data.proprietor)
           if(data.directors) setDirectors(data.directors)
           if(data.secretary) setSecretary(data.secretary)
           if(data.shareholders) setShareholders(data.shareholders)
-          if(data.companyDetails) setCompanyDetails(data.companyDetails)
+          if(data.companyDetails) { setCompanyDetails(data.companyDetails); setAuditorLater(Boolean(data.companyDetails.auditorLater)); setCapitalAuto(data.companyDetails.capitalAuto ?? !data.companyDetails.issuedShares) }
           if(data.deliveryMethod) setDeliveryMethod(data.deliveryMethod)
           if(data.deliveryAddress) setDeliveryAddress(data.deliveryAddress)
           if(data.affiliateCode && !searchParams.get('ref')) setAffiliateCode(data.affiliateCode)
@@ -283,6 +411,7 @@ function NewRegistrationContent() {
           console.error("Draft load failed", e)
         }
       }
+      applyTypeParam(savedType)
       setIsDraftLoaded(true)
     }
     loadDraft()
@@ -291,9 +420,9 @@ function NewRegistrationContent() {
   // Auto-save to LocalStorage
   useEffect(() => {
     if(!isDraftLoaded) return;
-    const appState = { step, selectedType, selectedAddOns, formData, proprietor, directors, secretary, shareholders, companyDetails, deliveryMethod, deliveryAddress, affiliateCode }
+    const appState = { step, selectedType, selectedAddOns, formData, proprietor, directors, secretary, shareholders, companyDetails: { ...companyDetails, auditorLater, capitalAuto }, deliveryMethod, deliveryAddress, affiliateCode }
     localStorage.setItem('graydocket_draft', JSON.stringify(appState))
-  }, [step, selectedType, selectedAddOns, formData, proprietor, directors, secretary, shareholders, companyDetails, deliveryMethod, deliveryAddress, affiliateCode, isDraftLoaded])
+  }, [step, selectedType, selectedAddOns, formData, proprietor, directors, secretary, shareholders, companyDetails, auditorLater, capitalAuto, deliveryMethod, deliveryAddress, affiliateCode, isDraftLoaded])
 
   const handleSaveDraft = async () => {
     if (!selectedType) return
@@ -307,7 +436,7 @@ function NewRegistrationContent() {
       directors,
       secretary,
       shareholders,
-      companyDetails,
+      companyDetails: { ...companyDetails, auditorLater, capitalAuto },
       selectedAddOns,
       businessType: selectedType,
       affiliateCode: affiliateCode
@@ -325,14 +454,43 @@ function NewRegistrationContent() {
     })
 
     if (res.error) console.error("Draft save failed:", res.error)
+    else if (res.applicationId) draftIdRef.current = res.applicationId
     setSavingDraft(false)
   }
 
-  const handleClearDraft = () => {
-    if(confirm('Are you sure you want to clear your current progress?')) {
-      localStorage.removeItem('graydocket_draft')
-      window.location.reload()
+  // Start over: discard the saved draft (database and browser), reset every field in place,
+  // drop any ?type=/&name= from the URL, then refill the owner's details from the account
+  const handleStartOver = async () => {
+    setResetting(true)
+    if (draftIdRef.current) {
+      const res = await discardDraft(draftIdRef.current)
+      if (res.error) console.error('Draft discard failed:', res.error)
+      draftIdRef.current = null
     }
+    localStorage.removeItem('graydocket_draft')
+
+    setStep(0)
+    setSelectedType(null)
+    setSelectedAddOns([])
+    setFormData(initialFormData())
+    setProprietor({ ...emptyPerson })
+    setDirectors([{ ...emptyPerson }, { ...emptyPerson }])
+    setSecretary({ ...emptyPerson })
+    setShareholders([{ ...emptyShareholder }])
+    setCompanyDetails(initialCompanyDetails())
+    setAuditorLater(false)
+    setCapitalAuto(true)
+    setDeliveryMethod('digital')
+    setDeliveryAddress(initialDeliveryAddress())
+    setAvailabilityResult(null)
+    setAvailabilityResultAlt(null)
+    setSubmitError('')
+
+    if (searchParams.get('type') || searchParams.get('name')) router.replace(pathname)
+    setConfirmingReset(false)
+    setResetting(false)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    void prefillFromAccount()
   }
 
   const [submitted, setSubmitted] = useState(false)
@@ -397,7 +555,15 @@ function NewRegistrationContent() {
   }
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
+    setFormData((prev) => {
+      const next = { ...prev, [field]: value }
+      // Fill the region from the digital address when it can be inferred and hasn't been chosen
+      if (field === 'digitalAddress' && !prev.region) {
+        const region = regionFromDigitalAddress(value)
+        if (region) next.region = region
+      }
+      return next
+    })
   }
 
   const handleProprietorChange = (field: string, value: string) => {
@@ -443,8 +609,92 @@ function NewRegistrationContent() {
   }
 
   const handleCompanyDetailChange = (field: string, value: string) => {
+    if (field === 'issuedShares' || field === 'statedCapital' || field === 'authorizedShares') setCapitalAuto(false)
     setCompanyDetails((prev) => ({ ...prev, [field]: value }))
   }
+
+  // Keep share totals in step with the shareholder table until the user overrides them
+  const toNumber = (v: string) => Number(String(v).replace(/[^0-9.]/g, '')) || 0
+  const totalShares = shareholders.reduce((sum, sh) => sum + toNumber(sh.numberOfShares), 0)
+  const totalCapital = shareholders.reduce((sum, sh) => sum + toNumber(sh.numberOfShares) * toNumber(sh.valuePerShare), 0)
+  useEffect(() => {
+    if (!capitalAuto || totalShares === 0) return
+    setCompanyDetails((prev) => ({
+      ...prev,
+      issuedShares: String(totalShares),
+      authorizedShares: prev.authorizedShares && toNumber(prev.authorizedShares) >= totalShares ? prev.authorizedShares : String(totalShares),
+      statedCapital: totalCapital ? String(Math.round(totalCapital * 100) / 100) : prev.statedCapital,
+    }))
+  }, [capitalAuto, totalShares, totalCapital])
+
+  // ---- Reuse people already entered ----
+  const namedDirectors = directors
+    .map((d, i) => ({ d, i, name: personDisplayName(d) }))
+    .filter((x) => x.name)
+
+  const copySecretaryFrom = (person: PersonEntry) =>
+    setSecretary({ ...person, idPhotos: [...(person.idPhotos || [])] })
+
+  const addPersonAsShareholder = (person: PersonEntry) => {
+    const entry: ShareholderEntry = {
+      ...emptyShareholder,
+      type: 'individual',
+      name: personDisplayName(person),
+      tinNumber: person.tinNumber,
+      nationality: person.nationality || 'Ghanaian',
+      address: [person.residentialAddress, person.city, person.region].filter(Boolean).join(', '),
+    }
+    setShareholders((prev) => {
+      // Fill the first blank row before adding a new one
+      const blank = prev.findIndex((sh) => !sh.name.trim())
+      if (blank === -1) return [...prev, entry]
+      const next = [...prev]
+      next[blank] = { ...entry, numberOfShares: prev[blank].numberOfShares, valuePerShare: prev[blank].valuePerShare }
+      return next
+    })
+  }
+
+  const fillBeneficialOwner = (person: PersonEntry) =>
+    setCompanyDetails((prev) => ({
+      ...prev,
+      beneficialOwnerName: personDisplayName(person),
+      beneficialOwnerNationality: person.nationality || prev.beneficialOwnerNationality,
+      beneficialOwnerDOB: person.dateOfBirth || prev.beneficialOwnerDOB,
+      beneficialOwnerAddress: [person.residentialAddress, person.city, person.region].filter(Boolean).join(', ') || prev.beneficialOwnerAddress,
+    }))
+
+  // ---- What's still missing on each step (same rules that gate Continue) ----
+  const step1Missing = [
+    !formData.businessName.trim() && 'Business name',
+    !formData.businessSector && 'Business sector',
+    !formData.natureOfBusiness.trim() && 'Description of activities',
+    !formData.city.trim() && 'City / town',
+    !formData.region && 'Region',
+  ].filter(Boolean) as string[]
+
+  const proprietorMissing = [
+    missingLine('Proprietor', missingPersonFields(proprietor, ['surname', 'firstName', 'ghanaCardNumber', 'tinNumber', 'phone', 'email'])),
+  ].filter(Boolean) as string[]
+
+  const directorsMissing = directors
+    .map((d, i) => missingLine(`Director ${i + 1}`, missingPersonFields(d, ['surname', 'firstName', 'ghanaCardNumber', 'tinNumber'])))
+    .filter(Boolean) as string[]
+
+  const step3Missing = [
+    missingLine('Secretary', missingPersonFields(secretary, ['surname', 'firstName'])),
+    ...shareholders.map((sh, i) =>
+      missingLine(`Shareholder ${i + 1}`, [!sh.name.trim() && 'Name', !sh.tinNumber.trim() && 'TIN'].filter(Boolean) as string[])
+    ),
+  ].filter(Boolean) as string[]
+
+  const deliveryMissing = deliveryMethod === 'courier'
+    ? ([
+        !deliveryAddress.recipientName && 'Recipient name',
+        !deliveryAddress.street && 'Street address',
+        !deliveryAddress.city && 'City',
+        !deliveryAddress.phone && 'Phone',
+      ].filter(Boolean) as string[])
+    : []
 
   const handleSubmit = async (paymentRef?: string) => {
     setSubmitting(true)
@@ -466,7 +716,7 @@ function NewRegistrationContent() {
             directors,
             secretary,
             shareholders,
-            companyDetails,
+            companyDetails: { ...companyDetails, auditorLater, capitalAuto },
           }
         : {
             proprietor,
@@ -570,8 +820,8 @@ function NewRegistrationContent() {
         <span className={styles.reviewValue}>
            {person.ghanaCardNumber || '—'} 
            {(person.idPhotos?.length ? person.idPhotos.length > 0 : person.ghanaCardPhotoUrl) && (
-             <span style={{ marginLeft: '8px', fontSize: '11px', color: 'var(--color-success)', fontWeight: 600, background: 'var(--color-success-light)', padding: '2px 6px', borderRadius: '4px' }}>
-               {person.idPhotos?.length ? `${person.idPhotos.length} PHOTO(S) ATTACHED` : 'PHOTO ATTACHED'}
+             <span className={styles.attachedBadge}>
+               {person.idPhotos?.length ? `${person.idPhotos.length} photo${person.idPhotos.length > 1 ? 's' : ''}` : 'Photo attached'}
              </span>
            )}
         </span>
@@ -606,19 +856,16 @@ function NewRegistrationContent() {
       <div className={styles.newReg}>
         <div className={styles.stepCard}>
           <div className={styles.successState}>
-            <div className={styles.successIcon}>🎉</div>
-            <h2>Application Submitted!</h2>
-            <p>Your {selectedBusiness?.name} registration has been submitted successfully and is now being processed.</p>
+            <div className={styles.successIcon}><CheckCircle2 size={30} strokeWidth={1.75} /></div>
+            <h2>Application submitted</h2>
+            <p>Your {selectedBusiness?.name} registration is in. We&apos;ll take it from here and keep you updated at every step.</p>
             <div className={styles.trackingBox}>
               <label>Your Tracking ID</label>
               <span>{resultTrackingId}</span>
             </div>
-            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-neutral-500)', marginTop: 'var(--space-2)' }}>
-              Use this ID to track your application status anytime.
-            </p>
+            <p>Use this ID to track your application at any time.</p>
             <div className={styles.successActions}>
-              <Link href="/dashboard" className="btn btn-primary">Go to Dashboard</Link>
-              <Link href="/dashboard/applications" className="btn btn-secondary">View Applications</Link>
+              <Link href="/dashboard" className="btn btn-primary">Back to your businesses</Link>
             </div>
           </div>
         </div>
@@ -628,78 +875,120 @@ function NewRegistrationContent() {
 
   return (
     <div className={styles.newReg}>
-      <div className={styles.newRegHeader}>
-        <div className={styles.newRegHeaderTop}>
-          <h1>Register Your Business</h1>
-          <button className="btn btn-ghost btn-sm" onClick={handleClearDraft} style={{ color: 'var(--color-neutral-400)' }}>Clear Draft</button>
-        </div>
-        <p>
-          {isCompany
-            ? 'Complete the ORC Form 3 details below to incorporate your company in Ghana.'
-            : 'Complete the ORC Form A details below to register your business name in Ghana.'}
-        </p>
+      <div className={styles.progressHead}>
+        <span className={styles.progressMeta}>
+          Step {step + 1} of {progressSteps.length} · <strong>{progressSteps[step]?.label}</strong>
+        </span>
+        {!confirmingReset && (
+          <button type="button" className={styles.textBtn} onClick={() => setConfirmingReset(true)}>Start over</button>
+        )}
       </div>
-
-      {/* ============ Progress Bar ============ */}
-      <div className={styles.progressBar}>
-        {progressSteps.map((ps, i) => (
-          <div key={i} className={styles.progressStep}>
-            <div className={`${styles.progressDot} ${i < step ? styles.completed : i === step ? styles.active : ''}`}>
-              {i < step ? <Check size={14} /> : i + 1}
-            </div>
-            <span className={`${styles.progressLabel} ${i === step ? styles.active : ''}`}>
-              {ps.label}
-            </span>
-            {i < progressSteps.length - 1 && (
-              <div className={`${styles.progressLine} ${i < step ? styles.completed : ''}`} />
-            )}
+      {confirmingReset && (
+        <div className={styles.resetConfirm} role="alertdialog" aria-labelledby="reset-title">
+          <div>
+            <p id="reset-title" className={styles.resetTitle}>Start over?</p>
+            <p className={styles.resetText}>
+              This clears every answer and deletes your saved draft. You can&apos;t undo this.
+            </p>
           </div>
+          <div className={styles.resetActions}>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setConfirmingReset(false)} disabled={resetting}>
+              Keep my progress
+            </button>
+            <button type="button" className={`btn btn-sm ${styles.resetDanger}`} onClick={handleStartOver} disabled={resetting}>
+              {resetting ? 'Clearing…' : 'Start over'}
+            </button>
+          </div>
+        </div>
+      )}
+      <div className={styles.progressTrack} aria-hidden="true">
+        {progressSteps.map((ps, i) => (
+          <div
+            key={ps.label}
+            className={`${styles.progressSeg} ${i < step ? styles.segDone : i === step ? styles.segActive : ''}`}
+          />
         ))}
       </div>
 
       {/* ============ Step 0: Business Type ============ */}
       {step === 0 && (
         <div className={styles.stepCard}>
-          <h2 className={styles.stepTitle}>Select Business Type</h2>
-          <p className={styles.stepDesc}>Choose the type of entity you want to register with the ORC.</p>
-          <div className={styles.typeGrid}>
-            {dynamicBusinessTypes.map((type: any) => (
-              <button
-                key={type.id}
-                className={`${styles.typeCard} ${selectedType === type.id ? styles.selected : ''} ${type.comingSoon ? styles.disabled : ''}`}
-                onClick={() => !type.comingSoon && setSelectedType(type.id)}
-                disabled={type.comingSoon}
-                id={`type-${type.id}`}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div className={styles.typeIcon}>{type.icon}</div>
-                  {type.comingSoon ? (
-                    <span className={styles.comingSoonBadge}>COMING SOON</span>
-                  ) : (
-                    <div className={styles.timelineBadge}>
-                      <Clock size={12} />
-                      <span>{type.timeline}</span>
+          <h2 className={styles.stepTitle}>What are you registering?</h2>
+          <p className={styles.stepDesc}>
+            Choose what you&apos;re registering. We&apos;ll handle the ORC filing for you.{' '}
+            <Link href="/dashboard/choose" className={styles.quizLink}>Not sure? Take the 1-minute quiz</Link>
+          </p>
+          <div className={styles.typeGrid} role="radiogroup" aria-label="Business type">
+            {dynamicBusinessTypes.map((type: any) => {
+              const look = TYPE_PRESENTATION[type.id]
+              const Icon = look?.icon ?? Building2
+              const isSelected = selectedType === type.id
+              const needs = typeRequirements[type.id as keyof typeof typeRequirements]?.requirements ?? []
+              return (
+                <div
+                  key={type.id}
+                  className={`${styles.typeOption} ${isSelected ? styles.selected : ''} ${type.comingSoon ? styles.disabled : ''}`}
+                  style={{ '--accent': look?.accent ?? '#9ca3af' } as React.CSSProperties}
+                >
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={isSelected}
+                    className={styles.typeCard}
+                    onClick={() => !type.comingSoon && setSelectedType(type.id)}
+                    disabled={type.comingSoon}
+                    id={`type-${type.id}`}
+                  >
+                    <span className={styles.typeIcon}>
+                      <Icon size={20} strokeWidth={2} />
+                      {isSelected && (
+                        <span className={styles.typeCheck}><Check size={11} strokeWidth={3.5} /></span>
+                      )}
+                    </span>
+                    <span className={styles.typeBody}>
+                      <span className={styles.typeTitleRow}>
+                        <span className={styles.typeName}>{type.name}</span>
+                        {type.comingSoon ? (
+                          <span className={styles.typeBadge}>Coming soon</span>
+                        ) : (
+                          look?.badge && <span className={styles.typeBadge}>{look.badge}</span>
+                        )}
+                      </span>
+                      <span className={styles.typeTagline}>{look?.tagline ?? type.desc}</span>
+                      <span className={styles.typeMeta}>
+                        <span><Clock size={13} /> {type.timeline}</span>
+                        {look?.people && <span><Users size={13} /> {look.people}</span>}
+                        <span>{type.formRef}</span>
+                      </span>
+                    </span>
+                    <span className={styles.typePriceCol}>
+                      <span className={styles.typePrice}>GH₵ {type.price.toLocaleString()}</span>
+                      <span className={styles.typePriceNote}>one-off</span>
+                    </span>
+                  </button>
+
+                  {isSelected && needs.length > 0 && (
+                    <div className={styles.typeNeeds}>
+                      <span className={styles.typeNeedsTitle}>You&apos;ll need</span>
+                      <ul>
+                        {needs.slice(0, 4).map((n) => (
+                          <li key={n}><Check size={14} strokeWidth={2.5} /> {n}</li>
+                        ))}
+                      </ul>
                     </div>
                   )}
                 </div>
-                <h3>{type.name}</h3>
-                <p>{type.desc}</p>
-                <div className={styles.typePrice}>GH₵ {type.price.toLocaleString()}</div>
-                <div className={styles.typeFormRef}>{type.formRef}</div>
-              </button>
-            ))}
+              )
+            })}
           </div>
-          <div className={styles.stepNav}>
-            <div />
-            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={!selectedType || savingDraft}>
-                {savingDraft ? 'Saving...' : 'Save Draft'}
-              </button>
-              <button className="btn btn-primary" disabled={!selectedType} onClick={() => setStep(1)} id="next-step-0">
-                Continue <ArrowRight size={16} />
-              </button>
-            </div>
-          </div>
+          <StepNav
+            onSave={handleSaveDraft}
+            saving={savingDraft}
+            saveDisabled={!selectedType}
+            onNext={() => setStep(1)}
+            nextDisabled={!selectedType}
+            nextId="next-step-0"
+          />
         </div>
       )}
 
@@ -707,16 +996,13 @@ function NewRegistrationContent() {
       {step === 1 && (
         <div className={styles.stepCard}>
           <h2 className={styles.stepTitle}>
-            {isCompany ? 'Company Information' : 'Business Information'}
+            {isCompany ? 'Tell us about your company' : 'Tell us about your business'}
           </h2>
           <p className={styles.stepDesc}>
-            Provide details about your {selectedBusiness?.name}. All fields marked * are required on ORC {selectedBusiness?.formRef}.
+            Fields marked * are required on ORC {selectedBusiness?.formRef}.
           </p>
 
           {/* Business / Company Name */}
-          <div className={styles.formSectionTitle}>
-            {isCompany ? 'Proposed Company Name' : 'Proposed Business Name'}
-          </div>
           <div className={styles.formGrid}>
             <div className={`form-group ${styles.formFull}`}>
               <label className="form-label" htmlFor="businessName">
@@ -737,131 +1023,28 @@ function NewRegistrationContent() {
                   : 'We\'ll conduct a name search with ORC to ensure availability. Use block letters, no abbreviations.'}
               </span>
 
-              <style dangerouslySetInnerHTML={{__html: `
-                @keyframes spin {
-                  0% { transform: rotate(0deg); }
-                  100% { transform: rotate(360deg); }
-                }
-              `}} />
-
-              {formData.businessName.trim().length >= 3 && (
-                <div style={{ marginTop: '8px', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  {checkingAvailability && (
-                    <div style={{ color: 'var(--color-neutral-500)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ width: '12px', height: '12px', borderRadius: '50%', border: '2px solid var(--color-neutral-300)', borderTopColor: 'var(--color-primary-500)', display: 'inline-block', animation: 'spin 1s linear infinite' }} />
-                      <span>Verifying name availability in ORC registry...</span>
-                    </div>
-                  )}
-                  {!checkingAvailability && availabilityResult && (
-                    <>
-                      {availabilityResult.error === 'unreachable' ? (
-                        <div style={{ color: '#d97706', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontWeight: 800 }}>⚠</span>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {availabilityResult.message || 'ORC registry lookup offline. We will verify availability manually.'}
-                            <button 
-                              type="button" 
-                              onClick={() => setRetryTrigger(prev => prev + 1)}
-                              style={{ border: 'none', background: 'none', color: 'var(--color-primary-600)', textDecoration: 'underline', cursor: 'pointer', fontSize: '13px', fontWeight: 700, padding: 0 }}
-                            >
-                              Retry lookup
-                            </button>
-                          </span>
-                        </div>
-                      ) : availabilityResult.available ? (
-                        <div style={{ color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
-                          <span>✓</span>
-                          <span>Name is likely available (No exact/partial conflicts found in ORC).</span>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <div style={{ color: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
-                            <span>✗</span>
-                            <span>Potential conflict found in ORC registry.</span>
-                          </div>
-                          {availabilityResult.matches && availabilityResult.matches.length > 0 && (
-                            <div style={{ padding: '8px 12px', background: 'var(--color-error-light)', borderRadius: '8px', border: '1px solid var(--color-error-light)', color: 'var(--color-neutral-800)', fontSize: '12px' }}>
-                              <strong style={{ display: 'block', marginBottom: '4px', color: 'var(--color-error)' }}>Conflicting registrations:</strong>
-                              <ul style={{ listStyleType: 'disc', paddingLeft: '16px', margin: 0 }}>
-                                {availabilityResult.matches.map((m: any) => (
-                                  <li key={typeof m === 'string' ? m : m.name} style={{ fontWeight: 600 }}>
-                                    {typeof m === 'string' ? m : `${m.name} (${m.type})`}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
+              <NameCheck
+                checking={checkingAvailability}
+                result={formData.businessName.trim().length >= 3 ? availabilityResult : null}
+                onRetry={() => setRetryTrigger((prev) => prev + 1)}
+              />
             </div>
             <div className={`form-group ${styles.formFull}`}>
               <label className="form-label" htmlFor="businessNameAlt">Alternative Name (optional)</label>
               <input id="businessNameAlt" type="text" className="form-input" placeholder="Backup name if first choice is unavailable" value={formData.businessNameAlt} onChange={(e) => handleInputChange('businessNameAlt', e.target.value)} />
               
-              {formData.businessNameAlt.trim().length >= 3 && (
-                <div style={{ marginTop: '8px', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  {checkingAvailabilityAlt && (
-                    <div style={{ color: 'var(--color-neutral-500)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ width: '12px', height: '12px', borderRadius: '50%', border: '2px solid var(--color-neutral-300)', borderTopColor: 'var(--color-primary-500)', display: 'inline-block', animation: 'spin 1s linear infinite' }} />
-                      <span>Verifying name availability in ORC registry...</span>
-                    </div>
-                  )}
-                  {!checkingAvailabilityAlt && availabilityResultAlt && (
-                    <>
-                      {availabilityResultAlt.error === 'unreachable' ? (
-                        <div style={{ color: '#d97706', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontWeight: 800 }}>⚠</span>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {availabilityResultAlt.message || 'ORC registry lookup offline. We will verify availability manually.'}
-                            <button 
-                              type="button" 
-                              onClick={() => setRetryTrigger(prev => prev + 1)}
-                              style={{ border: 'none', background: 'none', color: 'var(--color-primary-600)', textDecoration: 'underline', cursor: 'pointer', fontSize: '13px', fontWeight: 700, padding: 0 }}
-                            >
-                              Retry lookup
-                            </button>
-                          </span>
-                        </div>
-                      ) : availabilityResultAlt.available ? (
-                        <div style={{ color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
-                          <span>✓</span>
-                          <span>Name is likely available (No exact/partial conflicts found in ORC).</span>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <div style={{ color: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
-                            <span>✗</span>
-                            <span>Potential conflict found in ORC registry.</span>
-                          </div>
-                          {availabilityResultAlt.matches && availabilityResultAlt.matches.length > 0 && (
-                            <div style={{ padding: '8px 12px', background: 'var(--color-error-light)', borderRadius: '8px', border: '1px solid var(--color-error-light)', color: 'var(--color-neutral-800)', fontSize: '12px' }}>
-                              <strong style={{ display: 'block', marginBottom: '4px', color: 'var(--color-error)' }}>Conflicting registrations:</strong>
-                              <ul style={{ listStyleType: 'disc', paddingLeft: '16px', margin: 0 }}>
-                                {availabilityResultAlt.matches.map((m: any) => (
-                                  <li key={typeof m === 'string' ? m : m.name} style={{ fontWeight: 600 }}>
-                                    {typeof m === 'string' ? m : `${m.name} (${m.type})`}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
+              <NameCheck
+                checking={checkingAvailabilityAlt}
+                result={formData.businessNameAlt.trim().length >= 3 ? availabilityResultAlt : null}
+                onRetry={() => setRetryTrigger((prev) => prev + 1)}
+              />
             </div>
           </div>
 
           {/* Nature of Business */}
           <div className={styles.formSectionTitle}>Nature of Business</div>
           <div className={styles.formGrid}>
-            <div className="form-group">
+            <div className={`form-group ${formData.businessSector === 'Other (specify below)' ? '' : styles.formFull}`}>
               <label className="form-label" htmlFor="businessSector">Business Sector *</label>
               <select id="businessSector" className="form-input" value={formData.businessSector} onChange={(e) => handleInputChange('businessSector', e.target.value)} required>
                 <option value="">Select sector</option>
@@ -874,11 +1057,11 @@ function NewRegistrationContent() {
                 <input id="businessSectorOther" type="text" className="form-input" placeholder="Describe your sector" value={formData.businessSectorOther} onChange={(e) => handleInputChange('businessSectorOther', e.target.value)} />
               </div>
             )}
-            <div className={`form-group ${formData.businessSector === 'Other (specify below)' ? '' : styles.formFull}`}>
+            <div className={`form-group ${styles.formFull}`}>
               <label className="form-label" htmlFor="natureOfBusiness">
                 {isCompany ? 'Objects of the Company / Description of Activities *' : 'Description of Business Activities *'}
               </label>
-              <textarea id="natureOfBusiness" className="form-input" placeholder="Describe the specific activities and services..." rows={3} value={formData.natureOfBusiness} onChange={(e) => handleInputChange('natureOfBusiness', e.target.value)} required style={{ resize: 'vertical' }} />
+              <textarea id="natureOfBusiness" className="form-input" placeholder="Describe the specific activities and services..." rows={3} value={formData.natureOfBusiness} onChange={(e) => handleInputChange('natureOfBusiness', e.target.value)} required />
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="dateOfCommencement">Date of Commencement *</label>
@@ -941,10 +1124,10 @@ function NewRegistrationContent() {
             <div className="form-group">
               <label className="form-label" htmlFor="digitalAddress">Digital Address *</label>
               <input id="digitalAddress" type="text" className="form-input" placeholder="e.g., GA-XXX-XXXX" value={formData.digitalAddress} onChange={(e) => handleInputChange('digitalAddress', e.target.value)} required />
-              <span className="form-hint">Get yours from the Ghana Post GPS app</span>
+              <span className="form-hint">Get yours from the Ghana Post GPS app. We&apos;ll fill in the region where we can.</span>
             </div>
             <div className={`form-group ${styles.formFull}`}>
-              <label className="form-label" htmlFor="postalAddress">Postal Address</label>
+              <label className="form-label" htmlFor="postalAddress">Postal Address (optional)</label>
               <input id="postalAddress" type="text" className="form-input" placeholder="P.O. Box, PMB, or DTD" value={formData.postalAddress} onChange={(e) => handleInputChange('postalAddress', e.target.value)} />
             </div>
           </div>
@@ -957,7 +1140,7 @@ function NewRegistrationContent() {
               <input id="mobilePhone" type="tel" className="form-input" placeholder="+233 XXX XXX XXX" value={formData.mobilePhone} onChange={(e) => handleInputChange('mobilePhone', e.target.value)} required />
             </div>
             <div className="form-group">
-              <label className="form-label" htmlFor="alternatePhone">Alternate Phone</label>
+              <label className="form-label" htmlFor="alternatePhone">Alternate Phone (optional)</label>
               <input id="alternatePhone" type="tel" className="form-input" placeholder="+233 XXX XXX XXX" value={formData.alternatePhone} onChange={(e) => handleInputChange('alternatePhone', e.target.value)} />
             </div>
             <div className={`form-group ${styles.formFull}`}>
@@ -966,24 +1149,14 @@ function NewRegistrationContent() {
             </div>
           </div>
 
-          <div className={styles.stepNav}>
-            <button className="btn btn-ghost" onClick={() => setStep(0)}>
-              <ArrowLeft size={16} /> Back
-            </button>
-            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
-                {savingDraft ? 'Saving...' : 'Save Draft'}
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={() => setStep(2)}
-                disabled={!formData.businessName || !formData.businessSector || !formData.natureOfBusiness || !formData.city || !formData.region}
-                id="next-step-1"
-              >
-                Continue <ArrowRight size={16} />
-              </button>
-            </div>
-          </div>
+          <StepNav
+            onBack={() => setStep(0)}
+            onSave={handleSaveDraft}
+            saving={savingDraft}
+            onNext={() => setStep(2)}
+            missing={step1Missing}
+            nextId="next-step-1"
+          />
         </div>
       )}
 
@@ -994,24 +1167,14 @@ function NewRegistrationContent() {
           <h2 className={styles.stepTitle}>Proprietor Details</h2>
           <p className={styles.stepDesc}>Personal information of the business owner as required on ORC Form A.</p>
           <PersonForm person={proprietor} onChange={handleProprietorChange} prefix="prop" title="Proprietor" />
-          <div className={styles.stepNav}>
-            <button className="btn btn-ghost" onClick={() => setStep(1)}>
-              <ArrowLeft size={16} /> Back
-            </button>
-            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
-                {savingDraft ? 'Saving...' : 'Save Draft'}
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={() => setStep(3)}
-                disabled={!proprietor.surname || !proprietor.firstName || !proprietor.ghanaCardNumber || !proprietor.tinNumber || !proprietor.phone || !proprietor.email}
-                id="next-step-2"
-              >
-                Continue <ArrowRight size={16} />
-              </button>
-            </div>
-          </div>
+          <StepNav
+            onBack={() => setStep(1)}
+            onSave={handleSaveDraft}
+            saving={savingDraft}
+            onNext={() => setStep(3)}
+            missing={proprietorMissing}
+            nextId="next-step-2"
+          />
         </div>
       )}
 
@@ -1025,14 +1188,13 @@ function NewRegistrationContent() {
 
           {directors.map((director, index) => (
             <div key={index} className={styles.personBlock}>
-              <div className={styles.personBlockHeader}>
-                <h3 className={styles.personBlockTitle}>Director {index + 1}</h3>
-                {directors.length > 2 && (
+              {directors.length > 2 && (
+                <div className={styles.personBlockActions}>
                   <button className={`btn btn-ghost btn-sm ${styles.removeBtn}`} onClick={() => removeDirector(index)} type="button">
-                    <Trash2 size={14} /> Remove
+                    <Trash2 size={14} /> Remove director {index + 1}
                   </button>
-                )}
-              </div>
+                </div>
+              )}
               <PersonForm person={director} onChange={(f,v) => handleDirectorChange(index, f, v)} prefix={`dir-${index}`} title={`Director ${index + 1}`} />
             </div>
           ))}
@@ -1041,24 +1203,14 @@ function NewRegistrationContent() {
             <Plus size={16} /> Add Another Director
           </button>
 
-          <div className={styles.stepNav}>
-            <button className="btn btn-ghost" onClick={() => setStep(1)}>
-              <ArrowLeft size={16} /> Back
-            </button>
-            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
-                {savingDraft ? 'Saving...' : 'Save Draft'}
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={() => setStep(3)}
-                disabled={directors.some((d) => !d.surname || !d.firstName || !d.ghanaCardNumber || !d.tinNumber)}
-                id="next-step-2"
-              >
-                Continue <ArrowRight size={16} />
-              </button>
-            </div>
-          </div>
+          <StepNav
+            onBack={() => setStep(1)}
+            onSave={handleSaveDraft}
+            saving={savingDraft}
+            onNext={() => setStep(3)}
+            missing={directorsMissing}
+            nextId="next-step-2"
+          />
         </div>
       )}
 
@@ -1072,14 +1224,21 @@ function NewRegistrationContent() {
 
           {/* Company Secretary */}
           <div className={styles.personBlock}>
-            <div className={styles.personBlockHeader}>
-              <h3 className={styles.personBlockTitle}>Company Secretary</h3>
-            </div>
-            <PersonForm person={secretary} onChange={handleSecretaryChange} prefix="sec" title="Secretary" />
+            <CopyChips
+              label="Same as"
+              options={namedDirectors.map(({ d, i, name }) => ({ key: `sec-${i}`, text: name, onClick: () => copySecretaryFrom(d) }))}
+            />
+            <PersonForm person={secretary} onChange={handleSecretaryChange} prefix="sec" title="Company secretary" />
           </div>
 
           {/* Shareholders */}
           <div className={styles.formSectionTitle}>Shareholders</div>
+          <CopyChips
+            label="Add as shareholder"
+            options={namedDirectors
+              .filter(({ name }) => !shareholders.some((sh) => sh.name.trim().toLowerCase() === name.toLowerCase()))
+              .map(({ d, i, name }) => ({ key: `sh-${i}`, text: `+ ${name}`, onClick: () => addPersonAsShareholder(d) }))}
+          />
           {shareholders.map((sh, index) => (
             <div key={index} className={styles.shareholderBlock}>
               <div className={styles.personBlockHeader}>
@@ -1151,7 +1310,9 @@ function NewRegistrationContent() {
                   <label className="form-label" htmlFor="statedCapital">Stated Capital (GH₵) *</label>
                   <input id="statedCapital" type="text" className="form-input" placeholder="Total paid-up value of issued shares" value={companyDetails.statedCapital} onChange={(e) => handleCompanyDetailChange('statedCapital', e.target.value)} required />
                   <span className="form-hint">
-                    Under Act 992, shares are no-par-value. The stated capital is the aggregate of considerations received for issued shares.
+                    {capitalAuto && totalShares > 0
+                      ? 'Calculated from your shareholders. Edit any figure if it’s different.'
+                      : 'Under Act 992, shares are no-par-value. The stated capital is the aggregate of considerations received for issued shares.'}
                   </span>
                 </div>
               </div>
@@ -1160,13 +1321,23 @@ function NewRegistrationContent() {
 
           {/* Auditor */}
           <div className={styles.formSectionTitle}>Auditor</div>
+          <label className={styles.laterToggle}>
+            <input type="checkbox" checked={auditorLater} onChange={(e) => setAuditorLater(e.target.checked)} />
+            <span>I don&apos;t have an auditor yet. I&apos;ll add one later.</span>
+          </label>
+          {auditorLater ? (
+            <p className={styles.laterNote}>
+              No problem. You can submit now, and we&apos;ll ask for your auditor&apos;s details before we file. We can also
+              recommend a licensed auditor.
+            </p>
+          ) : (
           <div className={styles.formGrid}>
             <div className="form-group">
               <label className="form-label" htmlFor="auditorName">Auditor Name *</label>
               <input id="auditorName" type="text" className="form-input" placeholder="Full name of licensed auditor" value={companyDetails.auditorName} onChange={(e) => handleCompanyDetailChange('auditorName', e.target.value)} required />
             </div>
             <div className="form-group">
-              <label className="form-label" htmlFor="auditorFirm">Audit Firm</label>
+              <label className="form-label" htmlFor="auditorFirm">Audit Firm (optional)</label>
               <input id="auditorFirm" type="text" className="form-input" placeholder="Name of audit firm" value={companyDetails.auditorFirm} onChange={(e) => handleCompanyDetailChange('auditorFirm', e.target.value)} />
             </div>
             <div className={`form-group ${styles.formFull}`}>
@@ -1175,9 +1346,14 @@ function NewRegistrationContent() {
               <span className="form-hint">A consent letter from the auditor will be required</span>
             </div>
           </div>
+          )}
 
           {/* Beneficial Ownership */}
           <div className={styles.formSectionTitle}>Beneficial Ownership</div>
+          <CopyChips
+            label="Same as"
+            options={namedDirectors.map(({ d, i, name }) => ({ key: `bo-${i}`, text: name, onClick: () => fillBeneficialOwner(d) }))}
+          />
           <div className={styles.formGrid}>
             <div className="form-group">
               <label className="form-label" htmlFor="beneficialOwnerName">Beneficial Owner Name *</label>
@@ -1197,49 +1373,41 @@ function NewRegistrationContent() {
             </div>
           </div>
 
-          <div className={styles.stepNav}>
-            <button className="btn btn-ghost" onClick={() => setStep(2)}>
-              <ArrowLeft size={16} /> Back
-            </button>
-            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
-                {savingDraft ? 'Saving...' : 'Save Draft'}
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={() => setStep(4)}
-                disabled={!secretary.surname || !secretary.firstName || shareholders.some((s) => !s.name || !s.tinNumber)}
-                id="next-step-3"
-              >
-                Continue <ArrowRight size={16} />
-              </button>
-            </div>
-          </div>
+          <StepNav
+            onBack={() => setStep(2)}
+            onSave={handleSaveDraft}
+            saving={savingDraft}
+            onNext={() => setStep(4)}
+            missing={step3Missing}
+            nextId="next-step-3"
+          />
         </div>
       )}
 
       {/* ============ Add-Ons Step ============ */}
       {step === (isCompany ? 4 : 3) && (
         <div className={styles.stepCard}>
-          <h2 className={styles.stepTitle}>Value-Added Services</h2>
-          <p className={styles.stepDesc}>Enhance your business with these optional services.</p>
+          <h2 className={styles.stepTitle}>Add extras</h2>
+          <p className={styles.stepDesc}>Optional services you can bundle with your registration.</p>
 
           <div className={styles.addOnGrid}>
             {dynamicAddOns.filter(a => a.id !== 'bank').map((addon) => (
               <button
                 key={addon.id}
+                type="button"
                 className={`${styles.addOnCard} ${selectedAddOns.includes(addon.id) ? styles.selected : ''}`}
                 onClick={() => toggleAddOn(addon.id)}
+                aria-pressed={selectedAddOns.includes(addon.id)}
                 id={`addon-${addon.id}`}
               >
-                <div className={`${styles.addOnCheck} ${selectedAddOns.includes(addon.id) ? styles.checked : ''}`}>
-                  {selectedAddOns.includes(addon.id) && '✓'}
-                </div>
-                <div>
+                <span className={`${styles.addOnCheck} ${selectedAddOns.includes(addon.id) ? styles.checked : ''}`}>
+                  {selectedAddOns.includes(addon.id) && <Check size={14} strokeWidth={3} />}
+                </span>
+                <span className={styles.addOnBody}>
                   <h4>{addon.name}</h4>
                   <p>{addon.desc}</p>
-                  <div className={styles.addOnPrice}>{addon.price === 0 ? 'Free' : `GH₵ ${addon.price}`}</div>
-                </div>
+                </span>
+                <span className={styles.addOnPrice}>{addon.price === 0 ? 'Free' : `GH₵ ${addon.price}`}</span>
               </button>
             ))}
           </div>
@@ -1249,51 +1417,53 @@ function NewRegistrationContent() {
             <span className={styles.totalAmount}>GH₵ {totalPrice.toLocaleString()}</span>
           </div>
 
-          <div className={styles.stepNav}>
-            <button className="btn btn-ghost" onClick={() => setStep(step - 1)}>
-              <ArrowLeft size={16} /> Back
-            </button>
-            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
-                {savingDraft ? 'Saving...' : 'Save Draft'}
-              </button>
-              <button className="btn btn-primary" onClick={() => setStep(step + 1)}>
-                Continue to Delivery <ArrowRight size={16} />
-              </button>
-            </div>
-          </div>
+          <StepNav
+            onBack={() => setStep(step - 1)}
+            onSave={handleSaveDraft}
+            saving={savingDraft}
+            onNext={() => setStep(step + 1)}
+            nextLabel="Continue to delivery"
+          />
         </div>
       )}
 
       {/* ============ Step: Delivery Preference ============ */}
       {progressSteps[step]?.label === 'Delivery' && (
         <div className={styles.stepCard}>
-          <h2 className={styles.stepTitle}>Delivery Preference</h2>
-          <p className={styles.stepDesc}>How would you like to receive your official registration documents?</p>
+          <h2 className={styles.stepTitle}>How should we deliver your documents?</h2>
+          <p className={styles.stepDesc}>Choose how you&apos;d like to receive your official registration documents.</p>
 
           <div className={styles.typeGrid}>
             <button
+              type="button"
               className={`${styles.typeCard} ${deliveryMethod === 'digital' ? styles.selected : ''}`}
               onClick={() => setDeliveryMethod('digital')}
+              aria-pressed={deliveryMethod === 'digital'}
             >
-              <div className={styles.typeIcon}>📧</div>
-              <h3>Digital-Only</h3>
-              <p>Receive high-resolution PDF certificates via email and in your vault.</p>
-              <div className={styles.typePrice}>Free</div>
+              <span className={styles.typeRadio} />
+              <span className={styles.typeBody}>
+                <h3>Digital only</h3>
+                <p>PDF certificates by email and in your Documents.</p>
+              </span>
+              <span className={styles.typePrice}>Free</span>
             </button>
             <button
+              type="button"
               className={`${styles.typeCard} ${deliveryMethod === 'courier' ? styles.selected : ''}`}
               onClick={() => setDeliveryMethod('courier')}
+              aria-pressed={deliveryMethod === 'courier'}
             >
-              <div className={styles.typeIcon}>📦</div>
-              <h3>Courier Delivery</h3>
-              <p>Physical hard-copy docs delivered to your door via partner courier.</p>
-              <div className={styles.typePrice}>GH₵ {deliveryFee.toLocaleString()}</div>
+              <span className={styles.typeRadio} />
+              <span className={styles.typeBody}>
+                <h3>Courier delivery</h3>
+                <p>Printed documents delivered to your door by our courier partner.</p>
+              </span>
+              <span className={styles.typePrice}>GH₵ {deliveryFee.toLocaleString()}</span>
             </button>
           </div>
 
           {deliveryMethod === 'courier' && (
-            <div className={styles.deliveryForm} style={{ marginTop: 'var(--space-8)' }}>
+            <div className={styles.deliveryForm}>
               <div className={styles.formSectionTitle}>Delivery Address</div>
               <div className={styles.formGrid}>
                 <div className={`form-group ${styles.formFull}`}>
@@ -1366,31 +1536,22 @@ function NewRegistrationContent() {
             </div>
           )}
 
-          <div className={styles.stepNav}>
-            <button className="btn btn-ghost" onClick={() => setStep(step - 1)}>
-              <ArrowLeft size={16} /> Back
-            </button>
-            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
-                {savingDraft ? 'Saving...' : 'Save Draft'}
-              </button>
-              <button 
-                className="btn btn-primary" 
-                onClick={() => setStep(step + 1)}
-                disabled={deliveryMethod === 'courier' && (!deliveryAddress.recipientName || !deliveryAddress.street || !deliveryAddress.city || !deliveryAddress.phone)}
-              >
-                Continue to Review <ArrowRight size={16} />
-              </button>
-            </div>
-          </div>
+          <StepNav
+            onBack={() => setStep(step - 1)}
+            onSave={handleSaveDraft}
+            saving={savingDraft}
+            onNext={() => setStep(step + 1)}
+            nextLabel="Continue to review"
+            missing={deliveryMissing}
+          />
         </div>
       )}
 
       {/* ============ Review Step ============ */}
       {step === lastStep && (
         <div className={styles.stepCard}>
-          <h2 className={styles.stepTitle}>Review Your Application</h2>
-          <p className={styles.stepDesc}>Please review all details carefully before submitting.</p>
+          <h2 className={styles.stepTitle}>Review and pay</h2>
+          <p className={styles.stepDesc}>Check everything carefully. You can go back to change any step.</p>
 
           {/* Registration Type */}
           <div className={styles.reviewSection}>
@@ -1525,6 +1686,13 @@ function NewRegistrationContent() {
           {isCompany && (
             <div className={styles.reviewSection}>
               <h3>Auditor</h3>
+              {auditorLater ? (
+                <div className={styles.reviewRow}>
+                  <span className={styles.reviewLabel}>Status</span>
+                  <span className={styles.reviewValue}>To be added after submitting</span>
+                </div>
+              ) : (
+              <>
               <div className={styles.reviewRow}>
                 <span className={styles.reviewLabel}>Name</span>
                 <span className={styles.reviewValue}>{companyDetails.auditorName}</span>
@@ -1537,6 +1705,8 @@ function NewRegistrationContent() {
                 <span className={styles.reviewLabel}>ICAG License</span>
                 <span className={styles.reviewValue}>{companyDetails.auditorLicense}</span>
               </div>
+              </>
+              )}
             </div>
           )}
 
@@ -1614,21 +1784,17 @@ function NewRegistrationContent() {
             )}
           </div>
 
-          <div className={styles.reviewSection} style={{ backgroundColor: 'var(--color-primary-50)', borderColor: 'var(--color-primary-100)' }}>
-            <h3>Affiliate / Referral Code</h3>
-            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)', marginBottom: 'var(--space-3)' }}>
-              Did someone refer you? Enter their code here so they get credit for this registration.
-            </p>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <input 
-                type="text" 
-                className="form-input" 
-                placeholder="e.g. OTH74D" 
-                value={affiliateCode} 
-                onChange={(e) => setAffiliateCode(e.target.value.toUpperCase())}
-                style={{ maxWidth: '200px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}
-              />
-            </div>
+          <div className={styles.referral}>
+            <h3>Referral code</h3>
+            <p>Did someone refer you? Enter their code so they get credit.</p>
+            <input
+              type="text"
+              className={`form-input ${styles.referralInput}`}
+              placeholder="e.g. OTH74D"
+              aria-label="Referral code"
+              value={affiliateCode}
+              onChange={(e) => setAffiliateCode(e.target.value.toUpperCase())}
+            />
           </div>
 
           <div className={styles.totalBar}>
@@ -1638,24 +1804,24 @@ function NewRegistrationContent() {
 
           <div className={styles.disclaimerBanner}>
             <div className={styles.disclaimerIcon}>
-              <AlertTriangle size={20} color="#d97706" />
+              <AlertTriangle size={18} />
             </div>
             <div>
-              <h4>Timeline Disclaimer</h4>
+              <h4>About timelines</h4>
               <p>
-                Processing estimates (<strong style={{ fontWeight: 800 }}>{selectedBusiness?.timeline}</strong>) are subject to the Registrar General&apos;s Department (ORC) workflow. While rare, external delays can occur due to registry system maintenance or name search queries.
-                <br /><strong style={{ fontWeight: 800 }}>Our Promise:</strong> GrayDocket will communicate every status shift directly to your dashboard and via SMS.
+                The {selectedBusiness?.timeline} estimate depends on the ORC&apos;s processing. Registry maintenance or name queries can occasionally cause delays. We&apos;ll update your dashboard and text you at every step.
               </p>
             </div>
           </div>
 
+          {submitError && <div className={styles.submitError}>{submitError}</div>}
+
           <div className={styles.stepNav}>
-            <button className="btn btn-ghost" onClick={() => setStep(lastStep - 1)}>
+            <button type="button" className="btn btn-ghost" onClick={() => setStep(lastStep - 1)}>
               <ArrowLeft size={16} /> Back
             </button>
-            {submitError && <div className="form-error" style={{ color: 'red', marginBottom: 'var(--space-4)' }}>{submitError}</div>}
-            <button className="btn btn-primary btn-lg" onClick={handlePayAndSubmit} disabled={submitting} id="submit-application">
-              {submitting ? 'Processing Payment...' : `Pay GH₵ ${totalPrice.toLocaleString()} & Submit`}
+            <button type="button" className="btn btn-primary btn-lg" onClick={handlePayAndSubmit} disabled={submitting} id="submit-application">
+              {submitting ? 'Processing payment…' : `Pay GH₵ ${totalPrice.toLocaleString()} and submit`}
             </button>
           </div>
         </div>

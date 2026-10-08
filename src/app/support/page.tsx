@@ -1,41 +1,116 @@
-import InfoPageLayout from '@/components/InfoPageLayout'
 import Link from 'next/link'
-import { Mail, MessageSquare, Phone } from 'lucide-react'
+import { Mail, MessageCircle, Search, Compass, BookOpen, Tag, ChevronRight } from 'lucide-react'
+import InfoPageLayout from '@/components/InfoPageLayout'
+import { getBusinessTypes } from '@/lib/actions'
+import { businessTypes } from '@/app/dashboard/applications/new/constants'
+import { priceForType, type DbBusinessType } from '@/app/dashboard/applications/new/pricing'
+import blocks from '@/components/info-blocks.module.css'
 
-export default function SupportPage() {
+export const metadata = {
+  title: 'Help & support',
+  description: 'Get help with your GrayDocket registration: contact us, track an application, or find answers.',
+}
+
+const SUPPORT_EMAIL = 'support@graydocket.com'
+const WHATSAPP_DISPLAY = '+233 558 508 306'
+const WHATSAPP_LINK = 'https://wa.me/233558508306'
+
+const QUICK_LINKS = [
+  { href: '/track', icon: Search, title: 'Track an application', desc: 'Check progress with your tracking ID' },
+  { href: '/find-your-business-type', icon: Compass, title: 'Find your business type', desc: 'Answer a few questions to see what fits' },
+  { href: '/resources', icon: BookOpen, title: 'Guides & videos', desc: 'Requirements, name search and staying compliant' },
+  { href: '/pricing', icon: Tag, title: 'Pricing', desc: 'What each registration costs' },
+]
+
+export default async function SupportPage() {
+  // Timelines come from the same source as pricing and checkout, so answers stay current
+  const dbTypes = (await getBusinessTypes()) as DbBusinessType[]
+  const timelines = businessTypes
+    .map((t) => ({ name: t.name, timeline: priceForType(t.id, dbTypes).timeline }))
+    .filter((t) => t.timeline)
+
+  const faqs: Array<{ q: string; a: React.ReactNode }> = [
+    {
+      q: 'How long does registration take?',
+      a: (
+        <>
+          Once your application is submitted, it usually takes{' '}
+          {timelines.map((t, i) => (
+            <span key={t.name}>
+              {t.timeline} for a {t.name.toLowerCase()}
+              {i < timelines.length - 2 ? ', ' : i === timelines.length - 2 ? ' and ' : '.'}
+            </span>
+          ))}{' '}
+          Timelines depend on the ORC, and we update your dashboard at every step.
+        </>
+      ),
+    },
+    {
+      q: 'Do I need to visit the ORC in person?',
+      a: 'No. We handle the filing for you, and your certificates arrive digitally in your Documents.',
+    },
+    {
+      q: 'Can I save my application and finish later?',
+      a: 'Yes. Your progress is saved as you go, so you can come back to it from your dashboard at any time.',
+    },
+    {
+      q: 'When do I pay?',
+      a: 'At the end of your registration, after you’ve reviewed everything. Payment is handled securely by Paystack.',
+    },
+    {
+      q: 'What if the registrar asks for changes?',
+      a: 'You’ll see exactly what needs fixing on your application page. Update the details and resubmit at no extra cost.',
+    },
+  ]
+
   return (
-    <InfoPageLayout 
-      title="Support Center" 
-      subtitle="We're here to help you navigate the bureaucracy."
-    >
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '24px', marginBottom: '64px' }}>
-        <div style={{ padding: '32px', background: 'var(--color-neutral-50)', borderRadius: '24px', textAlign: 'center' }}>
-          <Mail size={32} color="var(--color-primary-600)" style={{ margin: '0 auto 16px' }} />
-          <h3 style={{ fontWeight: 800 }}>Email Support</h3>
-          <p style={{ fontSize: '14px', color: 'var(--color-neutral-500)', marginTop: '8px' }}>Response in 24 hours.</p>
-          <p style={{ marginTop: '16px', fontWeight: 600 }}>hello@graydocket.com</p>
+    <InfoPageLayout title="Help & support" subtitle="Questions about starting your business? We’re here to help.">
+      <div className={blocks.cards}>
+        <div className={blocks.card}>
+          <span className={blocks.cardIcon}><Mail size={18} /></span>
+          <h3>Email us</h3>
+          <p>Best for detailed questions about an application.</p>
+          <a href={`mailto:${SUPPORT_EMAIL}`} className={blocks.cardLink}>{SUPPORT_EMAIL}</a>
         </div>
-        <div style={{ padding: '32px', background: 'var(--color-neutral-50)', borderRadius: '24px', textAlign: 'center' }}>
-          <MessageSquare size={32} color="var(--color-primary-600)" style={{ margin: '0 auto 16px' }} />
-          <h3 style={{ fontWeight: 800 }}>WhatsApp</h3>
-          <p style={{ fontSize: '14px', color: 'var(--color-neutral-500)', marginTop: '8px' }}>Instant messaging.</p>
-          <p style={{ marginTop: '16px', fontWeight: 600 }}>+233 558 508 306</p>
+        <div className={blocks.card}>
+          <span className={blocks.cardIcon}><MessageCircle size={18} /></span>
+          <h3>WhatsApp</h3>
+          <p>Quick questions and updates on the go.</p>
+          <a href={WHATSAPP_LINK} target="_blank" rel="noopener noreferrer" className={blocks.cardLink}>
+            {WHATSAPP_DISPLAY}
+          </a>
         </div>
       </div>
 
+      <div className={blocks.rows}>
+        {QUICK_LINKS.map(({ href, icon: Icon, title, desc }) => (
+          <Link key={href} href={href} className={blocks.row}>
+            <span className={blocks.rowIcon}><Icon size={18} strokeWidth={1.75} /></span>
+            <span className={blocks.rowText}>
+              <strong>{title}</strong>
+              <small>{desc}</small>
+            </span>
+            <ChevronRight size={18} className={blocks.rowArrow} />
+          </Link>
+        ))}
+      </div>
+
       <section>
-        <h2>Frequently Asked Questions</h2>
-        <div style={{ marginTop: '32px' }}>
-          <details style={{ marginBottom: '16px', borderBottom: '1px solid var(--color-neutral-200)', paddingBottom: '16px' }}>
-            <summary style={{ fontWeight: 700, cursor: 'pointer' }}>How long does registration take?</summary>
-            <p style={{ marginTop: '8px', color: 'var(--color-neutral-600)' }}>Sole Proprietorships take 3-5 days. Limited companies take 5-7 days.</p>
-          </details>
-          <details style={{ marginBottom: '16px', borderBottom: '1px solid var(--color-neutral-200)', paddingBottom: '16px' }}>
-            <summary style={{ fontWeight: 700, cursor: 'pointer' }}>Do I need to visit the ORC physically?</summary>
-            <p style={{ marginTop: '8px', color: 'var(--color-neutral-600)' }}>No. GrayDocket handles all physical filings. You receive your documents digitally in your vault.</p>
-          </details>
+        <h2>Frequently asked questions</h2>
+        <div className={blocks.faqList}>
+          {faqs.map((f) => (
+            <details key={f.q} className={blocks.faq}>
+              <summary>{f.q}</summary>
+              <p>{f.a}</p>
+            </details>
+          ))}
         </div>
       </section>
+
+      <p className={blocks.note}>
+        Have an account? <Link href="/auth/login">Log in</Link> to see your applications, documents and any requests from
+        your case manager.
+      </p>
     </InfoPageLayout>
   )
 }

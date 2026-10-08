@@ -18,6 +18,7 @@ import { createClient } from '@/lib/supabase/client'
 import styles from '../overview.module.css'
 import affStyles from './affiliate.module.css'
 import Skeleton from '@/components/ui/Skeleton'
+import EmptyState from '@/components/ui/EmptyState'
 
 type CommissionStatus = 'pending' | 'approved' | 'paid' | 'void'
 
@@ -309,9 +310,8 @@ export default function AffiliateDashboard() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={3} style={{ padding: '60px 24px', textAlign: 'center' }}>
-                         <div style={{ color: 'var(--color-neutral-300)', marginBottom: '12px' }}><Users size={32} /></div>
-                         <p style={{ color: 'var(--color-neutral-500)', fontSize: '14px' }}>No commissions have been recorded yet.</p>
+                      <td colSpan={3}>
+                         <EmptyState variant="arrow" size="sm" message="No commissions recorded yet." />
                       </td>
                     </tr>
                   )}

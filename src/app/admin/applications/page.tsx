@@ -6,6 +6,7 @@ import { getAdminApplications, updateApplicationStatus, adminCreateApplication, 
 import Modal from '../components/Modal'
 import styles from '../../dashboard/overview.module.css'
 import Skeleton from '@/components/ui/Skeleton'
+import EmptyState from '@/components/ui/EmptyState'
 
 const statusOptions = [
   'draft', 'submitted', 'name_search', 'under_review', 
@@ -260,11 +261,7 @@ export default function AdminApplicationsPage() {
 
 
       {apps.length === 0 ? (
-        <div className={styles.emptyState}>
-          <div className={styles.emptyIcon}>📋</div>
-          <h3>No applications</h3>
-          <p>User-submitted applications will be managed from here.</p>
-        </div>
+        <EmptyState variant="inbox" message="No applications yet. Submitted applications will appear here." />
       ) : (
         <>
           {/* Desktop Table View */}

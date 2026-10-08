@@ -1,0 +1,14 @@
+/* Page shell for public pages that reuse dashboard content (quiz, guides) */
+.wrapper {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+}
+
+.main {
+  flex: 1;
+  padding: 48px 16px 96px;
+  color: #111827;
+}

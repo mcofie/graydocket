@@ -4,6 +4,12 @@
 
 /* CSS Custom Properties / Design Tokens */
 :root {
+  /* Accent colours (blue, green, orange, gold) for highlights, illustrations and the page loader */
+  --accent-blue: #4dafff;
+  --accent-green: #44c67f;
+  --accent-orange: #ff5310;
+  --accent-gold: #f5b442;
+
   /* Primary Colors - Sophisticated Dark Gray / Charcoal */
   --color-primary-50: #fafafa;
   --color-primary-100: #f0f0f0;
@@ -53,7 +59,8 @@
   --color-info-light: #dbeafe;
 
   /* Typography */
-  --font-sans: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: var(--font-family), 'Family', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: var(--font-geist-mono), 'Fira Code', 'Courier New', monospace;
 
   --text-xs: 0.75rem;

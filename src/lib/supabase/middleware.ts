@@ -46,27 +46,32 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // getClaims verifies the session JWT (locally when the project uses asymmetric signing keys)
+  // and refreshes an expired session, avoiding an Auth server round trip on most requests.
+  const { data } = await supabase.auth.getClaims()
+  const claims = data?.claims
+  const user = claims?.sub ? { id: claims.sub, app_metadata: claims.app_metadata as { role?: string } | undefined } : null
 
-  // Determine role with fallback to user metadata if possible
+  const isScanningAdmin = request.nextUrl.pathname.startsWith('/admin')
+  const authPaths = ['/auth/login', '/auth/register']
+  const isAuthPath = authPaths.some((path) =>
+    request.nextUrl.pathname.startsWith(path)
+  )
+
+  // The role only matters for admin routes and for choosing where to send signed-in users from auth pages
   let role = 'user'
   let isAdminRole = false
 
-  if (user) {
-    // Try to get role from profile
+  if (user && (isScanningAdmin || isAuthPath)) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single()
-    
+
     role = profile?.role || user.app_metadata?.role || 'user'
     isAdminRole = ['admin', 'registrar', 'bank_manager', 'service_manager'].includes(role)
   }
-
-  const isScanningAdmin = request.nextUrl.pathname.startsWith('/admin')
 
   // Protected paths logic: Only redirect AWAY from /admin if we are CERTAIN they are not an admin
   if (isScanningAdmin && user && !isAdminRole && role === 'user') {
@@ -86,19 +91,22 @@ export async function updateSession(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith('/dashboard') && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth/login'
-    url.searchParams.set('redirect', request.nextUrl.pathname)
+    url.search = ''
+    url.searchParams.set('redirect', request.nextUrl.pathname + request.nextUrl.search)
     return NextResponse.redirect(url)
   }
 
   // Redirect logged-in users away from auth pages
-  const authPaths = ['/auth/login', '/auth/register']
-  const isAuthPath = authPaths.some((path) =>
-    request.nextUrl.pathname.startsWith(path)
-  )
-
   if (isAuthPath && user) {
+    // Honour a same-site ?redirect= (e.g. from the public quiz) so signed-in users land where they meant to go
+    const redirectParam = request.nextUrl.searchParams.get('redirect')
+    const safeRedirect = redirectParam?.startsWith('/') && !redirectParam.startsWith('//') ? redirectParam : null
+    if (safeRedirect && !isAdminRole) {
+      return NextResponse.redirect(new URL(safeRedirect, request.url))
+    }
     const url = request.nextUrl.clone()
     url.pathname = isAdminRole ? '/admin' : '/dashboard'
+    url.search = ''
     return NextResponse.redirect(url)
   }
 

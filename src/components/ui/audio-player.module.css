@@ -1,0 +1,102 @@
+.player {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #f7f7f8;
+}
+
+.button {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: #111827;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.button:hover {
+  background: #000000;
+}
+
+.button:active {
+  transform: scale(0.95);
+}
+
+.buttonIdle,
+.buttonIdle:hover {
+  background: #e7e7ea;
+  color: #6b7280;
+  cursor: default;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.text strong {
+  font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.text small {
+  font-size: 12px;
+  color: #8a8a90;
+}
+
+.timeline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.time {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.range {
+  flex: 1;
+  height: 4px;
+  appearance: none;
+  border-radius: 9999px;
+  background: linear-gradient(to right, #111827 var(--progress, 0%), #dcdce0 var(--progress, 0%));
+  cursor: pointer;
+}
+
+.range::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #111827;
+}
+
+.range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: #111827;
+}
+
+.range:focus-visible {
+  outline: 2px solid #111827;
+  outline-offset: 4px;
+}

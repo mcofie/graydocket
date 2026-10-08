@@ -7,6 +7,7 @@ import { getApplicationDetails, updateApplicationStatus, uploadApplicationDocume
 import { createClient } from '@/lib/supabase/client'
 import Modal from '../../components/Modal'
 import styles from '../../../dashboard/overview.module.css'
+import EmptyState from '@/components/ui/EmptyState'
 
 type JsonPrimitive = string | number | boolean | null
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[]
@@ -1150,9 +1151,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', marginBottom: 'var(--space-6)' }}>
               {docs.length === 0 ? (
-                <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)', fontStyle: 'italic', padding: '12px', border: '1px dashed var(--color-neutral-300)', borderRadius: '8px', textAlign: 'center' }}>
-                  No documents uploaded yet.
-                </div>
+                <EmptyState variant="documents" size="sm" message="No documents uploaded yet." />
               ) : (
                 docs.map((d, idx) => (
                   <div key={idx} style={{ padding: '12px', background: 'white', border: '1px solid var(--color-neutral-200)', borderRadius: '12px' }}>

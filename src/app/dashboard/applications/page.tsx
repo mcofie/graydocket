@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { PlusCircle, Search, Eye, ChevronRight, FileText } from 'lucide-react'
 import { getMyApplications } from '@/lib/actions'
 import styles from './applications.module.css'
+import EmptyState from '@/components/ui/EmptyState'
 
 interface Application {
   id: string
@@ -85,17 +86,12 @@ export default function ApplicationsPage() {
             New Registration
           </Link>
         </div>
-        <div className={styles.emptyState}>
-          <div className={styles.emptyIcon}>📋</div>
-          <h3>No applications found</h3>
-          <p>
-            You haven&apos;t submitted any business registration applications to the GrayDocket registry.
-          </p>
+        <EmptyState variant="inbox" message="You haven't started any registrations yet.">
           <Link href="/dashboard/applications/new" className="btn btn-primary">
             <PlusCircle size={16} />
-            Start Registration
+            Start a registration
           </Link>
-        </div>
+        </EmptyState>
       </div>
     )
   }

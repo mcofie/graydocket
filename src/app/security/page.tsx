@@ -1,52 +1,72 @@
 import InfoPageLayout from '@/components/InfoPageLayout'
-import { ShieldCheck, Lock, Eye, Cloud } from 'lucide-react'
+import { KeyRound, Lock, UserCheck, Mail } from 'lucide-react'
+import blocks from '@/components/info-blocks.module.css'
 
+export const metadata = {
+  title: 'Security',
+  description: 'How GrayDocket protects your account and business records.',
+}
+
+// Keep every statement here true to how the product works today.
 export default function SecurityPage() {
   return (
-    <InfoPageLayout 
-      title="Security" 
-      subtitle="Enterprise-grade protection for your corporate records."
-    >
-      <section>
-        <h2>The Digital Vault</h2>
-        <p>
-          Every business on GrayDocket receives a secure Digital Vault. This is where your Certificate of Incorporation, TIN certificates, and other sensitive documents are stored.
-        </p>
-      </section>
-
-      <section>
-        <h2>Encryption Standards</h2>
-        <p>
-          All data transmitted to and from GrayDocket is encrypted using 256-bit SSL encryption. Your documents are encrypted at rest using industry-leading protocols.
-        </p>
-      </section>
-
-      <section>
-        <h2>Multi-Factor Authentication</h2>
-        <p>
-          We support and recommend Multi-Factor Authentication (MFA) for all accounts to prevent unauthorized access to your business profile.
-        </p>
-      </section>
-
-      <section>
-        <h2>Regular Audits</h2>
-        <p>
-          Our systems undergo regular security audits to ensure compliance with international and local data protection standards.
-        </p>
-      </section>
-
-      <div style={{ marginTop: '48px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-        <div style={{ padding: '24px', background: 'var(--color-neutral-50)', borderRadius: '16px' }}>
-          <Lock size={24} color="var(--color-primary-600)" />
-          <h3 style={{ marginTop: '16px', fontWeight: 700 }}>Encrypted Storage</h3>
-          <p style={{ fontSize: '14px', color: 'var(--color-neutral-500)', marginTop: '8px' }}>Your records are protected by military-grade AES-256 encryption.</p>
+    <InfoPageLayout title="Security" subtitle="How we protect your account and your business records.">
+      <div className={blocks.cards}>
+        <div className={blocks.card}>
+          <span className={blocks.cardIcon}><KeyRound size={18} /></span>
+          <h3>No passwords to steal</h3>
+          <p>You sign in with a one-time code sent to your phone.</p>
         </div>
-        <div style={{ padding: '24px', background: 'var(--color-neutral-50)', borderRadius: '16px' }}>
-          <ShieldCheck size={24} color="var(--color-primary-600)" />
-          <h3 style={{ marginTop: '16px', fontWeight: 700 }}>Access Controls</h3>
-          <p style={{ fontSize: '14px', color: 'var(--color-neutral-500)', marginTop: '8px' }}>Granular permissions ensure only authorized users see your documents.</p>
+        <div className={blocks.card}>
+          <span className={blocks.cardIcon}><Lock size={18} /></span>
+          <h3>Encrypted connections</h3>
+          <p>Everything you send to GrayDocket travels over HTTPS.</p>
+        </div>
+        <div className={blocks.card}>
+          <span className={blocks.cardIcon}><UserCheck size={18} /></span>
+          <h3>Limited access</h3>
+          <p>Only you and the team members handling your application can see it.</p>
+        </div>
+        <div className={blocks.card}>
+          <span className={blocks.cardIcon}><Mail size={18} /></span>
+          <h3>Report a concern</h3>
+          <p>Email support@graydocket.com and we’ll look into it.</p>
         </div>
       </div>
+
+      <section>
+        <h2>Signing in</h2>
+        <p>
+          GrayDocket doesn&apos;t use passwords. Each time you sign in, we text a one-time code to the phone number on your
+          account. Codes expire after a short time, so keep your phone secure and never share a code with
+          anyone, including people who say they work for GrayDocket.
+        </p>
+      </section>
+
+      <section>
+        <h2>Your data in transit and at rest</h2>
+        <p>
+          Your connection to GrayDocket is encrypted with HTTPS. Your account and application records are stored with
+          Supabase, our database provider, which encrypts stored data.
+        </p>
+      </section>
+
+      <section>
+        <h2>Who can see your applications</h2>
+        <p>
+          Your applications are visible to you and to the GrayDocket team members who process them, such as the registrar
+          assigned to your case. We share details with government agencies like the ORC only as needed to complete the
+          services you request.
+        </p>
+      </section>
+
+      <section>
+        <h2>Reporting a security issue</h2>
+        <p>
+          If you notice anything suspicious on your account, or believe you&apos;ve found a security issue, email{' '}
+          <a href="mailto:support@graydocket.com">support@graydocket.com</a>. Please include as much detail as you can.
+        </p>
+      </section>
     </InfoPageLayout>
   )
 }

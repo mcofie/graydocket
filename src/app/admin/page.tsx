@@ -11,7 +11,6 @@ import {
   CheckCircle2, 
   Banknote,
   LockKeyhole,
-  Inbox,
   ArrowRight,
   TrendingUp,
   FileText,
@@ -20,6 +19,7 @@ import {
   Zap,
   BarChart3
 } from 'lucide-react'
+import EmptyState from '@/components/ui/EmptyState'
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<any>(null)
@@ -206,10 +206,7 @@ export default function AdminDashboardPage() {
                  </Link>
                ))}
                {stats.recentApplications.length === 0 && (
-                 <div style={{ padding: '48px', textAlign: 'center', color: 'var(--color-neutral-400)' }}>
-                   <Inbox size={32} style={{ marginBottom: '12px' }} />
-                   <p>No recent activity found.</p>
-                 </div>
+                 <EmptyState variant="inbox" size="sm" message="No recent activity yet." />
                )}
              </div>
            </div>

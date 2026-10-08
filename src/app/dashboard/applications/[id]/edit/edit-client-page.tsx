@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Check, ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react'
 import { 
@@ -13,6 +14,7 @@ import {
   PersonEntry, emptyPerson, ShareholderEntry, emptyShareholder
 } from '../../new/constants'
 import PersonForm from '../../new/PersonForm'
+import NameCheck, { type NameAvailability } from '../../new/NameCheck'
 
 interface Props {
   applicationId: string
@@ -31,19 +33,9 @@ export default function EditSubmissionContent({ applicationId }: Props) {
   const [savingDraft, setSavingDraft] = useState(false)
   const [draftSavedMessage, setDraftSavedMessage] = useState('')
   const [checkingAvailability, setCheckingAvailability] = useState(false)
-  const [availabilityResult, setAvailabilityResult] = useState<{
-    available: boolean
-    matches?: Array<{ name: string; type: string }> | string[]
-    error?: string | null
-    message?: string
-  } | null>(null)
+  const [availabilityResult, setAvailabilityResult] = useState<NameAvailability | null>(null)
   const [checkingAvailabilityAlt, setCheckingAvailabilityAlt] = useState(false)
-  const [availabilityResultAlt, setAvailabilityResultAlt] = useState<{
-    available: boolean
-    matches?: Array<{ name: string; type: string }> | string[]
-    error?: string | null
-    message?: string
-  } | null>(null)
+  const [availabilityResultAlt, setAvailabilityResultAlt] = useState<NameAvailability | null>(null)
   const [retryTrigger, setRetryTrigger] = useState(0)
   const [isAutosaving, setIsAutosaving] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [initialLoaded, setInitialLoaded] = useState(false)
@@ -189,7 +181,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
       const res = await getApplicationDetails(applicationId)
       
       if (res.error) {
-         setSubmitError(`Data Load Error: ${res.error}`)
+         setSubmitError("We couldn't load this application. Please refresh the page or try again later.")
          setLoading(false)
          return
       }
@@ -266,7 +258,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
         setStep(1)
         setTimeout(() => setInitialLoaded(true), 1500)
       } else {
-        setSubmitError('Application data could not be retrieved. Please check your connection.')
+        setSubmitError("We couldn't load this application. Please check your connection and try again.")
       }
       setLoading(false)
     }
@@ -275,22 +267,11 @@ export default function EditSubmissionContent({ applicationId }: Props) {
 
 
 
-  const progressSteps = isCompany
-    ? [
-        { label: 'Business Type' },
-        { label: 'Company Info' },
-        { label: 'Directors' },
-        { label: 'Secretary & Shareholders' },
-        { label: 'Review' },
-      ]
-    : [
-        { label: 'Business Type' },
-        { label: 'Business Info' },
-        { label: 'Proprietor' },
-        { label: 'Review' },
-      ]
-
-  const lastStep = progressSteps.length - 1
+  // Steps start at 1: the business type can't be changed here
+  const stepLabels = isCompany
+    ? ['Company info', 'Directors', 'Secretary & shareholders', 'Review']
+    : ['Business info', 'Proprietor', 'Review']
+  const lastStep = stepLabels.length
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -349,7 +330,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     if (result.error) {
       setSubmitError(result.error)
     } else {
-      setDraftSavedMessage('Draft saved successfully!')
+      setDraftSavedMessage('Draft saved')
       setTimeout(() => setDraftSavedMessage(''), 3000)
     }
     setSavingDraft(false)
@@ -385,26 +366,30 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     router.push(`/dashboard/applications/${applicationId}`)
   }
 
-  if (loading) return <div className={styles.newReg}><div className="card">Loading application details...</div></div>
+  if (loading) return <div className={styles.newReg} aria-busy="true" />
 
+  const isDraft = appStatus === 'draft'
+  const typeName = businessTypes.find((t) => t.id === selectedType)?.name
+
+  // A correction note shown under the field the registrar flagged
   const renderCorrection = (path: string) => {
     const msg = corrections[path]
     if (!msg) return null
     return (
-      <div style={{ background: 'var(--color-error-light)', color: 'var(--color-error)', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, border: '1px solid var(--color-error)', marginBottom: '16px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-        <AlertCircle size={16} /> <span>REVISION REQUIRED: {msg}</span>
-      </div>
+      <p className={styles.fieldFix}>
+        <AlertCircle size={14} /> <span>{msg}</span>
+      </p>
     )
   }
 
   const hasSectionCorrection = (stepIdx: number) => {
     const keys = Object.keys(corrections)
     if (stepIdx === 1) {
-      // Step 1: Business info are keys at the top level that aren't other sections
-      return keys.some(k => 
-        !k.startsWith('proprietor.') && 
-        !k.startsWith('directors.') && 
-        !k.startsWith('secretary.') && 
+      // Business info fields are top-level keys that aren't part of another section
+      return keys.some(k =>
+        !k.startsWith('proprietor.') &&
+        !k.startsWith('directors.') &&
+        !k.startsWith('secretary.') &&
         !k.startsWith('shareholders.') &&
         k !== 'corrections'
       )
@@ -419,126 +404,97 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     return false
   }
 
-  const renderAutosaveIndicator = () => {
-    if (appStatus !== 'draft') return null
-    return (
-      <div style={{ 
-        fontSize: '12px', 
-        fontWeight: 700, 
-        color: isAutosaving === 'saving' 
-          ? 'var(--color-neutral-400)' 
-          : isAutosaving === 'saved' 
-            ? 'var(--color-success)' 
-            : 'transparent', 
-        textAlign: 'right', 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: '6px', 
-        justifyContent: 'flex-end', 
-        minHeight: '18px', 
-        transition: 'all 0.2s', 
-        marginBottom: '-18px' 
-      }}>
-        {isAutosaving === 'saving' ? (
-          <>
-            <span style={{ 
-              width: '8px', 
-              height: '8px', 
-              borderRadius: '50%', 
-              border: '1.5px solid var(--color-neutral-300)', 
-              borderTopColor: 'var(--color-primary-500)', 
-              display: 'inline-block', 
-              animation: 'spin 1s linear infinite' 
-            }} />
-            <span>Saving draft progress...</span>
-          </>
-        ) : isAutosaving === 'saved' ? (
-          <>
-            <span>✓</span>
-            <span>Draft autosaved</span>
-          </>
-        ) : null}
+  const sectionNotice = (stepIdx: number, text: string) =>
+    hasSectionCorrection(stepIdx) && (
+      <div className={styles.notice}>
+        <AlertCircle size={16} />
+        <span>{text}</span>
       </div>
     )
-  }
+
+  const saveStatus = !isDraft
+    ? null
+    : draftSavedMessage
+      ? 'Draft saved'
+      : isAutosaving === 'saving'
+        ? 'Saving…'
+        : isAutosaving === 'saved'
+          ? 'All changes saved'
+          : isAutosaving === 'error'
+            ? "Couldn't autosave"
+            : null
+
+  const nav = (onBack: (() => void) | null, next: React.ReactNode) => (
+    <div className={styles.stepNav}>
+      {onBack ? (
+        <button type="button" className="btn btn-ghost" onClick={onBack}>
+          <ArrowLeft size={16} /> Back
+        </button>
+      ) : (
+        <span />
+      )}
+      <div className={styles.navRight}>
+        {isDraft && (
+          <button type="button" className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
+            {savingDraft ? 'Saving…' : 'Save draft'}
+          </button>
+        )}
+        {next}
+      </div>
+    </div>
+  )
+
+  const reviewButtonLabel = isDraft ? 'Review and submit' : 'Review changes'
 
   return (
     <div className={styles.newReg}>
-      <div className={styles.newRegHeader}>
-        <h1>{appStatus === 'draft' ? 'Edit Application Draft' : 'Fix & Resubmit'}</h1>
-        <p>
-          {appStatus === 'draft' 
-            ? 'Complete and submit your application draft.' 
-            : 'Your application was flagged for corrections. Please update the necessary fields below.'}
+      <Link href={`/dashboard/applications/${applicationId}`} className={styles.backLink}>
+        <ArrowLeft size={16} />
+        <span>Back to application</span>
+      </Link>
+
+      <div className={styles.editIntro}>
+        <h1 className={styles.stepTitle}>{isDraft ? 'Finish your application' : 'Fix and resubmit'}</h1>
+        <p className={styles.stepDesc}>
+          {isDraft
+            ? 'Your progress saves automatically. Submit when everything is complete.'
+            : 'Our registrar flagged a few details. Update the highlighted fields, then resubmit. There is nothing extra to pay.'}
         </p>
       </div>
 
-      <style dangerouslySetInnerHTML={{__html: `
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}} />
+      {submitError && <div className={styles.submitError}>{submitError}</div>}
 
-      {draftSavedMessage && (
-        <div style={{ background: 'var(--color-success-light)', color: 'var(--color-success)', padding: '12px 16px', borderRadius: '10px', margin: '0 auto 24px auto', maxWidth: '800px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-success)', fontWeight: 600 }}>
-          <Check size={18} />
-          {draftSavedMessage}
-        </div>
-      )}
-      {submitError && (
-        <div style={{ background: 'var(--color-error-light)', color: 'var(--color-error)', padding: '12px 16px', borderRadius: '10px', margin: '0 auto 24px auto', maxWidth: '800px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-error)', fontWeight: 600 }}>
-          <AlertCircle size={18} />
-          {submitError}
-        </div>
-      )}
-
-      <div className={styles.progressBar}>
-        {progressSteps.map((ps, i) => {
-          const sectionNeedsCorrection = hasSectionCorrection(i)
+      <div className={styles.progressHead}>
+        <span className={styles.progressMeta}>
+          Step {step} of {lastStep} · <strong>{stepLabels[step - 1]}</strong>
+        </span>
+        {saveStatus && (
+          <span className={styles.saveStatus} aria-live="polite">
+            {saveStatus === 'All changes saved' || saveStatus === 'Draft saved' ? <Check size={13} /> : null}
+            {saveStatus}
+          </span>
+        )}
+      </div>
+      <div className={styles.progressTrack} aria-hidden="true">
+        {stepLabels.map((label, i) => {
+          const n = i + 1
           return (
-            <div key={i} className={styles.progressStep}>
-              <div 
-                className={`${styles.progressDot} ${i < step ? styles.completed : i === step ? styles.active : ''}`}
-                style={sectionNeedsCorrection ? { border: '2px solid var(--color-error)', color: 'var(--color-error)' } : {}}
-              >
-                {sectionNeedsCorrection ? (
-                  <AlertCircle size={14} style={{ color: 'var(--color-error)' }} />
-                ) : (
-                  i < step ? <Check size={14} /> : i + 1
-                )}
-              </div>
-              <span className={`${styles.progressLabel} ${i === step ? styles.active : ''}`} style={sectionNeedsCorrection ? { color: 'var(--color-error)' } : {}}>
-                {ps.label}
-              </span>
-              {i < progressSteps.length - 1 && (
-                <div className={`${styles.progressLine} ${i < step ? styles.completed : ''}`} />
-              )}
-            </div>
+            <div
+              key={label}
+              className={`${styles.progressSeg} ${hasSectionCorrection(n) ? styles.segFix : n < step ? styles.segDone : n === step ? styles.segActive : ''}`}
+            />
           )
         })}
       </div>
 
       {step === 1 && (
         <div className={styles.stepCard}>
-          {renderAutosaveIndicator()}
-          {hasSectionCorrection(1) && (
-            <div style={{ background: 'var(--color-error-light)', color: 'var(--color-error)', padding: '12px 16px', borderRadius: '10px', marginBottom: '24px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-error)' }}>
-              <AlertCircle size={18} />
-              <strong>This section contains fields requiring correction (see below).</strong>
-            </div>
-          )}
-          <h2 className={styles.stepTitle}>
-            {isCompany ? 'Company Information' : 'Business Information'}
-          </h2>
-          
-          {/* Business / Company Name */}
-          <div className={styles.formSectionTitle}>
-            {isCompany ? 'Proposed Company Name' : 'Proposed Business Name'}
-          </div>
+          <h2 className={styles.stepHeading}>{isCompany ? 'Company info' : 'Business info'}</h2>
+          <p className={styles.stepDesc}>Fields marked * are required.</p>
+          {sectionNotice(1, 'Some fields on this step need changes. Look for the red notes below.')}
+
           <div className={styles.formGrid}>
             <div className={`form-group ${styles.formFull}`}>
-              {renderCorrection('businessName')}
               <label className="form-label" htmlFor="businessName">
                 {isCompany ? 'Proposed Company Name *' : 'Proposed Business Name *'}
               </label>
@@ -551,407 +507,294 @@ export default function EditSubmissionContent({ applicationId }: Props) {
                 onChange={(e) => handleInputChange('businessName', e.target.value)}
                 required
               />
-
-              <style dangerouslySetInnerHTML={{__html: `
-                @keyframes spin {
-                  0% { transform: rotate(0deg); }
-                  100% { transform: rotate(360deg); }
-                }
-              `}} />
-
-              {formData.businessName.trim().length >= 3 && (
-                <div style={{ marginTop: '8px', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  {checkingAvailability && (
-                    <div style={{ color: 'var(--color-neutral-500)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ width: '12px', height: '12px', borderRadius: '50%', border: '2px solid var(--color-neutral-300)', borderTopColor: 'var(--color-primary-500)', display: 'inline-block', animation: 'spin 1s linear infinite' }} />
-                      <span>Verifying name availability in ORC registry...</span>
-                    </div>
-                  )}
-                  {!checkingAvailability && availabilityResult && (
-                    <>
-                      {availabilityResult.error === 'unreachable' ? (
-                        <div style={{ color: '#d97706', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontWeight: 800 }}>⚠</span>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {availabilityResult.message || 'ORC registry lookup offline. We will verify availability manually.'}
-                            <button 
-                              type="button" 
-                              onClick={() => setRetryTrigger(prev => prev + 1)}
-                              style={{ border: 'none', background: 'none', color: 'var(--color-primary-600)', textDecoration: 'underline', cursor: 'pointer', fontSize: '13px', fontWeight: 700, padding: 0 }}
-                            >
-                              Retry lookup
-                            </button>
-                          </span>
-                        </div>
-                      ) : availabilityResult.available ? (
-                        <div style={{ color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
-                          <span>✓</span>
-                          <span>Name is likely available (No exact/partial conflicts found in ORC).</span>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <div style={{ color: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
-                            <span>✗</span>
-                            <span>Potential conflict found in ORC registry.</span>
-                          </div>
-                          {availabilityResult.matches && availabilityResult.matches.length > 0 && (
-                            <div style={{ padding: '8px 12px', background: 'var(--color-error-light)', borderRadius: '8px', border: '1px solid var(--color-error-light)', color: 'var(--color-neutral-800)', fontSize: '12px' }}>
-                              <strong style={{ display: 'block', marginBottom: '4px', color: 'var(--color-error)' }}>Conflicting registrations:</strong>
-                              <ul style={{ listStyleType: 'disc', paddingLeft: '16px', margin: 0 }}>
-                                {availabilityResult.matches.map((m: any) => (
-                                  <li key={typeof m === 'string' ? m : m.name} style={{ fontWeight: 600 }}>
-                                    {typeof m === 'string' ? m : `${m.name} (${m.type})`}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
+              {renderCorrection('businessName')}
+              <NameCheck
+                checking={checkingAvailability}
+                result={formData.businessName.trim().length >= 3 ? availabilityResult : null}
+                onRetry={() => setRetryTrigger((prev) => prev + 1)}
+              />
             </div>
             <div className={`form-group ${styles.formFull}`}>
-              {renderCorrection('businessNameAlt')}
               <label className="form-label" htmlFor="businessNameAlt">Alternative Name (optional)</label>
               <input id="businessNameAlt" type="text" className="form-input" placeholder="Backup name if first choice is unavailable" value={formData.businessNameAlt} onChange={(e) => handleInputChange('businessNameAlt', e.target.value)} />
-              
-              {formData.businessNameAlt.trim().length >= 3 && (
-                <div style={{ marginTop: '8px', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  {checkingAvailabilityAlt && (
-                    <div style={{ color: 'var(--color-neutral-500)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ width: '12px', height: '12px', borderRadius: '50%', border: '2px solid var(--color-neutral-300)', borderTopColor: 'var(--color-primary-500)', display: 'inline-block', animation: 'spin 1s linear infinite' }} />
-                      <span>Verifying name availability in ORC registry...</span>
-                    </div>
-                  )}
-                  {!checkingAvailabilityAlt && availabilityResultAlt && (
-                    <>
-                      {availabilityResultAlt.error === 'unreachable' ? (
-                        <div style={{ color: '#d97706', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontWeight: 800 }}>⚠</span>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {availabilityResultAlt.message || 'ORC registry lookup offline. We will verify availability manually.'}
-                            <button 
-                              type="button" 
-                              onClick={() => setRetryTrigger(prev => prev + 1)}
-                              style={{ border: 'none', background: 'none', color: 'var(--color-primary-600)', textDecoration: 'underline', cursor: 'pointer', fontSize: '13px', fontWeight: 700, padding: 0 }}
-                            >
-                              Retry lookup
-                            </button>
-                          </span>
-                        </div>
-                      ) : availabilityResultAlt.available ? (
-                        <div style={{ color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
-                          <span>✓</span>
-                          <span>Name is likely available (No exact/partial conflicts found in ORC).</span>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <div style={{ color: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
-                            <span>✗</span>
-                            <span>Potential conflict found in ORC registry.</span>
-                          </div>
-                          {availabilityResultAlt.matches && availabilityResultAlt.matches.length > 0 && (
-                            <div style={{ padding: '8px 12px', background: 'var(--color-error-light)', borderRadius: '8px', border: '1px solid var(--color-error-light)', color: 'var(--color-neutral-800)', fontSize: '12px' }}>
-                              <strong style={{ display: 'block', marginBottom: '4px', color: 'var(--color-error)' }}>Conflicting registrations:</strong>
-                              <ul style={{ listStyleType: 'disc', paddingLeft: '16px', margin: 0 }}>
-                                {availabilityResultAlt.matches.map((m: any) => (
-                                  <li key={typeof m === 'string' ? m : m.name} style={{ fontWeight: 600 }}>
-                                    {typeof m === 'string' ? m : `${m.name} (${m.type})`}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
+              {renderCorrection('businessNameAlt')}
+              <NameCheck
+                checking={checkingAvailabilityAlt}
+                result={formData.businessNameAlt.trim().length >= 3 ? availabilityResultAlt : null}
+                onRetry={() => setRetryTrigger((prev) => prev + 1)}
+              />
             </div>
           </div>
 
-          {/* Nature of Business */}
           <div className={styles.formSectionTitle}>Nature of Business</div>
           <div className={styles.formGrid}>
-            <div className="form-group">
-              {renderCorrection('businessSector')}
+            <div className={`form-group ${formData.businessSector === 'Other (specify below)' ? '' : styles.formFull}`}>
               <label className="form-label" htmlFor="businessSector">Business Sector *</label>
               <select id="businessSector" className="form-input" value={formData.businessSector} onChange={(e) => handleInputChange('businessSector', e.target.value)} required>
                 <option value="">Select sector</option>
                 {businessSectors.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
+              {renderCorrection('businessSector')}
             </div>
             {formData.businessSector === 'Other (specify below)' && (
               <div className="form-group">
-                {renderCorrection('businessSectorOther')}
                 <label className="form-label" htmlFor="businessSectorOther">Specify Sector</label>
                 <input id="businessSectorOther" type="text" className="form-input" placeholder="Describe your sector" value={formData.businessSectorOther} onChange={(e) => handleInputChange('businessSectorOther', e.target.value)} />
+                {renderCorrection('businessSectorOther')}
               </div>
             )}
-            <div className={`form-group ${formData.businessSector === 'Other (specify below)' ? '' : styles.formFull}`}>
-              {renderCorrection('natureOfBusiness')}
+            <div className={`form-group ${styles.formFull}`}>
               <label className="form-label" htmlFor="natureOfBusiness">
                 {isCompany ? 'Objects of the Company / Description of Activities *' : 'Description of Business Activities *'}
               </label>
-              <textarea id="natureOfBusiness" className="form-input" placeholder="Describe the specific activities and services..." rows={3} value={formData.natureOfBusiness} onChange={(e) => handleInputChange('natureOfBusiness', e.target.value)} required style={{ resize: 'vertical' }} />
+              <textarea id="natureOfBusiness" className="form-input" placeholder="Describe the specific activities and services..." rows={3} value={formData.natureOfBusiness} onChange={(e) => handleInputChange('natureOfBusiness', e.target.value)} required />
+              {renderCorrection('natureOfBusiness')}
             </div>
             <div className="form-group">
-              {renderCorrection('dateOfCommencement')}
               <label className="form-label" htmlFor="dateOfCommencement">Date of Commencement *</label>
               <input id="dateOfCommencement" type="date" className="form-input" value={formData.dateOfCommencement} onChange={(e) => handleInputChange('dateOfCommencement', e.target.value)} required />
+              {renderCorrection('dateOfCommencement')}
             </div>
           </div>
 
-          {/* Company-specific: Constitution */}
           {isCompany && (
             <>
               <div className={styles.formSectionTitle}>Company Constitution</div>
-              <div className={styles.formGrid}>
-                <div className={`form-group ${styles.formFull}`}>
-                  <label className="form-label">Constitution Type *</label>
-                  <div className={styles.radioGroup}>
-                    <label className={styles.radioLabel}>
-                      <input type="radio" name="constitution" value="standard" checked={companyDetails.constitutionType === 'standard'} onChange={(e) => handleCompanyDetailChange('constitutionType', e.target.value)} />
-                      <span>Standard Constitution (Schedule 2, Act 992)</span>
-                    </label>
-                    <label className={styles.radioLabel}>
-                      <input type="radio" name="constitution" value="custom" checked={companyDetails.constitutionType === 'custom'} onChange={(e) => handleCompanyDetailChange('constitutionType', e.target.value)} />
-                      <span>Custom / Registered Constitution</span>
-                    </label>
-                  </div>
-                </div>
+              <div className={styles.radioGroup}>
+                <label className={styles.radioLabel}>
+                  <input type="radio" name="constitution" value="standard" checked={companyDetails.constitutionType === 'standard'} onChange={(e) => handleCompanyDetailChange('constitutionType', e.target.value)} />
+                  <span>Standard Constitution (Schedule 2, Act 992)</span>
+                </label>
+                <label className={styles.radioLabel}>
+                  <input type="radio" name="constitution" value="custom" checked={companyDetails.constitutionType === 'custom'} onChange={(e) => handleCompanyDetailChange('constitutionType', e.target.value)} />
+                  <span>Custom / Registered Constitution</span>
+                </label>
               </div>
             </>
           )}
 
-          {/* Registered Office Address */}
           <div className={styles.formSectionTitle}>
-            {isCompany ? 'Registered Office Address' : 'Principal Place of Business / Registered Office'}
+            {isCompany ? 'Registered Office Address' : 'Principal Place of Business'}
           </div>
           <div className={styles.formGrid}>
             <div className="form-group">
-              {renderCorrection('buildingName')}
               <label className="form-label" htmlFor="buildingName">House / Building / Flat *</label>
               <input id="buildingName" type="text" className="form-input" placeholder="e.g., Suite 5, Osu Ventures Building" value={formData.buildingName} onChange={(e) => handleInputChange('buildingName', e.target.value)} required />
+              {renderCorrection('buildingName')}
             </div>
             <div className="form-group">
-              {renderCorrection('streetName')}
               <label className="form-label" htmlFor="streetName">Street Name *</label>
               <input id="streetName" type="text" className="form-input" placeholder="e.g., Oxford Street" value={formData.streetName} onChange={(e) => handleInputChange('streetName', e.target.value)} required />
+              {renderCorrection('streetName')}
             </div>
             <div className="form-group">
-              {renderCorrection('city')}
               <label className="form-label" htmlFor="city">City / Town *</label>
               <input id="city" type="text" className="form-input" placeholder="e.g., Accra" value={formData.city} onChange={(e) => handleInputChange('city', e.target.value)} required />
+              {renderCorrection('city')}
             </div>
             <div className="form-group">
-              {renderCorrection('district')}
               <label className="form-label" htmlFor="district">District *</label>
               <input id="district" type="text" className="form-input" placeholder="e.g., Accra Metropolitan" value={formData.district} onChange={(e) => handleInputChange('district', e.target.value)} required />
+              {renderCorrection('district')}
             </div>
             <div className="form-group">
-              {renderCorrection('region')}
               <label className="form-label" htmlFor="region">Region *</label>
               <select id="region" className="form-input" value={formData.region} onChange={(e) => handleInputChange('region', e.target.value)} required>
                 <option value="">Select region</option>
                 {ghanaRegions.map((r) => <option key={r} value={r}>{r}</option>)}
               </select>
+              {renderCorrection('region')}
             </div>
             <div className="form-group">
-              {renderCorrection('digitalAddress')}
               <label className="form-label" htmlFor="digitalAddress">Digital Address *</label>
               <input id="digitalAddress" type="text" className="form-input" placeholder="e.g., GA-XXX-XXXX" value={formData.digitalAddress} onChange={(e) => handleInputChange('digitalAddress', e.target.value)} required />
+              {renderCorrection('digitalAddress')}
             </div>
             <div className={`form-group ${styles.formFull}`}>
-              {renderCorrection('postalAddress')}
               <label className="form-label" htmlFor="postalAddress">Postal Address</label>
               <input id="postalAddress" type="text" className="form-input" placeholder="P.O. Box, PMB, or DTD" value={formData.postalAddress} onChange={(e) => handleInputChange('postalAddress', e.target.value)} />
+              {renderCorrection('postalAddress')}
             </div>
           </div>
 
-          {/* Contact Information */}
           <div className={styles.formSectionTitle}>Contact Information</div>
           <div className={styles.formGrid}>
             <div className="form-group">
-              {renderCorrection('mobilePhone')}
               <label className="form-label" htmlFor="mobilePhone">Mobile Phone *</label>
               <input id="mobilePhone" type="tel" className="form-input" placeholder="+233 XXX XXX XXX" value={formData.mobilePhone} onChange={(e) => handleInputChange('mobilePhone', e.target.value)} required />
+              {renderCorrection('mobilePhone')}
             </div>
             <div className="form-group">
-              {renderCorrection('alternatePhone')}
               <label className="form-label" htmlFor="alternatePhone">Alternate Phone</label>
               <input id="alternatePhone" type="tel" className="form-input" placeholder="+233 XXX XXX XXX" value={formData.alternatePhone} onChange={(e) => handleInputChange('alternatePhone', e.target.value)} />
+              {renderCorrection('alternatePhone')}
             </div>
             <div className={`form-group ${styles.formFull}`}>
-              {renderCorrection('email')}
               <label className="form-label" htmlFor="contactEmail">Email *</label>
               <input id="contactEmail" type="email" className="form-input" placeholder="company@example.com" value={formData.email} onChange={(e) => handleInputChange('email', e.target.value)} required />
+              {renderCorrection('email')}
             </div>
           </div>
 
-          <div className={styles.stepNav}>
-            {appStatus === 'draft' && (
-              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
-                {savingDraft ? 'Saving...' : 'Save Draft'}
-              </button>
-            )}
-            <button className="btn btn-primary" onClick={() => setStep(2)}>
+          {nav(null, (
+            <button type="button" className="btn btn-primary" onClick={() => setStep(2)}>
               Continue <ArrowRight size={16} />
             </button>
-          </div>
+          ))}
         </div>
       )}
 
       {step === 2 && !isCompany && (
         <div className={styles.stepCard}>
-          {renderAutosaveIndicator()}
-          {hasSectionCorrection(2) && (
-            <div style={{ background: 'var(--color-error-light)', color: 'var(--color-error)', padding: '12px 16px', borderRadius: '10px', marginBottom: '24px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-error)' }}>
-              <AlertCircle size={18} />
-              <strong>Requested corrections for the Proprietor are shown below.</strong>
-            </div>
-          )}
-          <h2 className={styles.stepTitle}>Proprietor Details</h2>
+          <h2 className={styles.stepHeading}>Proprietor</h2>
+          <p className={styles.stepDesc}>The business owner&apos;s details, as on ORC Form A.</p>
+          {sectionNotice(2, 'Some proprietor details need changes.')}
           {renderCorrection('proprietor.ghanaCardNumber')}
           <PersonForm person={proprietor} onChange={handleProprietorChange} prefix="prop" title="Proprietor" />
-          <div className={styles.stepNav}>
-            <button className="btn btn-ghost" onClick={() => setStep(1)}><ArrowLeft size={16} /> Back</button>
-            {appStatus === 'draft' && (
-              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
-                {savingDraft ? 'Saving...' : 'Save Draft'}
-              </button>
-            )}
-            <button className="btn btn-primary" onClick={() => setStep(lastStep)}>
-              {appStatus === 'draft' ? 'Review & Submit' : 'Review & Resubmit'}
+          {nav(() => setStep(1), (
+            <button type="button" className="btn btn-primary" onClick={() => setStep(lastStep)}>
+              {reviewButtonLabel} <ArrowRight size={16} />
             </button>
-          </div>
+          ))}
         </div>
       )}
 
       {step === 2 && isCompany && (
         <div className={styles.stepCard}>
-          {renderAutosaveIndicator()}
-          {hasSectionCorrection(2) && (
-            <div style={{ background: 'var(--color-error-light)', color: 'var(--color-error)', padding: '12px 16px', borderRadius: '10px', marginBottom: '24px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-error)' }}>
-              <AlertCircle size={18} />
-              <strong>One or more Directors require corrections.</strong>
-            </div>
-          )}
-          <h2 className={styles.stepTitle}>Directors</h2>
+          <h2 className={styles.stepHeading}>Directors</h2>
+          <p className={styles.stepDesc}>At least two directors, one of whom lives in Ghana.</p>
+          {sectionNotice(2, 'One or more directors need changes.')}
           {directors.map((director, i) => (
-            <div key={i} style={{ marginBottom: 'var(--space-8)' }}>
+            <div key={i} className={styles.personBlock}>
               {renderCorrection(`directors.${i}.ghanaCardNumber`)}
-              <PersonForm 
-                person={director} 
-                onChange={(f, v) => handleDirectorChange(i, f, v)} 
-                prefix={`dir-${i}`} 
-                title={`Director ${i + 1}`} 
+              <PersonForm
+                person={director}
+                onChange={(f, v) => handleDirectorChange(i, f, v)}
+                prefix={`dir-${i}`}
+                title={`Director ${i + 1}`}
               />
             </div>
           ))}
-          <div className={styles.stepNav}>
-            <button className="btn btn-ghost" onClick={() => setStep(1)}><ArrowLeft size={16} /> Back</button>
-            {appStatus === 'draft' && (
-              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
-                {savingDraft ? 'Saving...' : 'Save Draft'}
-              </button>
-            )}
-            <button className="btn btn-primary" onClick={() => setStep(3)}>Continue <ArrowRight size={16} /></button>
-          </div>
+          {nav(() => setStep(1), (
+            <button type="button" className="btn btn-primary" onClick={() => setStep(3)}>
+              Continue <ArrowRight size={16} />
+            </button>
+          ))}
         </div>
       )}
 
       {step === 3 && isCompany && (
         <div className={styles.stepCard}>
-          {renderAutosaveIndicator()}
-          {hasSectionCorrection(3) && (
-            <div style={{ background: 'var(--color-error-light)', color: 'var(--color-error)', padding: '12px 16px', borderRadius: '10px', marginBottom: '24px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--color-error)' }}>
-              <AlertCircle size={18} />
-              <strong>Corrections required for Secretary or Shareholders.</strong>
-            </div>
-          )}
-          <h2 className={styles.stepTitle}>Secretary & Shareholders</h2>
-          
-          <div style={{ marginBottom: 'var(--space-8)' }}>
-            <h3 className={styles.formSectionTitle}>Secretary</h3>
+          <h2 className={styles.stepHeading}>Secretary and shareholders</h2>
+          <p className={styles.stepDesc}>Your company secretary and who owns the shares.</p>
+          {sectionNotice(3, 'The secretary or shareholder details need changes.')}
+
+          <div className={styles.personBlock}>
             {renderCorrection('secretary.ghanaCardNumber')}
             <PersonForm person={secretary} onChange={handleSecretaryChange} prefix="sec" title="Company Secretary" />
           </div>
 
-          <div style={{ marginBottom: 'var(--space-8)' }}>
-            <h3 className={styles.formSectionTitle}>Shareholders</h3>
-            {shareholders.map((sh, i) => (
-              <div key={i} style={{ marginBottom: 'var(--space-4)', padding: 'var(--space-4)', background: 'var(--color-neutral-50)', borderRadius: '12px' }}>
+          <div className={styles.formSectionTitle}>Shareholders</div>
+          {shareholders.map((sh, i) => (
+            <div key={i} className={styles.shareholderBlock}>
+              <div className={styles.formGrid}>
                 <div className="form-group">
+                  <label className="form-label" htmlFor={`sh-${i}-name`}>Shareholder {i + 1} name</label>
+                  <input id={`sh-${i}-name`} className="form-input" value={sh.name} onChange={(e) => handleShareholderChange(i, 'name', e.target.value)} />
                   {renderCorrection(`shareholders.${i}.name`)}
-                  <label className="form-label">Shareholder Name</label>
-                  <input className="form-input" value={sh.name} onChange={(e) => handleShareholderChange(i, 'name', e.target.value)} />
                 </div>
                 <div className="form-group">
+                  <label className="form-label" htmlFor={`sh-${i}-shares`}>Number of shares</label>
+                  <input id={`sh-${i}-shares`} className="form-input" type="number" value={sh.numberOfShares} onChange={(e) => handleShareholderChange(i, 'numberOfShares', e.target.value)} />
                   {renderCorrection(`shareholders.${i}.numberOfShares`)}
-                  <label className="form-label">Number of Shares</label>
-                  <input className="form-input" type="number" value={sh.numberOfShares} onChange={(e) => handleShareholderChange(i, 'numberOfShares', e.target.value)} />
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
 
-          <div className={styles.stepNav}>
-            <button className="btn btn-ghost" onClick={() => setStep(2)}><ArrowLeft size={16} /> Back</button>
-            {appStatus === 'draft' && (
-              <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
-                {savingDraft ? 'Saving...' : 'Save Draft'}
-              </button>
-            )}
-            <button className="btn btn-primary" onClick={() => setStep(lastStep)}>
-              {appStatus === 'draft' ? 'Review & Submit' : 'Review & Resubmit'}
+          {nav(() => setStep(2), (
+            <button type="button" className="btn btn-primary" onClick={() => setStep(lastStep)}>
+              {reviewButtonLabel} <ArrowRight size={16} />
             </button>
-          </div>
+          ))}
         </div>
       )}
 
       {step === lastStep && (
         <div className={styles.stepCard}>
-          {renderAutosaveIndicator()}
-          <h2 className={styles.stepTitle}>Final Review</h2>
-          <p>Check everything again before resubmitting. No additional payment is required for corrections.</p>
-          
+          <h2 className={styles.stepHeading}>{isDraft ? 'Review and submit' : 'Review your changes'}</h2>
+          <p className={styles.stepDesc}>
+            {isDraft
+              ? 'Check everything before you submit. You can go back to change any step.'
+              : 'Check everything before you resubmit. There is nothing extra to pay for corrections.'}
+          </p>
+
           <div className={styles.reviewSection}>
-            <h3 className={styles.formSectionTitle}>Resubmission Summary</h3>
+            <h3>Business</h3>
             <div className={styles.reviewRow}>
-              <span className={styles.reviewLabel}>Business Name</span>
-              <span className={styles.reviewValue}>{formData.businessName}</span>
+              <span className={styles.reviewLabel}>Name</span>
+              <span className={styles.reviewValue}>{formData.businessName || '—'}</span>
             </div>
+            {formData.businessNameAlt && (
+              <div className={styles.reviewRow}>
+                <span className={styles.reviewLabel}>Alternative name</span>
+                <span className={styles.reviewValue}>{formData.businessNameAlt}</span>
+              </div>
+            )}
             <div className={styles.reviewRow}>
               <span className={styles.reviewLabel}>Type</span>
-              <span className={styles.reviewValue}>{selectedType?.replace(/_/g, ' ').toUpperCase()}</span>
+              <span className={styles.reviewValue}>{typeName || '—'}</span>
+            </div>
+            <div className={styles.reviewRow}>
+              <span className={styles.reviewLabel}>Office</span>
+              <span className={styles.reviewValue}>
+                {[formData.buildingName, formData.streetName, formData.city, formData.region].filter(Boolean).join(', ') || '—'}
+              </span>
+            </div>
+            <div className={styles.reviewRow}>
+              <span className={styles.reviewLabel}>Contact</span>
+              <span className={styles.reviewValue}>{[formData.mobilePhone, formData.email].filter(Boolean).join(' · ') || '—'}</span>
             </div>
           </div>
 
-          <div className={styles.stepNav}>
-             <button className="btn btn-ghost" onClick={() => setStep(step - 1)}><ArrowLeft size={16} /> Back</button>
-             {appStatus === 'draft' && (
-               <button className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
-                 {savingDraft ? 'Saving...' : 'Save Draft'}
-               </button>
-             )}
-             <button className="btn btn-primary btn-lg" onClick={handleSubmit} disabled={submitting}>
-                {submitting 
-                  ? (appStatus === 'draft' ? 'Submitting...' : 'Resubmitting...') 
-                  : (appStatus === 'draft' ? 'Submit Application' : 'Submit Corrections')}
-             </button>
+          <div className={styles.reviewSection}>
+            <h3>People</h3>
+            {isCompany ? (
+              <>
+                <div className={styles.reviewRow}>
+                  <span className={styles.reviewLabel}>Directors</span>
+                  <span className={styles.reviewValue}>
+                    {directors.map((d) => [d.firstName, d.surname].filter(Boolean).join(' ')).filter(Boolean).join(', ') || '—'}
+                  </span>
+                </div>
+                <div className={styles.reviewRow}>
+                  <span className={styles.reviewLabel}>Secretary</span>
+                  <span className={styles.reviewValue}>{[secretary.firstName, secretary.surname].filter(Boolean).join(' ') || '—'}</span>
+                </div>
+                <div className={styles.reviewRow}>
+                  <span className={styles.reviewLabel}>Shareholders</span>
+                  <span className={styles.reviewValue}>
+                    {shareholders.map((sh) => sh.name && `${sh.name}${sh.numberOfShares ? ` (${sh.numberOfShares})` : ''}`).filter(Boolean).join(', ') || '—'}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className={styles.reviewRow}>
+                <span className={styles.reviewLabel}>Proprietor</span>
+                <span className={styles.reviewValue}>{[proprietor.firstName, proprietor.surname].filter(Boolean).join(' ') || '—'}</span>
+              </div>
+            )}
           </div>
+
+          {nav(() => setStep(step - 1), (
+            <button type="button" className="btn btn-primary btn-lg" onClick={handleSubmit} disabled={submitting}>
+              {submitting
+                ? (isDraft ? 'Submitting…' : 'Resubmitting…')
+                : (isDraft ? 'Submit application' : 'Resubmit application')}
+            </button>
+          ))}
         </div>
       )}
-
-      <style jsx global>{`
-        .form-label { font-weight: 700; color: var(--color-neutral-700); }
-        .form-input { margin-bottom: 20px; }
-      `}</style>
     </div>
   )
 }

@@ -26,7 +26,7 @@ export default function PartnershipPage() {
       <div style={{ marginTop: '64px', padding: '40px', background: 'var(--color-neutral-50)', borderRadius: '24px', border: '1px solid var(--color-neutral-200)', textAlign: 'center' }}>
         <h3 style={{ fontSize: '24px', fontWeight: 800, marginBottom: '16px' }}>Register your partnership.</h3>
         <p style={{ marginBottom: '32px', color: 'var(--color-neutral-600)' }}>Legalize your business partnership in just a few days.</p>
-        <Link href="/auth/register" className="btn btn-primary btn-lg">Get Started</Link>
+        <Link href="/auth/register" className="btn btn-primary btn-lg">Start my business</Link>
       </div>
     </InfoPageLayout>
   )

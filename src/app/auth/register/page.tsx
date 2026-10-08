@@ -1,14 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { sendZendOtp, verifyZendOtp, checkPhoneExists } from '../zendActions'
 import styles from '../auth.module.css'
+import Header from '@/components/Header'
 import PhoneInput from '@/components/ui/PhoneInput'
 
-export default function RegisterPage() {
+function RegisterContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // Only follow same-site paths so the redirect param can't send users off-site
+  const redirectParam = searchParams.get('redirect')
+  const redirectTo = redirectParam?.startsWith('/') && !redirectParam.startsWith('//') ? redirectParam : null
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -57,7 +62,7 @@ export default function RegisterPage() {
     try {
       const res = await verifyZendOtp(otpId, otp, phone, fullName, email)
       if (res.success) {
-        router.push('/dashboard')
+        router.push(redirectTo || '/dashboard')
         router.refresh()
       } else {
         setError(res.message || 'Invalid verification code')
@@ -71,19 +76,15 @@ export default function RegisterPage() {
 
   return (
     <div className={styles.authPage}>
+      <Header />
       <div className={styles.authLeft}>
         <div className={styles.authCard}>
-          <Link href="/" className={styles.authLogo}>
-            <span className={styles.authLogoIcon}>G</span>
-            <span>GrayDocket</span>
-          </Link>
-
           <h1 className={styles.authTitle}>
-            {step === 'phone' ? 'Launch Your Business' : 'Verify Your Identity'}
+            {step === 'phone' ? 'Start your business' : 'Verify Your Identity'}
           </h1>
           <p className={styles.authSubtitle}>
             {step === 'phone' 
-              ? 'Complete your details to get started' 
+              ? 'Create your account. We’ll take care of the paperwork from here.' 
               : `We've sent a 6-digit code to ${phone}`}
           </p>
 
@@ -173,27 +174,29 @@ export default function RegisterPage() {
                 {loading ? 'Verifying...' : 'Complete Registration'}
               </button>
               
-              <button 
-                type="button" 
-                onClick={() => setStep('phone')}
-                className="btn btn-secondary btn-sm"
-                style={{ marginTop: '12px', width: '100%', background: 'transparent' }}
-              >
-                Change Phone Number
+              <button type="button" onClick={() => setStep('phone')} className={styles.authTextBtn}>
+                Change phone number
               </button>
             </form>
           )}
 
 
           <div className={styles.authFooter}>
-            Already have an account? <Link href="/auth/login">Sign in</Link>
-            <br />
-            <span style={{ fontSize: '11px', display: 'block', marginTop: '24px', color: 'var(--color-neutral-400)', textAlign: 'center' }}>
+            Already have an account? <Link href={redirectTo ? `/auth/login?redirect=${encodeURIComponent(redirectTo)}` : '/auth/login'}>Sign in</Link>
+            <span className={styles.authLegal}>
               GrayDocket is an administrative automation platform and does not provide legal advice. By continuing, you agree to our <Link href="/terms">Terms</Link> and <Link href="/privacy">Privacy Policy</Link>.
             </span>
           </div>
         </div>
       </div>
     </div>
+  )
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterContent />
+    </Suspense>
   )
 }

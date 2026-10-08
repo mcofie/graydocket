@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { getAdminAffiliates, updateAffiliateCommissionStatus } from '@/lib/actions'
 import styles from '../../dashboard/overview.module.css'
+import EmptyState from '@/components/ui/EmptyState'
 
 type CommissionRow = {
   id: string
@@ -68,11 +69,7 @@ export default function AdminAffiliatesPage() {
       </div>
 
       {affiliates.length === 0 ? (
-        <div className={styles.emptyState}>
-          <div className={styles.emptyIcon}>🤝</div>
-          <h3>No affiliate partners yet</h3>
-          <p>Promote users to affiliates via the Users tab.</p>
-        </div>
+        <EmptyState variant="people" message="No affiliate partners yet. Promote a user from the Users tab." />
       ) : (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>

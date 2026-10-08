@@ -1,24 +1,35 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+const familyFont = localFont({
+  // Only the display headings use this face, all at weight 500
+  src: [
+    {
+      path: "../fonts/Family-Medium.woff2",
+      weight: "500",
+      style: "normal",
+    },
+  ],
+  variable: "--font-family",
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+// Body text is Inter; the Family face is reserved for display headings (via --font-display)
+const interFont = Inter({
   subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
   title: {
-    default: "GrayDocket — Business Formation Made Simple | Ghana",
+    default: "GrayDocket — Start your business in Ghana. We handle the paperwork.",
     template: "%s | GrayDocket",
   },
   description:
-    "Automate your company incorporation, tax registration, and business bank account setup in Ghana. Start your business in 15 minutes with GrayDocket.",
+    "GrayDocket makes it easy for anyone to start a business in Ghana. We register it with the ORC and keep it compliant, so you can focus on running your business and getting it off the ground.",
   keywords: [
     "business registration Ghana",
     "company incorporation Ghana",
@@ -30,18 +41,18 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "GrayDocket" }],
   openGraph: {
-    title: "GrayDocket — Business Formation Made Simple",
+    title: "GrayDocket — Start your business. We handle the paperwork.",
     description:
-      "Automate your company incorporation, tax registration, and business bank account setup in Ghana.",
+      "Anyone can start a business in Ghana with GrayDocket. We handle registration and compliance, so you can focus on the business.",
     type: "website",
     locale: "en_GH",
     siteName: "GrayDocket",
   },
   twitter: {
     card: "summary_large_image",
-    title: "GrayDocket — Business Formation Made Simple",
+    title: "GrayDocket — Start your business. We handle the paperwork.",
     description:
-      "Start your business in Ghana in 15 minutes. Company incorporation, tax registration, and bank account setup — all automated.",
+      "Start your business in Ghana in about 15 minutes. We handle the registration and keep you compliant after.",
   },
 };
 
@@ -62,13 +73,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" className={`${interFont.variable} ${familyFont.variable} ${interFont.className}`}>
       <body suppressHydrationWarning>
+        {/* These read search params, so they get their own boundary; wrapping {children}
+            would make every page skip server rendering in production. */}
         <Suspense fallback={null}>
           <PageLoaderBar />
           <ReferralTracker />
-          {children}
         </Suspense>
+        {children}
       </body>
     </html>
   );

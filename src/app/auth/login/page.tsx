@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { sendZendOtp, verifyZendOtp } from '../zendActions'
 import styles from '../auth.module.css'
+import Header from '@/components/Header'
 
 import PhoneInput from '@/components/ui/PhoneInput'
 
@@ -53,7 +54,9 @@ function LoginContent() {
     try {
       const res = await verifyZendOtp(otpId, code, phone)
       if (res.success) {
-        const redirectTo = searchParams.get('redirect')
+        // Only follow same-site paths so a crafted link can't send users off-site after login
+        const redirectParam = searchParams.get('redirect')
+        const redirectTo = redirectParam?.startsWith('/') && !redirectParam.startsWith('//') ? redirectParam : null
         router.push(redirectTo || '/dashboard')
         router.refresh()
       } else {
@@ -68,13 +71,9 @@ function LoginContent() {
 
   return (
     <div className={styles.authPage}>
+      <Header />
       <div className={styles.authLeft}>
         <div className={styles.authCard}>
-          <Link href="/" className={styles.authLogo}>
-            <span className={styles.authLogoIcon}>G</span>
-            <span>GrayDocket</span>
-          </Link>
-
           <h1 className={styles.authTitle}>Welcome back</h1>
           <p className={styles.authSubtitle}>
             Sign in with your mobile number
@@ -100,7 +99,7 @@ function LoginContent() {
                <form onSubmit={handleVerifyOtp} className={styles.authForm}>
                 <div className="form-group">
                   <label className="form-label" htmlFor="code">Enter Verification Code</label>
-                  <p style={{fontSize: '13px', color: 'var(--color-neutral-500)', marginBottom: '8px'}}>We sent a code to {phone}</p>
+                  <p className={styles.authNote}>We sent a code to {phone}</p>
                   <input
                     id="code"
                     type="text"
@@ -116,11 +115,9 @@ function LoginContent() {
                 <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
                   {loading ? 'Verifying...' : 'Verify & Sign In'}
                 </button>
-                <div style={{ textAlign: 'center', marginTop: '16px' }}>
-                  <button type="button" onClick={() => setOtpSent(false)} style={{ background: 'none', border: 'none', color: 'var(--color-primary-600)', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}>
-                    Change phone number
-                  </button>
-                </div>
+                <button type="button" onClick={() => setOtpSent(false)} className={styles.authTextBtn}>
+                  Change phone number
+                </button>
               </form>
             )
           }
@@ -128,8 +125,8 @@ function LoginContent() {
 
           <div className={styles.authFooter}>
             Don&apos;t have an account?{' '}
-            <Link href="/auth/register">Create one</Link>
-            <span style={{ fontSize: '11px', display: 'block', marginTop: '24px', color: 'var(--color-neutral-400)', textAlign: 'center' }}>
+            <Link href={searchParams.get('redirect') ? `/auth/register?redirect=${encodeURIComponent(searchParams.get('redirect')!)}` : '/auth/register'}>Create one</Link>
+            <span className={styles.authLegal}>
               GrayDocket is an administrative automation platform and does not provide legal advice.
             </span>
           </div>
@@ -141,7 +138,7 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className={styles.authPage}>Loading...</div>}>
+    <Suspense fallback={null}>
       <LoginContent />
     </Suspense>
   )

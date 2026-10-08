@@ -1,172 +1,121 @@
-'use client'
-
-import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
-import { Search, CheckCircle2, ArrowRight, Activity, Calendar, ArrowLeft } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { getTrackingStatus } from '@/lib/actions'
 import styles from '../track.module.css'
 
-type TrackingHistoryEntry = {
-  id?: string
-  status: string
-  notes?: string | null
-  created_at: string
+type Tone = 'neutral' | 'blue' | 'amber' | 'green' | 'red'
+
+const statusMap: Record<string, { tone: Tone; label: string }> = {
+  draft: { tone: 'neutral', label: 'Draft' },
+  submitted: { tone: 'blue', label: 'Submitted' },
+  name_search: { tone: 'amber', label: 'Name search' },
+  under_review: { tone: 'amber', label: 'Under review' },
+  on_hold: { tone: 'amber', label: 'On hold' },
+  approved: { tone: 'green', label: 'Approved' },
+  completed: { tone: 'green', label: 'Registered' },
+  delivered: { tone: 'green', label: 'Delivered' },
+  rejected: { tone: 'red', label: 'Action required' },
+  cancelled: { tone: 'neutral', label: 'Cancelled' },
 }
 
-type TrackingApplication = {
-  business_name: string
-  status: string
-  created_at: string
-  business_types?: {
-    name?: string | null
-  } | null
-}
+const statusLabel = (status: string) =>
+  statusMap[status]?.label ?? status.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
+
+const formatDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 
 type TrackingResult = {
-  application: TrackingApplication
-  history?: TrackingHistoryEntry[]
-  error?: string | null
+  application?: {
+    business_name: string
+    status: string
+    created_at: string
+    business_types?: { name?: string | null } | { name?: string | null }[] | null
+  }
+  history?: Array<{ status: string; notes?: string | null; created_at: string }>
+  error?: string
 }
 
-export default function DynamicTrackPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params)
-  const idFromUrl = resolvedParams.id
-  
-  const [data, setData] = useState<TrackingResult | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  return { title: `Track ${decodeURIComponent(id).toUpperCase()}` }
+}
 
-  const fetchStatus = async (id: string) => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await getTrackingStatus(id.toUpperCase())
-      if (res.error) {
-        setError(res.error)
-        setData(null)
-      } else {
-        setData(res as TrackingResult)
-      }
-    } catch {
-      setError('A connection error occurred while querying the registry.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    if (idFromUrl) {
-      void fetchStatus(idFromUrl)
-    }
-  }, [idFromUrl])
-
-  const formatStatus = (s: string) => s.replace(/_/g, ' ').toUpperCase()
-  const history = data?.history || []
+export default async function TrackResultPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const trackingId = decodeURIComponent(id).trim().toUpperCase()
+  const res = (await getTrackingStatus(trackingId)) as TrackingResult
+  const app = res.application
+  const businessType = Array.isArray(app?.business_types) ? app?.business_types[0] : app?.business_types
+  const history = res.history || []
 
   return (
     <div className={styles.wrapper}>
       <Header />
-      <main className={styles.trackPage}>
-        <div className={styles.container}>
-          <div style={{ marginBottom: '32px' }}>
-             <Link href="/track" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'var(--color-neutral-500)', fontSize: '14px', fontWeight: 600 }}>
-                <ArrowLeft size={16} /> New Search
-             </Link>
-          </div>
+      <main className={styles.main}>
+        <div className={styles.column}>
+          <Link href="/track" className={styles.back}>
+            <ArrowLeft size={16} />
+            <span>Track another application</span>
+          </Link>
 
-          {loading ? (
-             <div className={styles.loadingContainer}>
-                <div className={styles.premiumLoader} />
-                <h2>Decrypting Registry Data...</h2>
-                <p>Authenticating tracking ID: <strong>{idFromUrl.toUpperCase()}</strong></p>
-             </div>
-          ) : error ? (
-             <div className={styles.loadingContainer}>
-                  <div style={{ background: '#fff1f1', color: '#ef4444', padding: 'var(--space-10)', borderRadius: 'var(--radius-2xl)', border: '1px solid #fee2e2', maxWidth: '500px', width: '100%' }}>
-                     <Search size={48} style={{ marginBottom: 'var(--space-4)', opacity: 0.5 }} />
-                     <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: 'var(--space-2)' }}>Security Check Failed</h3>
-                     <p style={{ fontSize: '14px', lineHeight: 1.6 }}>
-                        We could not find an application linked to &quot;<strong>{idFromUrl.toUpperCase()}</strong>&quot;.
-                        Please verify the ID and ensure there are no trailing spaces.
-                     </p>
-                     <Link href="/track" style={{ marginTop: 'var(--space-6)', textDecoration: 'none', display: 'inline-block', background: 'white', color: '#ef4444', border: '1px solid #fee2e2', padding: '10px 24px', borderRadius: '12px', fontWeight: 700 }}>
-                        Try New Search
-                     </Link>
-                  </div>
-             </div>
-          ) : data && (
-            <div className={styles.resultContainer}>
-              <div className={styles.summaryCard}>
-                <div className={styles.summaryHeader}>
-                  <div>
-                    <span className={styles.idLabel}>TRACKING ID: {idFromUrl.toUpperCase()}</span>
-                    <h2 className={styles.businessName}>{data.application.business_name}</h2>
-                    <div className={styles.metaRow}>
-                      <span><Activity size={16} /> {data.application.business_types?.name || 'Standard'}</span>
-                      <span><Calendar size={16} /> Submitted {new Date(data.application.created_at).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                  <div className={styles.statusBadge}>
-                    <span className={styles.pulse} />
-                    {formatStatus(data.application.status)}
-                  </div>
-                </div>
-
-                <div className={styles.timeline}>
-                   {history.length > 0 ? (
-                      history.map((step, i) => (
-                        <div key={i} className={`${styles.timelineItem} ${i === 0 ? styles.isActive : styles.isCompleted}`}>
-                          <div className={styles.timelineVisual}>
-                            <div className={styles.dot}>
-                               {i > 0 && <CheckCircle2 size={16} />}
-                            </div>
-                            {i < history.length - 1 && <div className={styles.line} />}
-                          </div>
-                          <div className={styles.itemContent}>
-                            <div className={styles.itemHeader}>
-                              <h4>{formatStatus(step.status)}</h4>
-                              <span className={styles.date}>{new Date(step.created_at).toLocaleDateString()} • {new Date(step.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                            </div>
-                            <p>{step.notes || `Institutional state transitioned to ${formatStatus(step.status)}.`}</p>
-                          </div>
-                        </div>
-                      ))
-                   ) : (
-                      <div className={`${styles.timelineItem} ${styles.isActive}`}>
-                         <div className={styles.timelineVisual}>
-                            <div className={styles.dot} />
-                         </div>
-                         <div className={styles.itemContent}>
-                            <div className={styles.itemHeader}>
-                               <h4>SUBMITTED</h4>
-                               <span className={styles.date}>{new Date(data.application.created_at).toLocaleDateString()}</span>
-                            </div>
-                            <p>Application successfully received and queued for initial verification.</p>
-                         </div>
-                      </div>
-                   )}
-                </div>
-              </div>
-
-              <div className={styles.actionPanel}>
-                <div className={styles.actionCard}>
-                  <h3>Official Support</h3>
-                  <p>Speak to the registrar overseeing your business registration process.</p>
-                  <Link href="/support" className={styles.actionLink}>
-                    Open Support Ticket <ArrowRight size={14} />
-                  </Link>
-                </div>
-                <div className={styles.actionCard}>
-                  <h3>Founder Dashboard</h3>
-                  <p>Log in to your dashboard to upload missing documents or update details.</p>
-                  <Link href="/auth/login" className={styles.actionLink}>
-                    Access Dashboard <ArrowRight size={14} />
-                  </Link>
-                </div>
-              </div>
+          {!app ? (
+            <div className={styles.notFound}>
+              <h1 className={styles.title}>We couldn&apos;t find that application</h1>
+              <p className={styles.lead}>
+                No application matches <span className={styles.mono}>{trackingId}</span>. Check the ID in your confirmation
+                message and try again.
+              </p>
+              <Link href="/track" className={styles.primaryBtn}>
+                Try another ID
+              </Link>
             </div>
+          ) : (
+            <>
+              <header className={styles.result}>
+                <p className={styles.eyebrow}>
+                  <span className={styles.mono}>{trackingId}</span>
+                </p>
+                <h1 className={styles.title}>{app.business_name}</h1>
+                <div className={styles.resultMeta}>
+                  <span className={`${styles.status} ${styles[statusMap[app.status]?.tone ?? 'neutral']}`}>
+                    {statusLabel(app.status)}
+                  </span>
+                  <span>
+                    {businessType?.name ? `${businessType.name} · ` : ''}Started {formatDate(app.created_at)}
+                  </span>
+                </div>
+              </header>
+
+              <section>
+                <h2 className={styles.sectionTitle}>Progress</h2>
+                <ol className={styles.timeline}>
+                  {(history.length > 0 ? history : [{ status: app.status, created_at: app.created_at, notes: null }]).map(
+                    (step, i) => (
+                      <li key={`${step.status}-${step.created_at}`} className={`${styles.step} ${i === 0 ? styles.stepLatest : ''}`}>
+                        <span className={styles.dot} />
+                        <div className={styles.stepBody}>
+                          <div className={styles.stepHead}>
+                            <span className={styles.stepTitle}>{statusLabel(step.status)}</span>
+                            <span className={styles.stepDate}>{formatDate(step.created_at)}</span>
+                          </div>
+                          {step.notes && <p className={styles.stepNote}>{step.notes}</p>}
+                        </div>
+                      </li>
+                    )
+                  )}
+                </ol>
+              </section>
+
+              <div className={styles.help}>
+                <p>Is this your application? Log in to see full details, upload documents or make changes.</p>
+                <div className={styles.helpActions}>
+                  <Link href="/auth/login" className={styles.primaryBtn}>Log in</Link>
+                  <Link href="/support" className={styles.secondaryBtn}>Contact support</Link>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </main>

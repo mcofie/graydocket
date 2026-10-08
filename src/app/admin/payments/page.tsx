@@ -5,6 +5,7 @@ import { getAdminPayments } from '@/lib/actions'
 import Link from 'next/link'
 import { DollarSign, TrendingUp, CreditCard, Activity, RefreshCw, AlertCircle, Filter } from 'lucide-react'
 import styles from '../../dashboard/overview.module.css'
+import Tabs from '@/components/ui/Tabs'
 
 export default function AdminRevenueDashboard() {
   const [payments, setPayments] = useState<any[]>([])
@@ -64,42 +65,15 @@ export default function AdminRevenueDashboard() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <div style={{ display: 'flex', background: 'var(--color-neutral-100)', padding: '4px', borderRadius: '10px', border: '1px solid var(--color-neutral-200)' }}>
-            <button 
-              onClick={() => setStatusFilter('paid')}
-              style={{ 
-                padding: '6px 16px', 
-                borderRadius: '8px', 
-                fontSize: '12px', 
-                fontWeight: 700,
-                border: 'none',
-                cursor: 'pointer',
-                background: statusFilter === 'paid' ? 'white' : 'transparent',
-                color: statusFilter === 'paid' ? 'var(--color-neutral-900)' : 'var(--color-neutral-500)',
-                boxShadow: statusFilter === 'paid' ? 'var(--shadow-sm)' : 'none',
-                transition: 'all 0.2s'
-              }}
-            >
-              Settled Only
-            </button>
-            <button 
-              onClick={() => setStatusFilter('all')}
-              style={{ 
-                padding: '6px 16px', 
-                borderRadius: '8px', 
-                fontSize: '12px', 
-                fontWeight: 700,
-                border: 'none',
-                cursor: 'pointer',
-                background: statusFilter === 'all' ? 'white' : 'transparent',
-                color: statusFilter === 'all' ? 'var(--color-neutral-900)' : 'var(--color-neutral-500)',
-                boxShadow: statusFilter === 'all' ? 'var(--shadow-sm)' : 'none',
-                transition: 'all 0.2s'
-              }}
-            >
-              All Activities
-            </button>
-          </div>
+          <Tabs
+            label="Payment status"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            items={[
+              { id: 'paid', label: 'Settled only' },
+              { id: 'all', label: 'All activity' },
+            ]}
+          />
           <button onClick={() => fetchPayments()} className="btn btn-secondary" style={{ width: '40px', padding: 0 }}>
              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           </button>

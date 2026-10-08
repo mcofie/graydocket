@@ -1,333 +1,369 @@
-'use client'
-
-import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import {
-  Building,
-  Check,
-  CheckCircle2,
-  ArrowRight,
-  Clock,
-  AlertTriangle,
-  Zap,
-  ShieldCheck,
-  FileText,
-  UserCheck,
-  LockKeyhole,
-  Lock,
-  Users,
-  Banknote,
-  Mail,
-  Globe,
   Building2,
-  Layout,
-  Cloud,
-  Calendar,
-  Database,
-  Handshake,
-  Link as LinkIcon
+  Search,
+  ShieldCheck,
+  FolderLock,
+  CheckCircle2,
+  CalendarClock,
+  ArrowRight,
+  Plus,
+  Check,
+  Compass,
+  Bell,
+  FileText,
 } from 'lucide-react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
+import Reveal from '@/components/ui/Reveal'
 import styles from './page.module.css'
-import { getAllBusinessTypes, getServices } from '@/lib/actions'
-const solutionPoints = [
-  { 
-    icon: Calendar, 
-    title: 'Compliance on Autopilot', 
-    desc: 'Starting is easy; staying official is the hard part. We track your ORC annual returns and GRA filings through our automated corporate calendar.',
-    image: '/compliance_on_autopilot_visual_1775813416373.png'
+
+// What GrayDocket takes off a founder's plate, one family accent each
+const HANDLED = [
+  { icon: Building2, title: 'Registration', desc: 'We file with the ORC for you.', accent: 'var(--accent-blue)', badge: null },
+  { icon: Search, title: 'Name search', desc: 'We check your name is free first.', accent: 'var(--accent-green)', badge: null },
+  { icon: ShieldCheck, title: 'Compliance', desc: 'Annual returns and renewals, filed.', accent: 'var(--accent-gold)', badge: null },
+  { icon: FolderLock, title: 'Documents', desc: 'Every certificate, kept safe.', accent: 'var(--accent-orange)', badge: 'Encrypted' },
+]
+
+const featureSections = [
+  {
+    accent: 'var(--accent-blue)',
+    eyebrow: 'Name Search',
+    title: 'Pick your name with confidence.',
+    desc: 'Type a name and we check the ORC register for you, flagging exact matches and look-alikes before you file. No guesswork, no rejected applications.',
+    image: '/hero-illustration-v2.png',
+    imageHeight: 682,
+    faded: false,
+    alt: 'Illustration of a founder surrounded by registration forms',
+    checks: ['Live ORC Search', 'Look-Alike Detection', 'Instant Results', 'No Account Needed', 'Straight To Filing'],
   },
-  { 
-    icon: Database, 
-    title: 'DPC Compliant Vault', 
-    desc: 'Securely manage your Certificate of Incorporation and TIN. We are a registered Data Controller with the DPC, ensuring your corporate identity is protected.',
-    image: '/secure_vault_visual_1775814096065.png'
+  {
+    accent: 'var(--accent-green)',
+    eyebrow: 'Compliance, handled',
+    title: 'Compliance runs itself. You run the business.',
+    desc: 'Annual returns, renewals and tax registrations are tracked for you. We remind you well before anything is due and file it once you approve, so paperwork never pulls you away from your business.',
+    image: '/compliance_on_autopilot_visual_1775813416373.png',
+    imageHeight: 819,
+    faded: true,
+    alt: 'Compliance calendar illustration',
+    checks: ['Every Deadline Tracked', 'Early Reminders', 'Filed For You', 'Plain-Language Status'],
   },
-  { 
-    icon: Handshake, 
-    title: 'The "Day 2" Bridge', 
-    desc: 'Registration is just the start. We facilitate seamless introductions to business bank accounts and SSNIT registration through our partner network.',
-    image: '/banking_bridge_visual_1775813749904.jpg'
+  {
+    accent: 'var(--accent-gold)',
+    eyebrow: 'Document Vault',
+    title: 'Your paperwork, sorted for you.',
+    desc: 'Certificates, constitutions and filings are stored and organised automatically, ready the moment a bank, client or accountant asks. Nothing to file away yourself.',
+    image: '/secure_vault_visual_1775814096065.png',
+    imageHeight: 819,
+    faded: true,
+    alt: 'Document vault illustration',
+    checks: ['Encrypted Storage', 'Auto-Organised', 'Secure Sharing', 'Download Anytime'],
   },
 ]
 
+const faqs = [
+  {
+    q: 'How long does registration take?',
+    a: 'Filling in your details takes about 15 minutes. Processing time then depends on the Office of the Registrar of Companies, and you can follow every step from your dashboard.',
+  },
+  {
+    q: 'Which business types can I register?',
+    a: 'Sole proprietorships, companies limited by shares, and companies limited by guarantee for non-profits. Not sure which fits? Take the 1-minute quiz, or talk to us if you need something else.',
+  },
+  {
+    q: 'Can I move an existing business to GrayDocket?',
+    a: 'Yes. Add your registered business and documents, and we’ll keep track of its filings from then on, so you can stay focused on running it.',
+  },
+  {
+    q: 'Do I need to understand the legal side?',
+    a: 'No. We ask simple questions in plain English, check your details, and handle the filing with the ORC. You focus on your business; we deal with the paperwork.',
+  },
+  {
+    q: 'Is my information safe?',
+    a: 'Your documents are encrypted and only visible to you and the people you invite. See our security page for details.',
+  },
+]
 
 export default function Home() {
-  const [dbPrices, setDbPrices] = useState<any[]>([])
-  const [services, setServices] = useState<any[]>([])
-
-  useEffect(() => {
-    async function fetchData() {
-      const [pricingRes, servicesRes] = await Promise.all([
-        getAllBusinessTypes(),
-        getServices()
-      ])
-      if (pricingRes.business_types) setDbPrices(pricingRes.business_types)
-      if (servicesRes.services) setServices(servicesRes.services)
-    }
-    fetchData()
-  }, [])
-
-  // Helper to get total price
-  const getPriceFor = (name: string, fallback: string) => {
-    const type = dbPrices.find(t => t.name.toLowerCase().includes(name.toLowerCase()))
-    if (!type) return fallback
-    const total = (Number(type.orc_fee) || 0) + (Number(type.agent_fee) || 0) + (Number(type.returns_portion) || 0)
-    if (total === 0) return (Number(type.base_price || 0) + Number(type.service_fee || 0)).toLocaleString()
-    return total.toLocaleString()
-  }
-
-  const getEtaFor = (name: string, fallback: string) => {
-    const type = dbPrices.find(t => t.name.toLowerCase().includes(name.toLowerCase()))
-    return type?.eta || fallback
-  }
-
-  const pricingPlans = [
-    {
-      name: 'Sole Proprietorship', 
-      desc: 'Perfect for freelancers, creators, and solo founders who want to go official fast.', 
-      currency: 'GH₵', 
-      price: getPriceFor('Sole Proprietorship', '625'), 
-      period: 'one-time', 
-      popular: false,
-      eta: getEtaFor('Sole Proprietorship', '3-5 business days'),
-      features: ['ORC Form 3 Registration', 'TIN Generation', 'Digital Document Vault (Lifetime)'],
-    },
-    {
-      name: 'Company (Shares)', 
-      desc: 'For growing startups and businesses requiring a Limited Liability (LLC) structure.', 
-      currency: 'GH₵', 
-      price: getPriceFor('Company Limited by Shares', '1,200'), 
-      originalPrice: '4,500', 
-      period: 'one-time', 
-      popular: true,
-      eta: getEtaFor('Company Limited by Shares', '5-7 business days'),
-      features: ['Full ORC incorporation', 'Board of Directors setup', 'Tax & Annual Compliance Tracker'],
-    },
-    {
-      name: 'Company (Guarantee)', 
-      desc: 'Designed for NGOs, charities, and non-profit organizations in Ghana.', 
-      currency: 'GH₵', 
-      price: getPriceFor('Company Limited by Guarantee', '1,500'), 
-      period: 'one-time', 
-      popular: false,
-      eta: getEtaFor('Company Limited by Guarantee', '10-14 business days'),
-      features: ['NGO legal structure', 'Commissioner for Oaths verification', 'Tax exemption assistance'],
-    }
-  ]
-
   return (
-    <div className={styles.main}>
+    <div className={styles.pageWrapper}>
       <Header />
-
-      {/* HERO SECTION */}
-      <section className={styles.hero} id="hero">
-        <div className={styles.heroLayout}>
-          <div className={styles.heroContent}>
-            <h1 className={styles.heroTitle}>
-              Launch & Scale Your Business.<br />
-              <span className={styles.gradientText}>Zero Compliance Stress.</span>
-            </h1>
-            <p className={styles.heroSubtitle}>
-              The digital-first administrative infrastructure for founders in Ghana. Automate your incorporation, tax activation, and compliance through our technology-enabled corporate services.
-            </p>
-            <div className={styles.heroActions}>
-              <Link href="/auth/register" className="btn btn-primary btn-lg">Start My Registration</Link>
-              <Link href="#how-it-works" className="btn btn-secondary btn-lg">See How It Works</Link>
-            </div>
-          </div>
-
-          <div className={styles.heroVisual}>
-            <div className={styles.heroImageWrapper}>
-              <img 
-                src="/hero-illustration-v2.png" 
-                alt="Overwhelmed founder with GOV Portals" 
-                className={styles.heroImage}
-              />
-            </div>
-            {/* Background decorative elements */}
-            <div className={styles.heroGlow} />
-          </div>
-        </div>
-      </section>
-
-
-      {/* PROBLEM SECTION */}
-      <section className={styles.sectionAlt} id="problem">
-        <div className={styles.container}>
-          <div className={styles.sectionHeader}>
-            <span className={styles.sectionKicker}>THE PROBLEM</span>
-            <h2 className={styles.sectionTitle}>Starting a business shouldn't feel like a second job.</h2>
-            <p className={styles.sectionSubtitle}>
-              You have a great idea, or maybe you’re already making money. But the process of becoming a formal business stands in your way.
-            </p>
-            <div className={styles.problemVisualContainer}>
-              <img 
-                src="/problem-illustration.png" 
-                alt="Obstacles to formalizing a business" 
-                className={styles.problemVisual}
-              />
-            </div>
-            <p className={styles.problemDetailText}>
-              Confusing government portals and overlapping forms. Sitting in the dark, not knowing your application status. Constant back-and-forth and rejected applications.
-            </p>
-          </div>
-          <p className={styles.problemClosingText}>You shouldn't have to be a legal expert just to start a legitimate business in Ghana.</p>
-        </div>
-      </section>      {/* SOLUTION SECTION */}
-      <section className={styles.section} id="solution">
-        <div className={styles.container}>
-          <div className={styles.sectionHeader}>
-             <span className={styles.sectionKicker} style={{color: 'var(--color-neutral-900)'}}>GO OFFICIAL, EFFORTLESSLY</span>
-            <h2 className={styles.sectionTitle}>We make compliance the easiest part of your startup journey.</h2>
-            <p className={styles.sectionSubtitle}>GrayDocket is your done-for-you corporate compliance team. We've removed the friction from business setup.</p>
-          </div>
-          <div className={styles.grid3}>
-            {solutionPoints.map((service, i) => {
-              return (
-                <div key={i} className={styles.serviceCard}>
-                  <div className={styles.serviceVisual}>
-                    <img src={service.image} alt={service.title} />
-                  </div>
-                  <div className={styles.serviceContent}>
-                    <h3>{service.title}</h3>
-                    <p>{service.desc}</p>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section className={styles.sectionAlt} id="how-it-works">
-        <div className={styles.container}>
-           <div className={styles.sectionHeader}>
-            <h2 className={styles.sectionTitle}>From an idea to officially registered in 3 simple steps.</h2>
-          </div>
-          <div className={styles.solutionVisualContainer}>
-            <img 
-              src="/solution-illustration.png" 
-              alt="How it works: 3 simple steps" 
-              className={styles.solutionVisual}
-            />
-          </div>
-          <p className={styles.solutionDetailText}>
-            Fill out our 5-minute form. We handle the ORC bureaucracy, business name searches, and document prep. We file your incorporation and generate your TIN. You receive your certified digital documents in your secure vault. Setup your corporate bank account and stay compliant with automated reminders for annual returns and tax dates.
+      <main className={styles.main}>
+        {/* Hero */}
+        <section className={styles.hero}>
+          <h1 className={styles.heroTitle}>
+            Start your business.<br />We&apos;ll handle the paperwork.
+          </h1>
+          <p className={styles.heroText}>
+            Register your business in Ghana in minutes. We keep it compliant, so you can focus on getting it
+            off the ground.
           </p>
-        </div>
-      </section>
+          <div className={styles.heroActions}>
+            <Link href="/auth/register" className={styles.primaryBtn}>
+              <span>Start my business</span>
+              <ArrowRight size={15} />
+            </Link>
+            <Link href="/support" className={styles.secondaryBtn}>
+              Request a call
+            </Link>
+          </div>
+          <Link href="/find-your-business-type" className={styles.quizLink}>
+            <Compass size={16} strokeWidth={2} />
+            <span>Not sure which business type? Take the 1-minute quiz</span>
+            <ArrowRight size={14} />
+          </Link>
+        </section>
 
-      {/* PRICING SECTION */}
-      <section className={styles.section} id="pricing">
         <div className={styles.container}>
-          <div className={styles.sectionHeader}>
-            <h2 className={styles.sectionTitle}>Simple pricing for serious founders.</h2>
-            <p className={styles.sectionSubtitle}>Professional-grade business registration with zero hidden fees.</p>
-          </div>
-          <div className={styles.pricingGrid}>
-            {pricingPlans.map((plan, i) => (
-              <div key={i} className={`${styles.pricingCard} ${plan.popular ? styles.popularCard : ''}`}>
-                <div className={styles.pricingHeader}>
-                  <div className={styles.pricingEta}>
-                    <Clock size={12} strokeWidth={2.5} /> {plan.eta}
-                  </div>
-                  <h3>{plan.name}</h3>
-                  <p>{plan.desc}</p>
-                </div>
-                <div className={styles.pricingAmount}>
-                  {plan.currency !== 'Custom' && <span className={styles.currency}>{plan.currency}</span>}
-                  <span className={styles.price}>{plan.price}</span>
-                </div>
-                <div className={styles.pricingFeatures} style={{ borderTop: plan.popular ? '1px solid rgba(var(--color-primary-900-rgb), 0.2)' : '1px solid var(--color-neutral-200)', marginTop: '24px', paddingTop: '24px' }}>
-                  {plan.features.map((feature, j) => (
-                    <div key={j} className={styles.pricingFeature}><Check size={16} style={{flexShrink: 0}} /> {feature}</div>
-                  ))}
-                </div>
-                <div style={{ marginTop: '32px', display: 'flex', flexGrow: 1, alignItems: 'flex-end' }}>
-                  <Link href="/auth/register" className={`btn ${plan.popular ? 'btn-primary' : 'btn-secondary'} btn-lg`} style={{ width: '100%' }}>{plan.popular ? 'Start My Registration' : 'Get Started'}</Link>
-                </div>
-              </div>
-            ))}
-          </div>
+          {/* Bento grid */}
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}>
+              You run the business.<br />We handle the rest.
+            </h2>
 
-          {/* Precision Services List */}
-          {services.length > 0 && (
-            <div className={styles.precisionSection}>
-              <div className={styles.precisionHeader}>
-                <h3 className={styles.sectionTitleSmall}>Precision Corporate Services</h3>
-                <p className={styles.sectionSubtitleSmall}>Itemized solutions for specific administrative needs.</p>
-              </div>
-              
-              <div className={styles.precisionGrid}>
-                {services
-                  .filter(s => !s.name.toLowerCase().includes('courier'))
-                  .map((s, idx) => {
-                    const iconMap: Record<string, any> = {
-                      'Bank Account Setup': Building2,
-                      'Business Email Setup': Mail,
-                      'Business Website': Layout,
-                      'Domain Name Purchase': Globe
-                    }
-                    const Icon = iconMap[s.name] || CheckCircle2
-                    
-                    return (
-                      <div key={idx} className={styles.precisionCard}>
-                        <div className={styles.precisionTitleWrapper}>
-                          <div className={styles.precisionIconWrapper}>
-                            <Icon className={styles.precisionIcon} size={16} strokeWidth={2} />
-                          </div>
-                          <span className={styles.precisionName}>{s.name}</span>
+            <Reveal className={styles.grid}>
+              {/* Easy: everything we take off your plate */}
+              <div className={`${styles.card} ${styles.cardEasy}`}>
+                <div className={styles.visualEasy}>
+                  <div className={styles.darkMenu}>
+                    <p className={styles.menuLabel}>We handle</p>
+                    {HANDLED.map(({ icon: Icon, title, desc, accent, badge }) => (
+                      <div key={title} className={styles.menuItem}>
+                        <div className={styles.menuIcon} style={{ backgroundColor: accent }}>
+                          <Icon size={15} color="#ffffff" strokeWidth={2.25} />
                         </div>
-                        <div className={styles.precisionPrice}>
-                          Coming Soon
+                        <div className={styles.menuText}>
+                          <div className={styles.menuTitleRow}>
+                            <span className={styles.menuTitle}>{title}</span>
+                            {badge && <span className={styles.idBadge}>{badge}</span>}
+                          </div>
+                          <div className={styles.menuDesc}>{desc}</div>
+                        </div>
+                        <Check size={14} strokeWidth={3} className={styles.menuDone} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className={styles.cardFooter}>
+                  <h3 className={styles.cardTitle}>Easy</h3>
+                  <p className={styles.cardDesc}>Anyone can start. Simple questions, plain English, no legal jargon.</p>
+                </div>
+              </div>
+
+              {/* Fast */}
+              <div className={styles.card}>
+                <div className={styles.visualFast}>
+                  <div className={styles.timelineBox}>
+                    {[
+                      { title: 'Name cleared', date: 'Mon' },
+                      { title: 'Filed with ORC', date: 'Tue' },
+                      { title: 'Certificate issued', date: 'Thu' },
+                    ].map((step, i, arr) => (
+                      <div key={step.title} className={styles.timelineItem}>
+                        <div className={styles.timelineNode}>
+                          <CheckCircle2 size={16} className={styles.timelineCheck} />
+                          {i < arr.length - 1 && <div className={styles.timelineLine} />}
+                        </div>
+                        <div className={styles.timelineContent}>
+                          <span className={styles.timelineTitle}>{step.title}</span>
+                          <span className={styles.timelineDate}>{step.date}</span>
                         </div>
                       </div>
-                    )
-                  })}
+                    ))}
+                  </div>
+                </div>
+                <div className={styles.cardFooter}>
+                  <h3 className={styles.cardTitle}>Fast</h3>
+                  <p className={styles.cardDesc}>Fill in your details in about 15 minutes. We take it from there.</p>
+                </div>
               </div>
 
-              <div className={styles.precisionDisclaimer}>
-                All prices are inclusive of government statutory fees where applicable. GrayDocket is a technology-enabled corporate service provider and does not provide legal, tax, or accounting advice.
+              {/* Handled: the filing happens without you */}
+              <div className={styles.card}>
+                <div className={styles.visualCenter}>
+                  <div className={styles.statusPill}>
+                    <span className={styles.statusFiling}>
+                      <span className={styles.spinner} aria-hidden="true" />
+                      Filing for you
+                    </span>
+                    <span className={styles.statusDone}>
+                      <CheckCircle2 size={18} strokeWidth={2.5} />
+                      Compliant
+                    </span>
+                  </div>
+                </div>
+                <div className={styles.cardFooter}>
+                  <h3 className={styles.cardTitle}>Handled</h3>
+                  <p className={styles.cardDesc}>Annual returns and renewals filed for you. Compliance is our job, not yours.</p>
+                </div>
               </div>
+
+              {/* Reliable */}
+              <div className={styles.card}>
+                <div className={styles.visualCenter}>
+                  <div className={styles.deadlineCard}>
+                    <CalendarClock size={18} className={styles.deadlineIcon} />
+                    <div className={styles.deadlineCenter}>
+                      <div className={styles.deadlineTitle}>Annual return</div>
+                      <div className={styles.deadlineSub}>Due in 14 days</div>
+                    </div>
+                    <span className={styles.deadlineBadge}>
+                      <Bell size={11} strokeWidth={2.5} className={styles.bell} />
+                      We&apos;re on it
+                    </span>
+                  </div>
+                </div>
+                <div className={styles.cardFooter}>
+                  <h3 className={styles.cardTitle}>Reliable</h3>
+                  <p className={styles.cardDesc}>We watch every deadline, so nothing slips while you&apos;re busy running things.</p>
+                </div>
+              </div>
+
+              {/* Supported */}
+              <div className={styles.card}>
+                <div className={styles.visualCenter}>
+                  <div className={styles.chat}>
+                    <span className={`${styles.bubble} ${styles.bubbleMe}`}>Is my name approved?</span>
+                    <span className={styles.typing} aria-hidden="true"><i /><i /><i /></span>
+                    <span className={`${styles.bubble} ${styles.bubbleUs}`}>Yes! We&apos;re filing today.</span>
+                  </div>
+                </div>
+                <div className={styles.cardFooter}>
+                  <h3 className={styles.cardTitle}>Supported</h3>
+                  <p className={styles.cardDesc}>Questions? Talk to a real person on WhatsApp or email, whenever you need us.</p>
+                </div>
+              </div>
+            </Reveal>
+          </section>
+
+          {/* How it works: you answer, we file, you get to work */}
+          <section className={styles.showcaseSection}>
+            <div className={styles.showcaseHeader}>
+              <p className={styles.showcaseEyebrow}>How it works</p>
+              <h2 className={styles.showcaseTitle}>
+                From idea to open<br />
+                for business
+              </h2>
             </div>
-          )}
+
+            <Reveal className={styles.showcaseGrid}>
+              <div className={styles.showcaseCard}>
+                <div className={styles.showcaseVisual} style={{ '--panel': 'var(--accent-blue)' } as React.CSSProperties}>
+                  <span className={styles.stepNum}>1</span>
+                  <div className={styles.mockCard}>
+                    <span className={styles.mockLabel}>Business name</span>
+                    <span className={styles.mockInput}>
+                      <span className={styles.typed}>Ama&apos;s Kitchen</span>
+                      <span className={styles.caret} aria-hidden="true" />
+                    </span>
+                    <span className={styles.mockLabel}>Business type</span>
+                    <span className={`${styles.mockChip} ${styles.mockChipOn}`}>
+                      <Check size={12} strokeWidth={3} /> Sole proprietorship
+                    </span>
+                    <span className={styles.mockChip}>Company limited by shares</span>
+                  </div>
+                </div>
+                <div className={styles.showcaseContent}>
+                  <h3 className={styles.showcaseCardTitle}>Tell us about your business</h3>
+                  <p className={styles.showcaseCardDesc}>
+                    Simple questions, about 15 minutes. No forms to print, no office visits.
+                  </p>
+                </div>
+              </div>
+
+              <div className={styles.showcaseCard}>
+                <div className={styles.showcaseVisual} style={{ '--panel': 'var(--accent-gold)' } as React.CSSProperties}>
+                  <span className={styles.stepNum}>2</span>
+                  <div className={`${styles.mockCard} ${styles.mockDoc}`}>
+                    <span className={styles.mockDocIcon}><FileText size={18} /></span>
+                    <span className={styles.mockDocTitle}>Registration filing</span>
+                    <span className={styles.mockLines} aria-hidden="true">
+                      <span /><span /><span />
+                    </span>
+                    <span className={styles.stamp}>Filed with ORC</span>
+                  </div>
+                </div>
+                <div className={styles.showcaseContent}>
+                  <h3 className={styles.showcaseCardTitle}>We file it for you</h3>
+                  <p className={styles.showcaseCardDesc}>
+                    We check your details and file with the ORC. You&apos;ll see every update in your dashboard.
+                  </p>
+                </div>
+              </div>
+
+              <div className={styles.showcaseCard}>
+                <div className={styles.showcaseVisual} style={{ '--panel': 'var(--accent-green)' } as React.CSSProperties}>
+                  <span className={styles.stepNum}>3</span>
+                  <div className={styles.mockToast}>
+                    <span className={styles.mockToastIcon}><Bell size={13} strokeWidth={2.5} /></span>
+                    Your certificate is ready
+                  </div>
+                  <div className={`${styles.mockCard} ${styles.mockCert}`}>
+                    <span className={styles.mockSeal}><Check size={20} strokeWidth={3} /></span>
+                    <span className={styles.mockCertKicker}>Certificate of registration</span>
+                    <span className={styles.mockCertName}>Ama&apos;s Kitchen</span>
+                  </div>
+                </div>
+                <div className={styles.showcaseContent}>
+                  <h3 className={styles.showcaseCardTitle}>Open for business</h3>
+                  <p className={styles.showcaseCardDesc}>
+                    Your certificate lands in your Documents. We keep you compliant from here, so you can get to work.
+                  </p>
+                </div>
+              </div>
+            </Reveal>
+          </section>
+
+          {/* Alternating feature sections */}
+          {featureSections.map((s, i) => (
+            <section
+              key={s.title}
+              className={`${styles.split} ${i % 2 === 1 ? styles.splitReverse : ''}`}
+              style={{ '--accent': s.accent } as React.CSSProperties}
+            >
+              <div className={styles.splitVisual}>
+                <Image src={s.image} alt={s.alt} width={1024} height={s.imageHeight} sizes="(max-width: 900px) min(480px, 100vw), 484px" className={`${styles.splitImg} ${s.faded ? styles.splitImgFaded : ''}`} />
+              </div>
+              <div className={styles.splitText}>
+                <p className={styles.splitEyebrow}>{s.eyebrow}</p>
+                <h2 className={styles.splitTitle}>{s.title}</h2>
+                <p className={styles.splitDesc}>{s.desc}</p>
+                <ul className={styles.checkList}>
+                  {s.checks.map((c) => (
+                    <li key={c} className={styles.checkItem}>
+                      <Check size={20} strokeWidth={2.5} />
+                      <span>{c}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+          ))}
+
+          {/* FAQ */}
+          <section id="faq" className={styles.section}>
+            <h2 className={styles.sectionTitle}>Frequently Asked Questions</h2>
+            <div className={styles.faqList}>
+              {faqs.map((f) => (
+                <details key={f.q} className={styles.faqItem}>
+                  <summary className={styles.faqQuestion}>
+                    <span>{f.q}</span>
+                    <Plus size={18} className={styles.faqIcon} />
+                  </summary>
+                  <p className={styles.faqAnswer}>{f.a}</p>
+                </details>
+              ))}
+            </div>
+            <div className={styles.faqMore}>
+              <Link href="/support" className={styles.secondaryBtn}>
+                See more FAQs
+              </Link>
+            </div>
+          </section>
         </div>
-      </section>
-
-
-
-      {/* FOUNDERS FOCUS SECTION */}
-      <section className={styles.infrastructureSection}>
-        <div className={styles.container}>
-          <div className={styles.sectionHeader} style={{ marginBottom: '40px' }}>
-            <h2 className={styles.sectionTitle}>Built for founders in Ghana who value their time.</h2>
-          </div>
-          <div className={styles.infrastructureVisualContainer}>
-            <img 
-              src="/infrastructure-illustration.png" 
-              alt="GrayDocket Infrastructure: From Paperwork to Partner Banking" 
-              className={styles.infrastructureVisual}
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className={styles.ctaSection}>
-        <div className={styles.ctaOverlay} />
-        <div className={styles.ctaContent}>
-          <h2 className={styles.sectionTitle}>Stop waiting. Start building.</h2>
-          <p className={styles.sectionSubtitle} style={{ marginBottom: '32px' }}>
-            Join the founders who skipped the queue and secured their business future with GrayDocket.
-          </p>
-          <Link href="/auth/register" className="btn btn-accent btn-lg">
-            Get Started Now <ArrowRight size={18} />
-          </Link>
-        </div>
-      </section>
-
+      </main>
       <Footer />
     </div>
   )

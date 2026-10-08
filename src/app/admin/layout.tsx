@@ -43,11 +43,9 @@ export default function AdminLayout({
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [user, setUser] = useState<{ email?: string; role?: string; full_name?: string; avatar_url?: string; user_metadata?: { full_name?: string } } | null>(null)
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const getUser = async () => {
-      setLoading(true)
       const supabase = createClient()
       const { data: { user: authUser } } = await supabase.auth.getUser()
       
@@ -67,7 +65,6 @@ export default function AdminLayout({
           user_metadata: authUser.user_metadata
         })
       }
-      setLoading(false)
     }
     getUser()
   }, [])
@@ -82,16 +79,6 @@ export default function AdminLayout({
   const getPageTitle = () => {
     const item = adminNavItems.find((item) => item.href === pathname)
     return item ? `Admin — ${item.label}` : 'Admin Panel'
-  }
-
-  if (loading) {
-    return (
-      <div className={dashStyles.dashboardLayout}>
-         <div style={{ padding: 'var(--space-12)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-            Synchronizing Security Context...
-         </div>
-      </div>
-    )
   }
 
   return (

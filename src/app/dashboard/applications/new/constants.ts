@@ -46,7 +46,7 @@ export interface PersonEntry {
 }
 
 export const emptyPerson: PersonEntry = {
-  title: '', surname: '', firstName: '', otherNames: '', dateOfBirth: '', gender: '', nationality: '', occupation: '',
+  title: '', surname: '', firstName: '', otherNames: '', dateOfBirth: '', gender: '', nationality: 'Ghanaian', occupation: '',
   ghanaCardNumber: '', tinNumber: '', residentialAddress: '', city: '', region: '', digitalAddress: '', phone: '', email: '', ghanaCardPhotoUrl: '', idPhotos: []
 }
 
@@ -61,7 +61,7 @@ export interface ShareholderEntry {
 }
 
 export const emptyShareholder: ShareholderEntry = {
-  type: 'individual', name: '', tinNumber: '', nationality: '', address: '', numberOfShares: '', valuePerShare: ''
+  type: 'individual', name: '', tinNumber: '', nationality: 'Ghanaian', address: '', numberOfShares: '', valuePerShare: ''
 }
 
 export const bankPartners = [

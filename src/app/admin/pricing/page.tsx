@@ -15,6 +15,7 @@ import {
 import Modal from '../components/Modal'
 import styles from '../../dashboard/overview.module.css'
 import Skeleton from '@/components/ui/Skeleton'
+import EmptyState from '@/components/ui/EmptyState'
 
 type BusinessTypeRow = {
   id: string
@@ -491,8 +492,8 @@ export default function AdminPricingPage() {
             )})}
             {services.length === 0 && (
               <tr>
-                <td colSpan={4} style={{ textAlign: 'center', padding: 'var(--space-6)' }}>
-                  No services configured yet.
+                <td colSpan={4}>
+                  <EmptyState variant="inbox" size="sm" message="No services configured yet." />
                 </td>
               </tr>
             )}

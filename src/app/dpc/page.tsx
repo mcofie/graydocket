@@ -3,7 +3,7 @@ import InfoPageLayout from '@/components/InfoPageLayout'
 export default function DPCPage() {
   return (
     <InfoPageLayout 
-      title="DPC Compliance" 
+      title="Data protection" 
       subtitle="Adhering to Ghana's Data Protection Act, 2012 (Act 843)."
     >
       <section>

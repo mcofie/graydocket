@@ -3,8 +3,8 @@ import InfoPageLayout from '@/components/InfoPageLayout'
 export default function TermsPage() {
   return (
     <InfoPageLayout 
-      title="Terms of Service" 
-      subtitle="Last updated: October 24, 2026"
+      title="Terms of service" 
+      updated="October 24, 2026"
     >
       <section>
         <h2>1. Acceptance of Terms</h2>
