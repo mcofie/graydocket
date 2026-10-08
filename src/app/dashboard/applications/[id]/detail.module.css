@@ -53,7 +53,7 @@
 
 .title {
   font-family: var(--font-display);
-  font-size: clamp(22px, 3.4vw, 28px);
+  font-size: var(--type-step-title);
   font-weight: 500;
   letter-spacing: -0.025em;
   line-height: 1.15;
@@ -145,18 +145,18 @@
   align-items: center;
   gap: 8px;
   margin-top: 14px;
-  min-height: 42px;
+  min-height: var(--btn-height);
   padding: 0 18px;
-  border-radius: 9999px;
-  background: #111827;
+  border-radius: var(--btn-radius);
+  background: var(--btn-primary-bg);
   color: #ffffff;
-  font-size: 15px;
+  font-size: var(--btn-font-size);
   font-weight: 500;
   transition: background-color 0.15s ease;
 }
 
 .primaryBtn:hover {
-  background: #000000;
+  background: var(--btn-primary-hover);
 }
 
 /* ---------- Timeline ---------- */
@@ -421,17 +421,17 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 36px;
+  min-height: var(--btn-height-sm);
   padding: 0 14px;
-  border-radius: 9999px;
-  background: #f1f1f3;
-  font-size: 14px;
+  border-radius: var(--btn-radius);
+  background: var(--btn-secondary-bg);
+  font-size: var(--btn-font-size-sm);
   font-weight: 500;
   color: #111827;
 }
 
 .viewerBtn:hover {
-  background: #e8e8eb;
+  background: var(--btn-secondary-hover);
 }
 
 .viewerClose {
@@ -490,7 +490,7 @@
 
 .notFound h1 {
   font-family: var(--font-display);
-  font-size: 24px;
+  font-size: var(--type-step-title);
   font-weight: 500;
   letter-spacing: -0.02em;
 }

@@ -121,12 +121,12 @@ button.row:hover:not(:disabled) {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 52px;
+  min-height: var(--btn-height);
   border: 0;
-  border-radius: 14px;
-  background: #f1f1f3;
+  border-radius: var(--btn-radius);
+  background: var(--btn-secondary-bg);
   font-family: var(--font-sans);
-  font-size: 16px;
+  font-size: var(--btn-font-size);
   font-weight: 500;
   color: #111827;
   cursor: pointer;
@@ -134,7 +134,7 @@ button.row:hover:not(:disabled) {
 }
 
 .logoutBtn:hover:not(:disabled) {
-  background: #e8e8eb;
+  background: var(--btn-secondary-hover);
 }
 
 .logoutBtn:disabled {

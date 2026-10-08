@@ -235,17 +235,17 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 52px;
-  border-radius: 14px;
-  background: #f1f1f3;
-  font-size: 16px;
+  min-height: var(--btn-height);
+  border-radius: var(--btn-radius);
+  background: var(--btn-secondary-bg);
+  font-size: var(--btn-font-size);
   font-weight: 500;
   color: #111827;
   transition: background-color 0.15s ease;
 }
 
 .newBtn:hover {
-  background: #e8e8eb;
+  background: var(--btn-secondary-hover);
 }
 
 .newBtn:active {

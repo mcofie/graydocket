@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
-import { Check, ArrowLeft, ArrowRight, Plus, Trash2, Clock, AlertTriangle, CheckCircle2, User, Building2, HeartHandshake, Users, type LucideIcon } from 'lucide-react'
+import { Check, ArrowLeft, ArrowRight, Plus, Trash2, Clock, AlertTriangle, CheckCircle2, User, Building2, HeartHandshake, type LucideIcon } from 'lucide-react'
 import { usePaystackPayment } from 'react-paystack'
 import { 
   submitApplication, getBusinessTypes, getSystemFee, 
@@ -76,27 +76,21 @@ const initialDeliveryAddress = () => ({
 })
 
 // How each business type is presented on the first step: plain-English, one accent colour each
-const TYPE_PRESENTATION: Record<string, { icon: LucideIcon; accent: string; tagline: string; badge: string; people: string }> = {
+const TYPE_PRESENTATION: Record<string, { icon: LucideIcon; accent: string; tagline: string }> = {
   sole_proprietorship: {
     icon: User,
     accent: 'var(--accent-blue)',
-    tagline: 'Just you, trading under a registered business name.',
-    badge: 'Quickest',
-    people: 'Just you',
+    tagline: 'Just you, trading under a business name.',
   },
   limited_by_shares: {
     icon: Building2,
     accent: 'var(--accent-green)',
-    tagline: 'A company with shareholders. Your personal assets stay separate.',
-    badge: 'Limited liability',
-    people: '2+ directors',
+    tagline: 'A company that keeps your personal assets separate.',
   },
   limited_by_guarantee: {
     icon: HeartHandshake,
     accent: 'var(--accent-gold)',
-    tagline: 'For NGOs, charities and associations. No shares.',
-    badge: 'Non-profit',
-    people: 'Directors + members',
+    tagline: 'For NGOs, charities and associations.',
   },
 }
 
@@ -915,8 +909,8 @@ function NewRegistrationContent() {
         <div className={styles.stepCard}>
           <h2 className={styles.stepTitle}>What are you registering?</h2>
           <p className={styles.stepDesc}>
-            Choose what you&apos;re registering. We&apos;ll handle the ORC filing for you.{' '}
-            <Link href="/dashboard/choose" className={styles.quizLink}>Not sure? Take the 1-minute quiz</Link>
+            We&apos;ll handle the ORC filing.{' '}
+            <Link href="/dashboard/choose" className={styles.quizLink}>Not sure? Take the quiz</Link>
           </p>
           <div className={styles.typeGrid} role="radiogroup" aria-label="Business type">
             {dynamicBusinessTypes.map((type: any) => {
@@ -948,30 +942,25 @@ function NewRegistrationContent() {
                     <span className={styles.typeBody}>
                       <span className={styles.typeTitleRow}>
                         <span className={styles.typeName}>{type.name}</span>
-                        {type.comingSoon ? (
-                          <span className={styles.typeBadge}>Coming soon</span>
-                        ) : (
-                          look?.badge && <span className={styles.typeBadge}>{look.badge}</span>
-                        )}
+                        {type.comingSoon && <span className={styles.typeBadge}>Coming soon</span>}
                       </span>
                       <span className={styles.typeTagline}>{look?.tagline ?? type.desc}</span>
-                      <span className={styles.typeMeta}>
-                        <span><Clock size={13} /> {type.timeline}</span>
-                        {look?.people && <span><Users size={13} /> {look.people}</span>}
-                        <span>{type.formRef}</span>
-                      </span>
                     </span>
-                    <span className={styles.typePriceCol}>
-                      <span className={styles.typePrice}>GH₵ {type.price.toLocaleString()}</span>
-                      <span className={styles.typePriceNote}>one-off</span>
-                    </span>
+                    <span className={styles.typePrice}>GH₵ {type.price.toLocaleString()}</span>
                   </button>
 
                   {isSelected && needs.length > 0 && (
                     <div className={styles.typeNeeds}>
-                      <span className={styles.typeNeedsTitle}>You&apos;ll need</span>
+                      <span className={styles.typeNeedsTitle}>
+                        You&apos;ll need
+                        {type.timeline && (
+                          <span className={styles.typeNeedsTime}>
+                            <Clock size={12} /> {String(type.timeline).replace(/(\d)\s*-\s*(\d)/g, '$1–$2')}
+                          </span>
+                        )}
+                      </span>
                       <ul>
-                        {needs.slice(0, 4).map((n) => (
+                        {needs.slice(0, 3).map((n) => (
                           <li key={n}><Check size={14} strokeWidth={2.5} /> {n}</li>
                         ))}
                       </ul>

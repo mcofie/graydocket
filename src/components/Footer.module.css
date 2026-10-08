@@ -33,7 +33,7 @@
 
 .calloutTitle {
   font-family: var(--font-display);
-  font-size: clamp(32px, 4.4vw, 44px);
+  font-size: var(--type-section-title);
   font-weight: 500;
   letter-spacing: -0.03em;
   line-height: 1.09;
@@ -43,8 +43,8 @@
 
 .calloutText {
   font-family: var(--font-sans);
-  font-size: 16.5px;
-  line-height: 1.55;
+  font-size: var(--type-lead);
+  line-height: var(--type-lead-lh);
   color: #52504e;
   letter-spacing: -0.01em;
   margin: 0;
@@ -63,22 +63,22 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 46px;
+  min-height: var(--btn-height);
   padding: 0 22px;
-  border-radius: 9999px;
+  border-radius: var(--btn-radius);
   font-family: var(--font-sans);
-  font-size: 16px;
+  font-size: var(--btn-font-size);
   font-weight: 500;
   transition: background-color 0.15s ease;
 }
 
 .calloutPrimary {
-  background: #111827;
+  background: var(--btn-primary-bg);
   color: #ffffff;
 }
 
 .calloutPrimary:hover {
-  background: #000000;
+  background: var(--btn-primary-hover);
 }
 
 .calloutSecondary {
@@ -87,7 +87,7 @@
 }
 
 .calloutSecondary:hover {
-  background: rgba(17, 24, 39, 0.1);
+  background: var(--btn-secondary-hover);
 }
 
 .calloutIllo {
@@ -225,20 +225,29 @@
    RESPONSIVE DESIGN
    ===================================================== */
 @media (max-width: 860px) {
+  /* Stacked: illustration on top, then centred text and buttons */
   .calloutContainer {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 36px;
-  }
-
-  .calloutContent {
-    max-width: 100%;
+    align-items: center;
+    gap: 28px;
   }
 
   .calloutIllo {
+    order: -1;
     width: 100%;
+    max-width: 380px;
     justify-content: center;
-    max-width: 100%;
+  }
+
+  .calloutContent {
+    max-width: 520px;
+    align-items: center;
+    text-align: center;
+    gap: 12px;
+  }
+
+  .calloutActions {
+    justify-content: center;
   }
 
   .bottomContainer {
@@ -249,7 +258,22 @@
 
 @media (max-width: 540px) {
   .calloutSection {
-    padding: 56px 16px 64px;
+    padding: 48px 16px 56px;
+  }
+
+  .calloutContainer {
+    gap: 20px;
+  }
+
+  .calloutIllo {
+    max-width: 300px;
+  }
+
+  /* Full-width buttons, primary on top */
+  .calloutActions {
+    flex-direction: column;
+    align-self: stretch;
+    margin-top: 8px;
   }
 
   .bottomFooter {

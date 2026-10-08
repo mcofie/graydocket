@@ -10,6 +10,29 @@
   --accent-orange: #ff5310;
   --accent-gold: #f5b442;
 
+  /* Buttons: one shape and size everywhere (12px corners, 48px tall, 40px small) */
+  --btn-radius: 12px;
+  --btn-height: 48px;
+  --btn-height-sm: 40px;
+  --btn-font-size: 16px;
+  --btn-font-size-sm: 14px;
+  --btn-primary-bg: #111827;
+  --btn-primary-hover: #000000;
+  --btn-primary-text: #ffffff;
+  --btn-secondary-bg: #f1f1f3;
+  --btn-secondary-hover: #e7e7ea;
+  --btn-secondary-text: #111827;
+
+  /* Type scale: one set of sizes for every page (smaller on phones, see below) */
+  --type-hero: clamp(40px, 6vw, 60px);
+  --type-page-title: clamp(28px, 4vw, 38px);
+  --type-section-title: clamp(24px, 3.2vw, 32px);
+  --type-step-title: clamp(22px, 3vw, 28px);
+  --type-lead: 17px;
+  --type-lead-lh: 1.55;
+  --type-body: 16px;
+  --type-body-lh: 1.625;
+
   /* Primary Colors - Sophisticated Dark Gray / Charcoal */
   --color-primary-50: #fafafa;
   --color-primary-100: #f0f0f0;
@@ -138,6 +161,17 @@
   --sidebar-width: 280px;
 }
 
+@media (max-width: 600px) {
+  :root {
+    --type-hero: 34px;
+    --type-page-title: 26px;
+    --type-section-title: 23px;
+    --type-step-title: 22px;
+    --type-lead: 15px;
+    --type-body: 15px;
+  }
+}
+
 /* =====================================================
    Global Reset & Base Styles
    ===================================================== */
@@ -242,101 +276,83 @@ ul, ol {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-6);
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-semibold);
+  gap: 8px;
+  min-height: var(--btn-height);
+  padding: 0 22px;
+  border: 0;
+  border-radius: var(--btn-radius);
+  font-family: var(--font-sans);
+  font-size: var(--btn-font-size);
+  font-weight: 500;
   line-height: 1;
-  border-radius: var(--radius-lg);
-  transition: all var(--transition-base);
   white-space: nowrap;
-  position: relative;
-  overflow: hidden;
-  min-height: 44px; /* Touch target fix */
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease, transform 0.1s ease;
 }
 
-.btn::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%);
-  opacity: 0;
-  transition: opacity var(--transition-fast);
-}
-
-.btn:hover::after {
-  opacity: 1;
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--color-primary-700) 0%, var(--color-primary-900) 100%);
-  color: var(--color-neutral-0);
-  box-shadow: var(--shadow-md), 0 0 0 0 rgba(0, 0, 0, 0.2);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
 }
 
-.btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-lg), 0 0 20px rgba(0, 0, 0, 0.15);
+.btn-primary:hover:not(:disabled) {
+  background: var(--btn-primary-hover);
 }
 
-.btn-primary:active {
-  transform: translateY(0);
-}
-
-.btn-secondary {
-  background: var(--color-neutral-0);
-  color: var(--color-primary-700);
-  border: 1.5px solid var(--color-neutral-300);
-}
-
-.btn-secondary:hover {
-  background: var(--color-neutral-50);
-  border-color: var(--color-neutral-500);
-  transform: translateY(-1px);
-}
-
+.btn-secondary,
 .btn-accent {
-  background: linear-gradient(135deg, var(--color-accent-600) 0%, var(--color-accent-800) 100%);
-  color: var(--color-neutral-0);
-  box-shadow: var(--shadow-md);
+  background: var(--btn-secondary-bg);
+  color: var(--btn-secondary-text);
 }
 
-.btn-accent:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-lg), var(--shadow-glow-accent);
-  background: linear-gradient(135deg, var(--color-accent-700) 0%, var(--color-accent-900) 100%);
+.btn-secondary:hover:not(:disabled),
+.btn-accent:hover:not(:disabled) {
+  background: var(--btn-secondary-hover);
 }
 
 .btn-ghost {
   background: transparent;
-  color: var(--color-neutral-600);
+  color: #4b5563;
 }
 
-.btn-ghost:hover {
-  background: var(--color-neutral-100);
-  color: var(--color-neutral-900);
+.btn-ghost:hover:not(:disabled) {
+  background: var(--btn-secondary-bg);
+  color: #111827;
 }
 
+.btn-danger {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #fee2e2;
+}
+
+/* Kept for existing markup: large is the default size */
 .btn-lg {
-  padding: var(--space-4) var(--space-8);
-  font-size: var(--text-base);
-  border-radius: var(--radius-xl);
+  min-height: var(--btn-height);
 }
 
 .btn-sm {
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--text-xs);
+  min-height: var(--btn-height-sm);
+  padding: 0 16px;
+  font-size: var(--btn-font-size-sm);
 }
 
 .btn-icon {
-  padding: var(--space-3);
-  border-radius: var(--radius-lg);
+  width: var(--btn-height);
+  padding: 0;
 }
 
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.35;
   cursor: not-allowed;
-  transform: none !important;
 }
 
 /* =====================================================

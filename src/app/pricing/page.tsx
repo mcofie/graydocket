@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { ArrowRight, Compass } from 'lucide-react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { getBusinessTypes, getServices, getSystemFee } from '@/lib/actions'
@@ -108,11 +107,6 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
           <p className={styles.lead}>
             One price to get your business registered. We handle the paperwork, and you&apos;ll see the full breakdown before you pay.
           </p>
-          <Link href="/find-your-business-type" className={styles.quizLink}>
-            <Compass size={16} />
-            <span>Not sure which one you need? Take the 1-minute quiz</span>
-            <ArrowRight size={14} />
-          </Link>
         </section>
 
         <PricingExperience

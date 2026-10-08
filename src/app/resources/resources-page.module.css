@@ -20,7 +20,7 @@
 
 .title {
   font-family: var(--font-display);
-  font-size: clamp(36px, 6vw, 52px);
+  font-size: var(--type-page-title);
   font-weight: 500;
   letter-spacing: -0.03em;
   line-height: 1.08;
@@ -28,8 +28,8 @@
 
 .lead {
   margin-top: 14px;
-  font-size: 17px;
-  line-height: 26px;
+  font-size: var(--type-lead);
+  line-height: var(--type-lead-lh);
   color: #474645;
 }
 

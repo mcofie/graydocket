@@ -12,3 +12,9 @@
   padding: 48px 16px 96px;
   color: #111827;
 }
+
+@media (max-width: 600px) {
+  .main {
+    padding: 28px 16px 64px;
+  }
+}

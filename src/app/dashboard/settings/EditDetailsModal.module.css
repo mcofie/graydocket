@@ -294,20 +294,23 @@
 }
 
 .save {
-  height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--btn-height);
   border: 0;
-  border-radius: 14px;
-  background: #111827;
+  border-radius: var(--btn-radius);
+  background: var(--btn-primary-bg);
   color: #ffffff;
   font-family: var(--font-sans);
-  font-size: 16px;
+  font-size: var(--btn-font-size);
   font-weight: 500;
   cursor: pointer;
   transition: background-color 0.15s ease, opacity 0.15s ease;
 }
 
 .save:hover:not(:disabled) {
-  background: #000000;
+  background: var(--btn-primary-hover);
 }
 
 .save:disabled {

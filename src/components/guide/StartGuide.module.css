@@ -193,19 +193,19 @@
   align-items: center;
   gap: 8px;
   margin-top: 6px;
-  padding: 12px 22px;
-  border-radius: 9999px;
-  background: #111827;
+  padding: 0 22px;
+  min-height: var(--btn-height);
+  border-radius: var(--btn-radius);
+  background: var(--btn-primary-bg);
   color: #ffffff;
   font-family: var(--font-sans);
-  font-size: 14.5px;
-  font-weight: 600;
+  font-size: var(--btn-font-size);
+  font-weight: 500;
   transition: background-color 0.15s ease, transform 0.15s ease;
 }
 
 .ctaBtn:hover {
-  background: #000000;
-  transform: translateY(-1px);
+  background: var(--btn-primary-hover);
 }
 
 /* Video */
@@ -292,7 +292,7 @@
   border: 0;
   background: #ffffff;
   padding: 6px 12px;
-  border-radius: 9999px;
+  border-radius: var(--btn-radius);
   font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 600;

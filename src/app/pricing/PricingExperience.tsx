@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowRight, Check, ChevronDown, Clock, Info, RotateCcw, Sparkles, Minus } from 'lucide-react'
+import { ArrowRight, Check, ChevronDown, Clock, Info, RotateCcw, Sparkles, Minus, X } from 'lucide-react'
 import Tabs from '@/components/ui/Tabs'
 import { PRICE_LINE_NOTES, type PriceLine } from '@/app/dashboard/applications/new/pricing'
 import { questions, firstQuestion, results, type QuizResult } from '@/app/dashboard/choose/quiz'
@@ -64,25 +64,53 @@ const COMPARISON: Array<{ label: string; values: Record<Plan['id'], string | boo
   { label: 'Yearly filing', values: { sole_proprietorship: 'Name renewal', limited_by_shares: 'Annual return', limited_by_guarantee: 'Annual return' } },
 ]
 
-function Recommender({ onResult, result }: { onResult: (id: Plan['id'] | null) => void; result: Plan['id'] | null }) {
+/**
+ * "Help me choose": a single quiet link until someone asks for help, then a couple of
+ * quick questions inline, then a one-line answer that highlights the matching plan.
+ */
+function Recommender({
+  onResult,
+  result,
+  planName,
+}: {
+  onResult: (id: Plan['id'] | null) => void
+  result: Plan['id'] | null
+  planName: (id: Plan['id']) => string
+}) {
+  const [open, setOpen] = useState(false)
   const [questionId, setQuestionId] = useState(firstQuestion)
 
   const reset = () => {
     setQuestionId(firstQuestion)
     onResult(null)
+    setOpen(true)
+  }
+
+  const close = () => {
+    setQuestionId(firstQuestion)
+    setOpen(false)
   }
 
   if (result) {
-    const r = results[result]
     return (
-      <div className={styles.recommender}>
-        <span className={styles.recIcon}><Sparkles size={16} /></span>
-        <div className={styles.recBody}>
-          <p className={styles.recTitle}>We recommend the highlighted plan</p>
-          <p className={styles.recText}>{r.why}</p>
-        </div>
+      <div className={styles.recResult} role="status">
+        <Sparkles size={15} className={styles.recSpark} />
+        <p>
+          <strong>We&apos;d go with {planName(result)}.</strong> {results[result].why}
+        </p>
         <button type="button" className={styles.recReset} onClick={reset}>
-          <RotateCcw size={14} /> Start over
+          <RotateCcw size={13} /> Start over
+        </button>
+      </div>
+    )
+  }
+
+  if (!open) {
+    return (
+      <div className={styles.recTriggerRow}>
+        <button type="button" className={styles.recTrigger} onClick={() => setOpen(true)}>
+          <Sparkles size={15} className={styles.recSpark} />
+          Not sure which one? <span>Help me choose</span>
         </button>
       </div>
     )
@@ -91,31 +119,31 @@ function Recommender({ onResult, result }: { onResult: (id: Plan['id'] | null) =
   const q = questions[questionId]
   return (
     <div className={styles.recommender}>
-      <span className={styles.recIcon}><Sparkles size={16} /></span>
-      <div className={styles.recBody}>
+      <div className={styles.recHead}>
         <p className={styles.recTitle}>{q.question}</p>
-        <div className={styles.recOptions}>
-          {q.options.map((o) => (
-            <button
-              key={o.label}
-              type="button"
-              className={styles.recOption}
-              onClick={() =>
-                o.next.startsWith('result:')
-                  ? onResult(o.next.slice('result:'.length) as Plan['id'])
-                  : setQuestionId(o.next)
-              }
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      {questionId !== firstQuestion && (
-        <button type="button" className={styles.recReset} onClick={reset}>
-          <RotateCcw size={14} /> Start over
+        <button type="button" className={styles.recClose} onClick={close} aria-label="Close">
+          <X size={16} />
         </button>
-      )}
+      </div>
+      <div className={styles.recOptions}>
+        {q.options.map((o) => (
+          <button
+            key={o.label}
+            type="button"
+            className={styles.recOption}
+            onClick={() => {
+              if (o.next.startsWith('result:')) {
+                onResult(o.next.slice('result:'.length) as Plan['id'])
+                setOpen(false)
+              } else {
+                setQuestionId(o.next)
+              }
+            }}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
@@ -123,9 +151,9 @@ function Recommender({ onResult, result }: { onResult: (id: Plan['id'] | null) =
 export default function PricingExperience({ plans, extras, courierFee, compliance, initialView = 'new' }: Props) {
   const [view, setView] = useState<'new' | 'existing'>(initialView)
   const [recommended, setRecommended] = useState<Plan['id'] | null>(null)
-  // On phones the comparison table shows one plan at a time; this picks which
   // One toggle opens the details on every card, so they stay side by side for comparing
   const [showDetails, setShowDetails] = useState(false)
+  // On phones the comparison table shows one plan at a time; this picks which
   const [comparePlan, setComparePlan] = useState<Plan['id']>(plans[0]?.id ?? 'sole_proprietorship')
   const cardRefs = useRef<Record<string, HTMLElement | null>>({})
 
@@ -155,7 +183,11 @@ export default function PricingExperience({ plans, extras, courierFee, complianc
 
       {view === 'new' ? (
         <>
-          <Recommender result={recommended} onResult={showRecommendation} />
+          <Recommender
+            result={recommended}
+            onResult={showRecommendation}
+            planName={(id) => plans.find((p) => p.id === id)?.name ?? ''}
+          />
 
           <section className={styles.plans} aria-label="Registration plans">
             {plans.map((plan) => {
