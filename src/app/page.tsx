@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import Image from 'next/image'
 import {
   Building2,
   Search,
@@ -17,6 +16,8 @@ import {
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import Reveal from '@/components/ui/Reveal'
+import { NameDoodle, ComplianceDoodle, VaultDoodle } from '@/components/doodles/Doodles'
+import { HeroArtLeft, HeroArtRight, HeroArtRow } from '@/components/doodles/HeroDoodles'
 import styles from './page.module.css'
 
 // What GrayDocket takes off a founder's plate, one family accent each
@@ -33,10 +34,8 @@ const featureSections = [
     eyebrow: 'Name Search',
     title: 'Pick your name with confidence.',
     desc: 'Type a name and we check the ORC register for you, flagging exact matches and look-alikes before you file. No guesswork, no rejected applications.',
-    image: '/hero-illustration-v2.png',
-    imageHeight: 682,
-    faded: false,
-    alt: 'Illustration of a founder surrounded by registration forms',
+    Doodle: NameDoodle,
+    alt: 'A friendly character checking a business name with a magnifying glass',
     checks: ['Live ORC Search', 'Look-Alike Detection', 'Instant Results', 'No Account Needed', 'Straight To Filing'],
   },
   {
@@ -44,10 +43,8 @@ const featureSections = [
     eyebrow: 'Compliance, handled',
     title: 'Compliance runs itself. You run the business.',
     desc: 'Annual returns, renewals and tax registrations are tracked for you. We remind you well before anything is due and file it once you approve, so paperwork never pulls you away from your business.',
-    image: '/compliance_on_autopilot_visual_1775813416373.png',
-    imageHeight: 819,
-    faded: true,
-    alt: 'Compliance calendar illustration',
+    Doodle: ComplianceDoodle,
+    alt: 'A calm character meditating while a calendar, shield and clock look after themselves',
     checks: ['Every Deadline Tracked', 'Early Reminders', 'Filed For You', 'Plain-Language Status'],
   },
   {
@@ -55,10 +52,8 @@ const featureSections = [
     eyebrow: 'Document Vault',
     title: 'Your paperwork, sorted for you.',
     desc: 'Certificates, constitutions and filings are stored and organised automatically, ready the moment a bank, client or accountant asks. Nothing to file away yourself.',
-    image: '/secure_vault_visual_1775814096065.png',
-    imageHeight: 819,
-    faded: true,
-    alt: 'Document vault illustration',
+    Doodle: VaultDoodle,
+    alt: 'A character hugging a folder of documents, with a padlock and a sealed certificate',
     checks: ['Encrypted Storage', 'Auto-Organised', 'Secure Sharing', 'Download Anytime'],
   },
 ]
@@ -93,6 +88,11 @@ export default function Home() {
       <main className={styles.main}>
         {/* Hero */}
         <section className={styles.hero}>
+          <div className={styles.heroArt} aria-hidden="true">
+            <HeroArtLeft className={styles.heroArtLeft} />
+            <HeroArtRight className={styles.heroArtRight} />
+          </div>
+          <HeroArtRow className={styles.heroArtRow} />
           <h1 className={styles.heroTitle}>
             Start your business.<br />We&apos;ll handle the paperwork.
           </h1>
@@ -327,7 +327,7 @@ export default function Home() {
               style={{ '--accent': s.accent } as React.CSSProperties}
             >
               <div className={styles.splitVisual}>
-                <Image src={s.image} alt={s.alt} width={1024} height={s.imageHeight} sizes="(max-width: 900px) min(480px, 100vw), 484px" className={`${styles.splitImg} ${s.faded ? styles.splitImgFaded : ''}`} />
+                <s.Doodle label={s.alt} className={styles.splitDoodle} />
               </div>
               <div className={styles.splitText}>
                 <p className={styles.splitEyebrow}>{s.eyebrow}</p>

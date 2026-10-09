@@ -1,0 +1,38 @@
+.doodle {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* The character drifts up and down; props bob on their own rhythm */
+.float,
+.bob,
+.bobSlow {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .float {
+    animation: doodleFloat 4.5s ease-in-out infinite;
+  }
+
+  .bob {
+    animation: doodleBob 3.2s ease-in-out infinite;
+  }
+
+  .bobSlow {
+    animation: doodleBob 4s ease-in-out 0.6s infinite;
+  }
+}
+
+@keyframes doodleFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes doodleBob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-6px) rotate(-2deg); }
+}

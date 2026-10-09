@@ -4,6 +4,8 @@
   display: flex;
   flex-direction: column;
   background-color: #ffffff;
+  /* Hero art bleeds to the screen edges without causing sideways scroll */
+  overflow-x: clip;
 }
 
 .main {
@@ -35,6 +37,58 @@
   align-items: center;
   text-align: center;
   padding: 96px 0 80px;
+}
+
+/* Hero art: two clusters at the screen edges on wide screens, a row of icons above the title otherwise */
+.hero {
+  position: relative;
+}
+
+.hero > :not(.heroArt) {
+  position: relative;
+  z-index: 1;
+}
+
+.heroArt {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  width: 100vw;
+  max-width: 1680px;
+  transform: translateX(-50%);
+  display: none;
+  justify-content: space-between;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.heroArtLeft,
+.heroArtRight {
+  width: clamp(260px, 24vw, 420px);
+  height: auto;
+}
+
+.heroArtLeft {
+  margin-left: -1.5vw;
+}
+
+.heroArtRight {
+  margin-right: -1.5vw;
+}
+
+.heroArtRow {
+  margin-bottom: 24px;
+}
+
+/* Only where there's clear room beside the headline */
+@media (min-width: 1360px) {
+  .heroArt {
+    display: flex;
+  }
+
+  .heroArtRow {
+    display: none;
+  }
 }
 
 .heroTitle {
@@ -1126,16 +1180,11 @@
   justify-content: center;
 }
 
-.splitImg {
+.splitDoodle {
   width: 100%;
-  height: auto;
+  max-width: 440px;
 }
 
-/* Illustrations with an opaque light background: fade the edges into the page */
-.splitImgFaded {
-  -webkit-mask-image: radial-gradient(ellipse 50% 50% at center, #000 72%, transparent 100%);
-  mask-image: radial-gradient(ellipse 50% 50% at center, #000 72%, transparent 100%);
-}
 
 .splitText {
   display: flex;
