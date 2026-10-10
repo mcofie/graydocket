@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
@@ -7,9 +8,9 @@ import { priceForType, addOnsWithPrices, type DbBusinessType } from '@/app/dashb
 import PricingExperience, { type Plan, type ComplianceService } from './PricingExperience'
 import styles from './pricing.module.css'
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'Pricing',
-  description: 'Transparent prices for registering a sole proprietorship, limited company or non-profit in Ghana with GrayDocket.',
+  description: 'Transparent pricing for registering a sole proprietorship, limited company, or non-profit in Ghana with GrayDocket.',
 }
 
 // What GrayDocket does for each type; keep this to things the product actually delivers

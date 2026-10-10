@@ -1,6 +1,11 @@
+import type { Metadata } from 'next'
 import InfoPageLayout from '@/components/InfoPageLayout'
 import Link from 'next/link'
-import { Check } from 'lucide-react'
+
+export const metadata: Metadata = {
+  title: 'Company Limited by Shares (Ltd)',
+  description: 'Form a private company limited by shares in Ghana under Companies Act, 2019 (Act 992). Full ORC filing, constitution, TIN, and business bank account.',
+}
 
 export default function LimitedCompanyPage() {
   return (
@@ -11,7 +16,7 @@ export default function LimitedCompanyPage() {
       <section>
         <h2>Overview</h2>
         <p>
-          A Company Limited by Shares is the most common legal structure for profit-making ventures. Under the Companies Act, 2019 (Act 992), it provides limited liability protection to its shareholders, meaning personal assets are protected from the company's debts.
+          A Company Limited by Shares is the most common legal structure for profit-making ventures. Under the Companies Act, 2019 (Act 992), it provides limited liability protection to its shareholders, meaning personal assets are protected from the company&apos;s debts.
         </p>
       </section>
 

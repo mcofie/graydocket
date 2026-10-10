@@ -1,5 +1,11 @@
+import type { Metadata } from 'next'
 import InfoPageLayout from '@/components/InfoPageLayout'
 import Link from 'next/link'
+
+export const metadata: Metadata = {
+  title: 'External Company & Branch Office',
+  description: 'Register a foreign branch or external corporate entity in Ghana with the ORC. Local process agent, statutory documents, and full setup.',
+}
 
 export default function ExternalCompanyPage() {
   return (

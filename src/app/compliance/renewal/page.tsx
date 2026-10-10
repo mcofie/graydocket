@@ -1,5 +1,11 @@
+import type { Metadata } from 'next'
 import InfoPageLayout from '@/components/InfoPageLayout'
 import Link from 'next/link'
+
+export const metadata: Metadata = {
+  title: 'Business Name Renewal',
+  description: 'Renew your Sole Proprietorship or Partnership with the ORC in Ghana every year. Keep your business name legally registered.',
+}
 
 export default function RenewalPage() {
   return (

@@ -1,9 +1,10 @@
+import type { Metadata } from 'next'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import ResourcesView from '@/app/dashboard/resources/ResourcesView'
 import styles from './resources-page.module.css'
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'Resources',
   description: 'Videos and guides on registering and running a business in Ghana: business types, name search, requirements and staying compliant.',
 }

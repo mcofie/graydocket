@@ -1,9 +1,18 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { getTrackingStatus } from '@/lib/actions'
 import styles from '../track.module.css'
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  return {
+    title: `Application Status: ${id}`,
+    description: `Track real-time progress for GrayDocket business registration application ${id}.`,
+  }
+}
 
 type Tone = 'neutral' | 'blue' | 'amber' | 'green' | 'red'
 
@@ -35,11 +44,6 @@ type TrackingResult = {
   }
   history?: Array<{ status: string; notes?: string | null; created_at: string }>
   error?: string
-}
-
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  return { title: `Track ${decodeURIComponent(id).toUpperCase()}` }
 }
 
 export default async function TrackResultPage({ params }: { params: Promise<{ id: string }> }) {

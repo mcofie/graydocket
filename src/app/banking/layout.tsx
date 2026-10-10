@@ -1,8 +1,8 @@
-import { Metadata } from 'next'
+import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Institutional Banking Hub',
-  description: 'Connect with Ghana\'s leading banks to open your corporate account. Seamless integration with Zenith Bank, Access Bank, and more.',
+  title: 'Corporate & Business Banking Hub',
+  description: 'Open a business bank account in Ghana alongside your ORC registration. Direct partnerships with Zenith Bank, Ecobank, GCB, and more.',
 }
 
 export default function BankingLayout({

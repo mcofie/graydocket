@@ -1,4 +1,10 @@
+import type { Metadata } from 'next'
 import InfoPageLayout from '@/components/InfoPageLayout'
+
+export const metadata: Metadata = {
+  title: 'Terms of Service',
+  description: 'Terms and conditions governing the use of GrayDocket’s business registration and corporate compliance services in Ghana.',
+}
 
 export default function TermsPage() {
   return (

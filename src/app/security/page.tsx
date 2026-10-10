@@ -1,10 +1,11 @@
+import type { Metadata } from 'next'
 import InfoPageLayout from '@/components/InfoPageLayout'
 import { KeyRound, Lock, UserCheck, Mail } from 'lucide-react'
 import blocks from '@/components/info-blocks.module.css'
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'Security',
-  description: 'How GrayDocket protects your account and business records.',
+  description: 'How GrayDocket protects your account, documents, and corporate records with enterprise-grade encryption.',
 }
 
 // Keep every statement here true to how the product works today.

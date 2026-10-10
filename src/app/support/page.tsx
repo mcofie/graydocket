@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Mail, MessageCircle, Search, Compass, BookOpen, Tag, ChevronRight } from 'lucide-react'
 import InfoPageLayout from '@/components/InfoPageLayout'
@@ -6,8 +7,8 @@ import { businessTypes } from '@/app/dashboard/applications/new/constants'
 import { priceForType, type DbBusinessType } from '@/app/dashboard/applications/new/pricing'
 import blocks from '@/components/info-blocks.module.css'
 
-export const metadata = {
-  title: 'Help & support',
+export const metadata: Metadata = {
+  title: 'Help & Support',
   description: 'Get help with your GrayDocket registration: contact us, track an application, or find answers.',
 }
 

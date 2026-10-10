@@ -1,8 +1,8 @@
-import { Metadata } from 'next'
+import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Authenticate',
-  description: 'Sign in or create your GrayDocket account to start your business registration in Ghana.',
+  title: 'Sign In & Account Access',
+  description: 'Sign in or create your GrayDocket account to start or track your business registration in Ghana.',
 }
 
 export default function AuthLayout({

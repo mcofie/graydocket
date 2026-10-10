@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { getBusinessTypes } from '@/lib/actions'
@@ -6,8 +7,8 @@ import { priceForType, type DbBusinessType } from '@/app/dashboard/applications/
 import Chooser, { type TypePrice } from '@/app/dashboard/choose/Chooser'
 import styles from '../guides/guides.module.css'
 
-export const metadata = {
-  title: 'Find your business type',
+export const metadata: Metadata = {
+  title: 'Find Your Business Type',
   description: 'Answer a few quick questions to see which business type suits you in Ghana, what you’ll need and what it costs.',
 }
 

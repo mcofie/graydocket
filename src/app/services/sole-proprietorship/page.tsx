@@ -1,5 +1,11 @@
+import type { Metadata } from 'next'
 import InfoPageLayout from '@/components/InfoPageLayout'
 import Link from 'next/link'
+
+export const metadata: Metadata = {
+  title: 'Sole Proprietorship Registration',
+  description: 'Fast, official business name registration in Ghana with the ORC. Get your Business Name Certificate, TIN, and bank account setup.',
+}
 
 export default function SolePropPage() {
   return (

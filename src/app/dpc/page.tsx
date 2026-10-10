@@ -1,4 +1,10 @@
+import type { Metadata } from 'next'
 import InfoPageLayout from '@/components/InfoPageLayout'
+
+export const metadata: Metadata = {
+  title: 'Data Protection Commission (DPC) Compliance',
+  description: 'GrayDocket is fully registered with Ghana’s Data Protection Commission (DPC) as an authorized Data Controller under Act 843.',
+}
 
 export default function DPCPage() {
   return (

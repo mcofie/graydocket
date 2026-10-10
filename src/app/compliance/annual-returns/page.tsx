@@ -1,5 +1,11 @@
+import type { Metadata } from 'next'
 import InfoPageLayout from '@/components/InfoPageLayout'
 import Link from 'next/link'
+
+export const metadata: Metadata = {
+  title: 'Annual Returns Filing',
+  description: 'File company annual returns with the ORC in Ghana on time. Maintain corporate good standing and prevent statutory penalties.',
+}
 
 export default function AnnualReturnsPage() {
   return (

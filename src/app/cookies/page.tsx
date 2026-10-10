@@ -1,7 +1,8 @@
+import type { Metadata } from 'next'
 import InfoPageLayout from '@/components/InfoPageLayout'
 
-export const metadata = {
-  title: 'Cookie policy',
+export const metadata: Metadata = {
+  title: 'Cookie Policy',
   description: 'The cookies and browser storage GrayDocket uses, and why.',
 }
 

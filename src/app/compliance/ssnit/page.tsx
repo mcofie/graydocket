@@ -1,5 +1,11 @@
+import type { Metadata } from 'next'
 import InfoPageLayout from '@/components/InfoPageLayout'
 import Link from 'next/link'
+
+export const metadata: Metadata = {
+  title: 'SSNIT Employer Registration',
+  description: 'Register as an employer with the Social Security and National Insurance Trust (SSNIT) in Ghana. Comply with mandatory pension obligations.',
+}
 
 export default function SSNITPage() {
   return (

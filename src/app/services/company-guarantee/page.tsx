@@ -1,5 +1,11 @@
+import type { Metadata } from 'next'
 import InfoPageLayout from '@/components/InfoPageLayout'
 import Link from 'next/link'
+
+export const metadata: Metadata = {
+  title: 'Company Limited by Guarantee (NGO & Foundation)',
+  description: 'Register a non-profit organization, NGO, or charity in Ghana with the ORC. Complete constitution preparation, vetting, and incorporation.',
+}
 
 export default function CompanyGuaranteePage() {
   return (
@@ -10,7 +16,7 @@ export default function CompanyGuaranteePage() {
       <section>
         <h2>Overview</h2>
         <p>
-          Unlike a company limited by shares, a Company Limited by Guarantee does not have share capital. The liability of its members is limited to the amount they agree to contribute in the event of the company being wound up. All profits are reinvested into the company's objects rather than distributed as dividends.
+          Unlike a company limited by shares, a Company Limited by Guarantee does not have share capital. The liability of its members is limited to the amount they agree to contribute in the event of the company being wound up. All profits are reinvested into the company&apos;s objects rather than distributed as dividends.
         </p>
       </section>
 
@@ -20,7 +26,7 @@ export default function CompanyGuaranteePage() {
           <li><strong>Min. 2 Directors:</strong> Must be individuals of high integrity.</li>
           <li><strong>Executive Council:</strong> The governing body of the organization.</li>
           <li><strong>Non-Profit Object Clause:</strong> Clearly stating the charitable or social nature of the organization.</li>
-          <li><strong>Commissioner for Oaths:</strong> Verification of the NGO's constitution.</li>
+          <li><strong>Commissioner for Oaths:</strong> Verification of the NGO&apos;s constitution.</li>
         </ul>
       </section>
 
