@@ -1,10 +1,7 @@
-import type { Metadata } from 'next'
+import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
 
-export const metadata: Metadata = {
-  title: 'Privacy Policy',
-  description: 'How GrayDocket collects, uses, and safeguards your corporate and personal data under Ghana’s Data Protection Act, 2012 (Act 843).',
-}
+export const metadata = pageMetadata('Privacy Policy', 'How GrayDocket collects, uses, and safeguards your corporate and personal data under Ghana’s Data Protection Act, 2012 (Act 843).', '/privacy')
 
 export default function PrivacyPage() {
   return (

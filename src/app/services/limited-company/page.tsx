@@ -1,11 +1,8 @@
-import type { Metadata } from 'next'
+import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
 import Link from 'next/link'
 
-export const metadata: Metadata = {
-  title: 'Company Limited by Shares (Ltd)',
-  description: 'Form a private company limited by shares in Ghana under Companies Act, 2019 (Act 992). Full ORC filing, constitution, TIN, and business bank account.',
-}
+export const metadata = pageMetadata('Company Limited by Shares (Ltd)', 'Form a private company limited by shares in Ghana under Companies Act, 2019 (Act 992). Full ORC filing, constitution, TIN, and business bank account.', '/services/limited-company')
 
 export default function LimitedCompanyPage() {
   return (

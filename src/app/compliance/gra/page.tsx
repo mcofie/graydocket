@@ -1,11 +1,8 @@
-import type { Metadata } from 'next'
+import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
 import Link from 'next/link'
 
-export const metadata: Metadata = {
-  title: 'GRA Tax Activation & Compliance',
-  description: 'Connect your business to the Ghana Revenue Authority (GRA). Activate your domestic tax office and prepare for Tax Clearance Certificates.',
-}
+export const metadata = pageMetadata('GRA Tax Activation & Compliance', 'Connect your business to the Ghana Revenue Authority (GRA). Activate your domestic tax office and prepare for Tax Clearance Certificates.', '/compliance/gra')
 
 export default function GRAPage() {
   return (

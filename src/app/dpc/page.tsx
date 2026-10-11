@@ -1,10 +1,7 @@
-import type { Metadata } from 'next'
+import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
 
-export const metadata: Metadata = {
-  title: 'Data Protection Commission (DPC) Compliance',
-  description: 'GrayDocket is fully registered with Ghana’s Data Protection Commission (DPC) as an authorized Data Controller under Act 843.',
-}
+export const metadata = pageMetadata('Data Protection Commission (DPC) Compliance', 'GrayDocket is fully registered with Ghana’s Data Protection Commission (DPC) as an authorized Data Controller under Act 843.', '/dpc')
 
 export default function DPCPage() {
   return (

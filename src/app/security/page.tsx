@@ -1,22 +1,22 @@
-import type { Metadata } from 'next'
+import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
+import Link from 'next/link'
+import GuideBanner from '@/components/doodles/GuideBanner'
 import { KeyRound, Lock, UserCheck, Mail } from 'lucide-react'
 import blocks from '@/components/info-blocks.module.css'
 
-export const metadata: Metadata = {
-  title: 'Security',
-  description: 'How GrayDocket protects your account, documents, and corporate records with enterprise-grade encryption.',
-}
+export const metadata = pageMetadata('Security', 'Learn about signing in, handling business records, payment safety, and reporting a security concern to GrayDocket.', '/security')
 
 // Keep every statement here true to how the product works today.
 export default function SecurityPage() {
   return (
     <InfoPageLayout title="Security" subtitle="How we protect your account and your business records.">
+      <div className={blocks.banner}><GuideBanner illustration="security" /></div>
       <div className={blocks.cards}>
         <div className={blocks.card}>
           <span className={blocks.cardIcon}><KeyRound size={18} /></span>
-          <h3>No passwords to steal</h3>
-          <p>You sign in with a one-time code sent to your phone.</p>
+          <h3>One-time sign-in codes</h3>
+          <p>Customer accounts sign in with a code sent to your phone. Never share it.</p>
         </div>
         <div className={blocks.card}>
           <span className={blocks.cardIcon}><Lock size={18} /></span>
@@ -26,7 +26,7 @@ export default function SecurityPage() {
         <div className={blocks.card}>
           <span className={blocks.cardIcon}><UserCheck size={18} /></span>
           <h3>Limited access</h3>
-          <p>Only you and the team members handling your application can see it.</p>
+          <p>Customer and staff accounts have different permissions for handling applications.</p>
         </div>
         <div className={blocks.card}>
           <span className={blocks.cardIcon}><Mail size={18} /></span>
@@ -38,36 +38,60 @@ export default function SecurityPage() {
       <section>
         <h2>Signing in</h2>
         <p>
-          GrayDocket doesn&apos;t use passwords. Each time you sign in, we text a one-time code to the phone number on your
+          To sign in to your customer account, we text a one-time code to the phone number on your
           account. Codes expire after a short time, so keep your phone secure and never share a code with
           anyone, including people who say they work for GrayDocket.
         </p>
       </section>
 
       <section>
-        <h2>Your data in transit and at rest</h2>
+        <h2>Your business records</h2>
         <p>
-          Your connection to GrayDocket is encrypted with HTTPS. Your account and application records are stored with
-          Supabase, our database provider, which encrypts stored data.
+          Your connection to GrayDocket uses HTTPS. We use Supabase to store account and application records.
+          Upload identity documents through the application form rather than sending them in an unsolicited message.
+          Our <Link href="/privacy">privacy policy</Link> explains how we handle your information.
         </p>
       </section>
 
       <section>
         <h2>Who can see your applications</h2>
         <p>
-          Your applications are visible to you and to the GrayDocket team members who process them, such as the registrar
-          assigned to your case. We share details with government agencies like the ORC only as needed to complete the
+          You can manage your applications from your dashboard. Authorised staff, including administrators and registrars,
+          access records to process applications and provide support. We share details with government agencies like the ORC to complete the
           services you request.
         </p>
       </section>
 
       <section>
+        <h2>Paying safely</h2>
+        <p>
+          Start payments from your GrayDocket application using the Paystack checkout. We will never ask you to send
+          your mobile money PIN, card PIN, password or sign-in code over email or WhatsApp.
+          If a payment looks unfamiliar, <Link href="/support">contact support</Link> before paying again.
+        </p>
+      </section>
+
+      <section>
+        <h2>Keep your account safe</h2>
+        <ul>
+          <li>Keep the phone and SIM used for sign-in secure, and sign out on shared devices.</li>
+          <li>Check the website address before entering a code or starting a payment.</li>
+          <li>If you lose access to your phone number, contact support for help before creating another account.</li>
+        </ul>
+      </section>
+
+      <section id="report">
         <h2>Reporting a security issue</h2>
         <p>
           If you notice anything suspicious on your account, or believe you&apos;ve found a security issue, email{' '}
-          <a href="mailto:support@graydocket.com">support@graydocket.com</a>. Please include as much detail as you can.
+          <a href="mailto:support@graydocket.com?subject=Security%20concern">support@graydocket.com</a> with the subject
+          {' '}&ldquo;Security concern&rdquo;. Include the affected page, what happened, and when you noticed it.
+          Redact personal details from screenshots, and never include passwords, sign-in codes or payment PINs.
         </p>
       </section>
+      <p className={blocks.note}>
+        Need help with a registration instead? Visit <Link href="/support">Help &amp; support</Link>.
+      </p>
     </InfoPageLayout>
   )
 }

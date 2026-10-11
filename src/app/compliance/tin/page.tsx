@@ -1,11 +1,8 @@
-import type { Metadata } from 'next'
+import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
 import Link from 'next/link'
 
-export const metadata: Metadata = {
-  title: 'Tax Identification Number (TIN)',
-  description: 'Understand individual and corporate TIN generation in Ghana, linking your Ghana Card to GRA tax and ORC business records.',
-}
+export const metadata = pageMetadata('Tax Identification Number (TIN)', 'Understand individual and corporate TIN generation in Ghana, linking your Ghana Card to GRA tax and ORC business records.', '/compliance/tin')
 
 export default function TINPage() {
   return (

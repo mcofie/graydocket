@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { ChevronDown, Menu, X, Rocket, ShieldCheck } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { ChevronDown, Menu, X, Rocket, ShieldCheck, BookOpen, MessageCircle } from 'lucide-react'
 import styles from './Header.module.css'
 
 const PRODUCTS = [
@@ -20,7 +21,20 @@ const PRODUCTS = [
   },
 ]
 
+const RESOURCES = [
+  { title: 'Guides & videos', desc: 'Learn about registration and compliance', href: '/resources', icon: BookOpen },
+  { title: 'Help & support', desc: 'Get help with your account or application', href: '/support', icon: MessageCircle },
+  { title: 'Security', desc: 'Account safety and reporting concerns', href: '/security', icon: ShieldCheck },
+]
+
 export default function Header() {
+  const pathname = usePathname()
+  const inSection = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
+  const startActive = inSection('/find-your-business-type') || inSection('/services')
+  const agentActive = inSection('/compliance')
+  const resourceActive = (href: string) => inSection(href) || (href === '/resources' && inSection('/guides'))
+  const resourcesActive = RESOURCES.some(({ href }) => resourceActive(href))
+  const productActive = (href: string) => href === '/find-your-business-type' ? startActive : agentActive
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
@@ -77,6 +91,7 @@ export default function Header() {
                 <button
                   type="button"
                   className={styles.navLinkButton}
+                  data-active={startActive || agentActive || undefined}
                   aria-expanded={activeDropdown === 'products'}
                   onClick={() =>
                     setActiveDropdown(activeDropdown === 'products' ? null : 'products')
@@ -99,6 +114,8 @@ export default function Header() {
                           key={product.href}
                           href={product.href}
                           className={styles.dropdownItem}
+                          data-active={productActive(product.href) || undefined}
+                          aria-current={productActive(product.href) ? 'location' : undefined}
                           onClick={() => setActiveDropdown(null)}
                         >
                           <div className={styles.itemIconBox}>
@@ -115,13 +132,53 @@ export default function Header() {
                 </div>
               </div>
 
-              <Link href="/pricing" className={styles.navLink}>
+              <Link href="/pricing" className={styles.navLink} data-active={inSection('/pricing') || undefined} aria-current={inSection('/pricing') ? 'page' : undefined}>
                 Pricing
               </Link>
 
-              <Link href="/resources" className={styles.navLink}>
-                Resources
-              </Link>
+              <div
+                className={styles.dropdownWrap}
+                onMouseEnter={() => setActiveDropdown('resources')}
+                onMouseLeave={() => setActiveDropdown(null)}
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) setActiveDropdown(null)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    setActiveDropdown(null)
+                    event.currentTarget.querySelector('button')?.focus()
+                  }
+                }}
+              >
+                <button
+                  type="button"
+                  className={styles.navLinkButton}
+                  aria-expanded={activeDropdown === 'resources'}
+                  aria-controls="resources-navigation"
+                  data-active={resourcesActive || undefined}
+                  onClick={() => setActiveDropdown(activeDropdown === 'resources' ? null : 'resources')}
+                >
+                  <span>Resources</span>
+                  <ChevronDown size={11} strokeWidth={2.5} className={styles.chevronIcon} />
+                </button>
+                <div
+                  id="resources-navigation"
+                  className={`${styles.dropdownMenu} ${activeDropdown === 'resources' ? styles.dropdownVisible : ''}`}
+                  inert={activeDropdown !== 'resources'}
+                >
+                  <div className={styles.dropdownCard}>
+                    {RESOURCES.map(({ title, desc, href, icon: Icon }) => (
+                      <Link key={href} href={href} className={styles.dropdownItem} data-active={resourceActive(href) || undefined} aria-current={resourceActive(href) ? (pathname === href ? 'page' : 'location') : undefined} onClick={() => setActiveDropdown(null)}>
+                        <div className={styles.itemIconBox}><Icon size={20} strokeWidth={2} /></div>
+                        <div className={styles.itemText}>
+                          <div className={styles.itemTitle}>{title}</div>
+                          <div className={styles.itemDesc}>{desc}</div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
 
             </nav>
           </div>
@@ -155,6 +212,8 @@ export default function Header() {
               key={product.href}
               href={product.href}
               className={styles.mobileNavLink}
+              data-active={productActive(product.href) || undefined}
+              aria-current={productActive(product.href) ? 'location' : undefined}
               onClick={() => setMobileOpen(false)}
             >
               {product.title}
@@ -166,17 +225,19 @@ export default function Header() {
           <Link
             href="/pricing"
             className={styles.mobileNavLink}
+            data-active={inSection('/pricing') || undefined}
+            aria-current={inSection('/pricing') ? 'page' : undefined}
             onClick={() => setMobileOpen(false)}
           >
             Pricing
           </Link>
-          <Link
-            href="/resources"
-            className={styles.mobileNavLink}
-            onClick={() => setMobileOpen(false)}
-          >
-            Resources
-          </Link>
+          <div className={styles.mobileSectionTitle} data-active={resourcesActive || undefined}>Resources</div>
+          {RESOURCES.map(({ title, desc, href }) => (
+            <Link key={href} href={href} className={styles.mobileNavLink} data-active={resourceActive(href) || undefined} aria-current={resourceActive(href) ? (pathname === href ? 'page' : 'location') : undefined} onClick={() => setMobileOpen(false)}>
+              {title}
+              <span className={styles.mobileNavDesc}>{desc}</span>
+            </Link>
+          ))}
         </div>
 
         <div className={styles.mobileActions}>

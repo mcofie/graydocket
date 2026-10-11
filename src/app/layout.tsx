@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { siteDescription, siteTitle, siteUrl } from '@/lib/metadata';
 
 const familyFont = localFont({
   // Only the display headings use this face, all at weight 500
@@ -23,16 +24,16 @@ const interFont = Inter({
   display: "swap",
 });
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://graydocket.com";
+const appUrl = siteUrl;
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
   title: {
-    default: "GrayDocket — Start your business in Ghana. We handle the paperwork.",
+    default: siteTitle,
     template: "%s | GrayDocket",
   },
   description:
-    "GrayDocket makes it easy for anyone to start a business in Ghana. We register it with the ORC and keep it compliant, so you can focus on running your business and getting it off the ground.",
+    siteDescription,
   applicationName: "GrayDocket",
   keywords: [
     "business registration Ghana",
@@ -54,46 +55,29 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  alternates: {
-    canonical: "/",
-  },
-  icons: {
-    icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/icon.svg", type: "image/svg+xml" },
-      { url: "/icon.png", type: "image/png", sizes: "512x512" },
-    ],
-    apple: [
-      { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
-    ],
-    shortcut: "/favicon.ico",
-  },
   manifest: "/manifest.webmanifest",
   openGraph: {
-    title: "GrayDocket — Start your business in Ghana. We handle the paperwork.",
+    title: siteTitle,
     description:
-      "Anyone can start a business in Ghana with GrayDocket. We handle ORC registration, corporate banking, and compliance paperwork.",
-    url: appUrl,
+      siteDescription,
     siteName: "GrayDocket",
     locale: "en_GH",
     type: "website",
     images: [
       {
-        url: "/opengraph-image.png",
+        url: "/opengraph-image.png?v=3",
         width: 1200,
         height: 630,
-        alt: "GrayDocket — Start your business in Ghana. We handle the paperwork.",
+        alt: "GrayDocket: Start your business. We'll handle the paperwork. Colourful hero doodles surround the message.",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "GrayDocket — Start your business in Ghana. We handle the paperwork.",
+    title: siteTitle,
     description:
-      "Start your business in Ghana in about 15 minutes. We handle the registration and keep you compliant after.",
-    site: "@graydocket",
-    creator: "@graydocket",
-    images: ["/twitter-image.png"],
+      siteDescription,
+    images: ["/twitter-image.png?v=3"],
   },
   category: "Business & Legal Services",
 };

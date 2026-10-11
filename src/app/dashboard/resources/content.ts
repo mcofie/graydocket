@@ -29,8 +29,11 @@ export type ArticleBlock =
   | { type: 'ul'; items: string[] }
   | { type: 'note'; text: string }
 
+export type GuideIllustration = 'business-types' | 'name-search' | 'sole-proprietor' | 'limited-company' | 'non-profit' | 'compliance'
+
 export type Article = {
   slug: string
+  illustration: GuideIllustration
   title: string
   summary: string
   category: 'Getting started' | 'Business types' | 'After registration'
@@ -41,6 +44,7 @@ export type Article = {
 export const videos: ResourceVideo[] = [
   {
     id: 'business-types',
+    thumbnail: '/thumbnails/business-types.png',
     title: 'Which business type is right for you?',
     blurb: 'Sole proprietorship, limited company or non-profit, in plain English.',
     duration: '1:10',
@@ -48,6 +52,7 @@ export const videos: ResourceVideo[] = [
   },
   {
     id: 'how-it-works',
+    thumbnail: '/thumbnails/how-it-works.png',
     title: 'How registration works on GrayDocket',
     blurb: 'From your first answer to your certificate, step by step.',
     duration: '0:50',
@@ -55,6 +60,7 @@ export const videos: ResourceVideo[] = [
   },
   {
     id: 'name-search',
+    thumbnail: '/thumbnails/name-search.png',
     title: 'Choosing a name that gets approved',
     blurb: 'What the ORC looks for, and names to avoid.',
     duration: '0:45',
@@ -62,6 +68,7 @@ export const videos: ResourceVideo[] = [
   },
   {
     id: 'annual-returns',
+    thumbnail: '/thumbnails/annual-returns.png',
     title: 'Annual returns in under a minute',
     blurb: 'What they are, when they’re due, and how we file them for you.',
     duration: '0:55',
@@ -80,6 +87,7 @@ export const audios: ResourceAudio[] = [
 export const articles: Article[] = [
   {
     slug: 'choosing-a-business-type',
+    illustration: 'business-types',
     title: 'Choosing a business type in Ghana',
     summary: 'Sole proprietorship, limited company or company limited by guarantee: what each one means for you.',
     category: 'Getting started',
@@ -101,6 +109,7 @@ export const articles: Article[] = [
   },
   {
     slug: 'checking-a-business-name',
+    illustration: 'name-search',
     title: 'Checking and choosing a business name',
     summary: 'How the name search works and how to pick a name that is less likely to be rejected.',
     category: 'Getting started',
@@ -115,6 +124,7 @@ export const articles: Article[] = [
   },
   {
     slug: 'sole-proprietorship-checklist',
+    illustration: 'sole-proprietor',
     title: 'Sole proprietorship: what you need',
     summary: 'The details and documents to have ready before you register a business name.',
     category: 'Business types',
@@ -130,6 +140,7 @@ export const articles: Article[] = [
   },
   {
     slug: 'limited-company-checklist',
+    illustration: 'limited-company',
     title: 'Company limited by shares: what you need',
     summary: 'Directors, secretary, shareholders, auditor and the other details Form 3 asks for.',
     category: 'Business types',
@@ -145,6 +156,7 @@ export const articles: Article[] = [
   },
   {
     slug: 'company-limited-by-guarantee',
+    illustration: 'non-profit',
     title: 'Registering a non-profit (company limited by guarantee)',
     summary: 'What NGOs, charities and associations need to know before registering.',
     category: 'Business types',
@@ -159,6 +171,7 @@ export const articles: Article[] = [
   },
   {
     slug: 'staying-compliant',
+    illustration: 'compliance',
     title: 'Staying compliant after you register',
     summary: 'Annual returns, renewals, tax and SSNIT: the obligations that come after your certificate.',
     category: 'After registration',

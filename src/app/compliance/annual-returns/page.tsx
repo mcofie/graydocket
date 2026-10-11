@@ -1,11 +1,8 @@
-import type { Metadata } from 'next'
+import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
 import Link from 'next/link'
 
-export const metadata: Metadata = {
-  title: 'Annual Returns Filing',
-  description: 'File company annual returns with the ORC in Ghana on time. Maintain corporate good standing and prevent statutory penalties.',
-}
+export const metadata = pageMetadata('Annual Returns Filing', 'File company annual returns with the ORC in Ghana on time. Maintain corporate good standing and prevent statutory penalties.', '/compliance/annual-returns')
 
 export default function AnnualReturnsPage() {
   return (

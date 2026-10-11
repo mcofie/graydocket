@@ -1,11 +1,8 @@
-import type { Metadata } from 'next'
+import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
 import Link from 'next/link'
 
-export const metadata: Metadata = {
-  title: 'Company Limited by Guarantee (NGO & Foundation)',
-  description: 'Register a non-profit organization, NGO, or charity in Ghana with the ORC. Complete constitution preparation, vetting, and incorporation.',
-}
+export const metadata = pageMetadata('Company Limited by Guarantee (NGO & Foundation)', 'Register a non-profit organization, NGO, or charity in Ghana with the ORC. Complete constitution preparation, vetting, and incorporation.', '/services/company-guarantee')
 
 export default function CompanyGuaranteePage() {
   return (

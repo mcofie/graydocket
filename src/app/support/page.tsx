@@ -1,16 +1,14 @@
-import type { Metadata } from 'next'
+import { pageMetadata } from '@/lib/metadata'
 import Link from 'next/link'
-import { Mail, MessageCircle, Search, Compass, BookOpen, Tag, ChevronRight } from 'lucide-react'
+import { Mail, MessageCircle, Search, Compass, BookOpen, Tag, ChevronRight, ShieldCheck } from 'lucide-react'
 import InfoPageLayout from '@/components/InfoPageLayout'
+import GuideBanner from '@/components/doodles/GuideBanner'
 import { getBusinessTypes } from '@/lib/actions'
 import { businessTypes } from '@/app/dashboard/applications/new/constants'
 import { priceForType, type DbBusinessType } from '@/app/dashboard/applications/new/pricing'
 import blocks from '@/components/info-blocks.module.css'
 
-export const metadata: Metadata = {
-  title: 'Help & Support',
-  description: 'Get help with your GrayDocket registration: contact us, track an application, or find answers.',
-}
+export const metadata = pageMetadata('Help & Support', 'Get help with your GrayDocket registration: contact us, track an application, or find answers.', '/support')
 
 const SUPPORT_EMAIL = 'support@graydocket.com'
 const WHATSAPP_DISPLAY = '+233 558 508 306'
@@ -21,6 +19,7 @@ const QUICK_LINKS = [
   { href: '/find-your-business-type', icon: Compass, title: 'Find your business type', desc: 'Answer a few questions to see what fits' },
   { href: '/resources', icon: BookOpen, title: 'Guides & videos', desc: 'Requirements, name search and staying compliant' },
   { href: '/pricing', icon: Tag, title: 'Pricing', desc: 'What each registration costs' },
+  { href: '/security', icon: ShieldCheck, title: 'Security & account safety', desc: 'Protect your account or report a concern' },
 ]
 
 export default async function SupportPage() {
@@ -35,7 +34,7 @@ export default async function SupportPage() {
       q: 'How long does registration take?',
       a: (
         <>
-          Once your application is submitted, it usually takes{' '}
+          {timelines.length > 0 ? 'Once your application is submitted, it usually takes ' : 'Processing time depends on your business type. '}
           {timelines.map((t, i) => (
             <span key={t.name}>
               {t.timeline} for a {t.name.toLowerCase()}
@@ -59,6 +58,18 @@ export default async function SupportPage() {
       a: 'At the end of your registration, after you’ve reviewed everything. Payment is handled securely by Paystack.',
     },
     {
+      q: 'My payment went through, but my application still says unpaid. What should I do?',
+      a: 'Check your application again after a few minutes. If the status has not updated, contact us with your tracking ID, Paystack reference, amount and payment date. Please do not pay again while we check the transaction.',
+    },
+    {
+      q: 'I cannot receive my sign-in code. Can you help?',
+      a: 'Check that the phone number is correct and that your phone can receive SMS, then try again after a short wait. If you still cannot sign in, contact support with the phone number on your account. Never send us your sign-in code.',
+    },
+    {
+      q: 'Where can I find my certificate and documents?',
+      a: <>Log in and open <Link href="/dashboard/documents">Documents</Link> to see the files available for your account. If a document is missing, include your tracking ID when contacting us.</>,
+    },
+    {
       q: 'What if the registrar asks for changes?',
       a: 'You’ll see exactly what needs fixing on your application page. Update the details and resubmit at no extra cost.',
     },
@@ -66,6 +77,7 @@ export default async function SupportPage() {
 
   return (
     <InfoPageLayout title="Help & support" subtitle="Questions about starting your business? We’re here to help.">
+      <div className={blocks.banner}><GuideBanner illustration="support" /></div>
       <div className={blocks.cards}>
         <div className={blocks.card}>
           <span className={blocks.cardIcon}><Mail size={18} /></span>
@@ -82,6 +94,17 @@ export default async function SupportPage() {
           </a>
         </div>
       </div>
+
+      <section className={blocks.contactChecklist}>
+        <h2>Help us find your application</h2>
+        <p>When you get in touch, include:</p>
+        <ul>
+          <li>Your business name and tracking ID, if you have one.</li>
+          <li>A short description of what you need help with.</li>
+          <li>For payment queries, the Paystack reference, amount and date. Do not send card details or PINs.</li>
+        </ul>
+        <p>You do not need an account to contact us. Never send sign-in codes or identity documents in your first message.</p>
+      </section>
 
       <div className={blocks.rows}>
         {QUICK_LINKS.map(({ href, icon: Icon, title, desc }) => (

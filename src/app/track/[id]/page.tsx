@@ -11,6 +11,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return {
     title: `Application Status: ${id}`,
     description: `Track real-time progress for GrayDocket business registration application ${id}.`,
+    robots: { index: false, follow: false },
+    alternates: { canonical: null },
   }
 }
 

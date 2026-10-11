@@ -1,9 +1,6 @@
-import { Metadata } from 'next'
+import { pageMetadata } from '@/lib/metadata'
 
-export const metadata: Metadata = {
-  title: 'Track Application',
-  description: 'Enter your tracking ID to get real-time status updates on your business registration and incorporation process in Ghana.',
-}
+export const metadata = pageMetadata('Track Application', 'Enter your tracking ID to get real-time status updates on your business registration and incorporation process in Ghana.', '/track')
 
 export default function TrackLayout({
   children,

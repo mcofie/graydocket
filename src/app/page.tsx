@@ -1,4 +1,7 @@
 import Link from 'next/link'
+import { pageMetadata, siteDescription, siteTitle } from '@/lib/metadata'
+
+export const metadata = pageMetadata(siteTitle, siteDescription, '/')
 import {
   Building2,
   Search,
@@ -17,7 +20,7 @@ import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import Reveal from '@/components/ui/Reveal'
 import { NameDoodle, ComplianceDoodle, VaultDoodle } from '@/components/doodles/Doodles'
-import { HeroArtLeft, HeroArtRight, HeroArtRow } from '@/components/doodles/HeroDoodles'
+import { HeroArtLeft, HeroArtRight, HeroArtRow, CloudBuddy, BeanBuddy, TriangleBuddy } from '@/components/doodles/HeroDoodles'
 import styles from './page.module.css'
 
 // What GrayDocket takes off a founder's plate, one family accent each
@@ -242,10 +245,10 @@ export default function Home() {
           </section>
 
           {/* How it works: you answer, we file, you get to work */}
-          <section className={styles.showcaseSection}>
+          <section className={styles.showcaseSection} aria-labelledby="how-it-works-title">
             <div className={styles.showcaseHeader}>
               <p className={styles.showcaseEyebrow}>How it works</p>
-              <h2 className={styles.showcaseTitle}>
+              <h2 id="how-it-works-title" className={styles.showcaseTitle}>
                 From idea to open<br />
                 for business
               </h2>
@@ -255,6 +258,7 @@ export default function Home() {
               <div className={styles.showcaseCard}>
                 <div className={styles.showcaseVisual} style={{ '--panel': 'var(--accent-blue)' } as React.CSSProperties}>
                   <span className={styles.stepNum}>1</span>
+                  <svg className={styles.stepDoodle} viewBox="-155 -150 310 330" aria-hidden="true"><CloudBuddy x={0} y={0} s={0.9} /></svg>
                   <div className={styles.mockCard}>
                     <span className={styles.mockLabel}>Business name</span>
                     <span className={styles.mockInput}>
@@ -279,6 +283,7 @@ export default function Home() {
               <div className={styles.showcaseCard}>
                 <div className={styles.showcaseVisual} style={{ '--panel': 'var(--accent-gold)' } as React.CSSProperties}>
                   <span className={styles.stepNum}>2</span>
+                  <svg className={styles.stepDoodle} viewBox="-85 -75 170 170" aria-hidden="true"><TriangleBuddy x={0} y={0} /></svg>
                   <div className={`${styles.mockCard} ${styles.mockDoc}`}>
                     <span className={styles.mockDocIcon}><FileText size={18} /></span>
                     <span className={styles.mockDocTitle}>Registration filing</span>
@@ -299,6 +304,7 @@ export default function Home() {
               <div className={styles.showcaseCard}>
                 <div className={styles.showcaseVisual} style={{ '--panel': 'var(--accent-green)' } as React.CSSProperties}>
                   <span className={styles.stepNum}>3</span>
+                  <svg className={styles.stepDoodle} viewBox="-85 -75 170 170" aria-hidden="true"><BeanBuddy x={0} y={0} /></svg>
                   <div className={styles.mockToast}>
                     <span className={styles.mockToastIcon}><Bell size={13} strokeWidth={2.5} /></span>
                     Your certificate is ready

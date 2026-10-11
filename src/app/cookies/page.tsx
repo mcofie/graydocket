@@ -1,10 +1,7 @@
-import type { Metadata } from 'next'
+import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
 
-export const metadata: Metadata = {
-  title: 'Cookie Policy',
-  description: 'The cookies and browser storage GrayDocket uses, and why.',
-}
+export const metadata = pageMetadata('Cookie Policy', 'The cookies and browser storage GrayDocket uses, and why.', '/cookies')
 
 // Keep this list in step with what the app actually stores (see ReferralTracker and the registration form).
 export default function CookiesPage() {

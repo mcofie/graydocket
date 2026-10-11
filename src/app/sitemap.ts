@@ -1,8 +1,9 @@
 import type { MetadataRoute } from 'next'
 import { articles } from '@/app/dashboard/resources/content'
+import { siteUrl } from '@/lib/metadata'
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://graydocket.com'
+  const baseUrl = siteUrl
   const currentDate = new Date().toISOString()
 
   const staticRoutes = [

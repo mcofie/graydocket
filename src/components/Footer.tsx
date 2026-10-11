@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ArrowRight, Mail } from 'lucide-react'
 import FooterNavColumn from './FooterNavColumn'
+import FooterDoodle from './doodles/FooterDoodle'
 import styles from './Footer.module.css'
 
 const SUPPORT_EMAIL = 'support@graydocket.com'
@@ -71,8 +72,7 @@ export default function Footer() {
           </div>
 
           <div className={styles.calloutIllo}>
-            {/* eslint-disable-next-line @next/next/no-img-element -- decorative SVG */}
-            <img src="/meadow.svg" alt="" className={styles.illoImg} />
+            <FooterDoodle className={styles.illoImg} />
           </div>
         </div>
       </section>

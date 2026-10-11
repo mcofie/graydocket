@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { pageMetadata } from '@/lib/metadata'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { articles, getArticle } from '@/app/dashboard/resources/content'
@@ -14,7 +15,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const article = getArticle(slug)
-  return article ? { title: article.title, description: article.summary } : {}
+  return article ? pageMetadata(article.title, article.summary, `/guides/${encodeURIComponent(slug)}`) : { robots: { index: false, follow: false } }
 }
 
 export default async function PublicGuidePage({ params }: { params: Promise<{ slug: string }> }) {

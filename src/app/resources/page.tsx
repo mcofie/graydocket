@@ -1,13 +1,10 @@
-import type { Metadata } from 'next'
+import { pageMetadata } from '@/lib/metadata'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import ResourcesView from '@/app/dashboard/resources/ResourcesView'
 import styles from './resources-page.module.css'
 
-export const metadata: Metadata = {
-  title: 'Resources',
-  description: 'Videos and guides on registering and running a business in Ghana: business types, name search, requirements and staying compliant.',
-}
+export const metadata = pageMetadata('Resources', 'Videos and guides on registering and running a business in Ghana: business types, name search, requirements and staying compliant.', '/resources')
 
 // Public version of the dashboard Resources page; guides open at /guides/[slug]
 export default function PublicResourcesPage() {

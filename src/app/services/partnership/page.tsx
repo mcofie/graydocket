@@ -1,11 +1,8 @@
-import type { Metadata } from 'next'
+import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
 import Link from 'next/link'
 
-export const metadata: Metadata = {
-  title: 'Partnership Registration',
-  description: 'Register a partnership in Ghana under the Incorporated Private Partnerships Act (Act 152) with the ORC.',
-}
+export const metadata = pageMetadata('Partnership Registration', 'Register a partnership in Ghana under the Incorporated Private Partnerships Act (Act 152) with the ORC.', '/services/partnership')
 
 export default function PartnershipPage() {
   return (

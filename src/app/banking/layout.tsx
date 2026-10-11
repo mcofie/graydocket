@@ -1,9 +1,6 @@
-import type { Metadata } from 'next'
+import { pageMetadata } from '@/lib/metadata'
 
-export const metadata: Metadata = {
-  title: 'Corporate & Business Banking Hub',
-  description: 'Open a business bank account in Ghana alongside your ORC registration. Direct partnerships with Zenith Bank, Ecobank, GCB, and more.',
-}
+export const metadata = pageMetadata('Corporate & Business Banking Hub', 'Open a business bank account in Ghana alongside your ORC registration. Direct partnerships with Zenith Bank, Ecobank, GCB, and more.', '/banking')
 
 export default function BankingLayout({
   children,

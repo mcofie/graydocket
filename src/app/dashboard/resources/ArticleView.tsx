@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import GuideBanner from '@/components/doodles/GuideBanner'
 import type { Article } from './content'
 import styles from './resources.module.css'
 
@@ -22,6 +23,7 @@ export default function ArticleView({ article, backHref, backLabel, startHref }:
         <span>{article.readMinutes} min read</span>
       </p>
       <h1 className={styles.articleTitle}>{article.title}</h1>
+      <GuideBanner illustration={article.illustration} />
 
       <div className={styles.articleBody}>
         <p>{article.summary}</p>

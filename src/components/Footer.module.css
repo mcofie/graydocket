@@ -5,7 +5,7 @@
 }
 
 /* =====================================================
-   PRE-FOOTER CALLOUT SECTION (EXPLORE FAMILY / GRAYDOCKET)
+   PRE-FOOTER CALLOUT SECTION
    ===================================================== */
 .calloutSection {
   background-color: #fbf8f3;
@@ -95,6 +95,7 @@
   align-items: center;
   justify-content: flex-end;
   flex-grow: 1;
+  min-width: 0;
   max-width: 500px;
 }
 

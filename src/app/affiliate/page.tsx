@@ -1,11 +1,8 @@
-import type { Metadata } from 'next'
+import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
 import Link from 'next/link'
 
-export const metadata: Metadata = {
-  title: 'Affiliate Program',
-  description: 'Partner with GrayDocket to earn competitive commissions helping entrepreneurs launch and formalize their businesses in Ghana.',
-}
+export const metadata = pageMetadata('Affiliate Program', 'Partner with GrayDocket to earn competitive commissions helping entrepreneurs launch and formalize their businesses in Ghana.', '/affiliate')
 
 export default function AffiliatePage() {
   return (

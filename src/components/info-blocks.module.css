@@ -1,5 +1,17 @@
 /* Reusable blocks for InfoPageLayout pages (security, support) */
 
+.banner {
+  margin-bottom: 32px;
+}
+
+.banner figure {
+  margin-top: 0;
+}
+
+.contactChecklist {
+  margin-bottom: 40px;
+}
+
 .cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
