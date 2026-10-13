@@ -52,7 +52,7 @@ function AdminLoginContent() {
         return
       }
 
-      const isAdminRole = ['admin', 'registrar', 'bank_manager', 'service_manager'].includes(profile.role || 'user')
+      const isAdminRole = profile.role === 'admin' // one staff role
       
       if (!isAdminRole) {
         setError(`Unauthorized. Your current role is: ${profile.role || 'none'}`)

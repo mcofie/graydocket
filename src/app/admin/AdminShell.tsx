@@ -1,201 +1,99 @@
 'use client'
-/* eslint-disable @next/next/no-img-element */
 
-import { useState, useEffect } from 'react'
-import { forceFetchProfile } from '@/lib/actions'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import {
-  LayoutDashboard,
-  FileText,
-  Users,
-  DollarSign,
-  Building2,
-  Bell,
-  LogOut,
-  Menu,
-  X,
-  Shield,
-  Briefcase,
-  Cog,
-} from 'lucide-react'
+import { LayoutDashboard, FileText, Wallet, Tag, Handshake, Users, LogOut, Menu, X, ArrowLeftRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import dashStyles from '../dashboard/dashboard.module.css'
+import styles from './admin-ui.module.css'
 
-const adminNavItems = [
-  { label: 'Overview', href: '/admin', icon: LayoutDashboard, roles: ['admin', 'registrar', 'bank_manager', 'service_manager'] },
-  { label: 'Applications', href: '/admin/applications', icon: FileText, roles: ['admin', 'registrar'] },
-  { label: 'Payments', href: '/admin/payments', icon: DollarSign, roles: ['admin', 'bank_manager'] },
-  { label: 'Users', href: '/admin/users', icon: Users, roles: ['admin'] },
-  { label: 'Affiliate Brands', href: '/admin/affiliates', icon: Building2, roles: ['admin', 'registrar'] },
-  { label: 'Services', href: '/admin/services', icon: Briefcase, roles: ['admin', 'service_manager'] },
-  { label: 'Pricing (Zones)', href: '/admin/pricing', icon: DollarSign, roles: ['admin', 'service_manager'] },
-  { label: 'Banking Partners', href: '/admin/banking', icon: Building2, roles: ['admin', 'bank_manager'] },
-  { label: 'Settings', href: '/admin/settings', icon: Cog, roles: ['admin', 'registrar', 'bank_manager', 'service_manager'] },
+// The back office. One role (admin) sees one set of pages.
+const NAV = [
+  { label: 'Overview', href: '/admin', icon: LayoutDashboard },
+  { label: 'Applications', href: '/admin/applications', icon: FileText },
+  { label: 'Payments', href: '/admin/payments', icon: Wallet },
+  { label: 'Pricing', href: '/admin/pricing', icon: Tag },
+  { label: 'Affiliates', href: '/admin/affiliates', icon: Handshake },
+  { label: 'Users', href: '/admin/users', icon: Users },
 ]
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [user, setUser] = useState<{ email?: string; role?: string; full_name?: string; avatar_url?: string; user_metadata?: { full_name?: string } } | null>(null)
+  const [open, setOpen] = useState(false)
+  const [me, setMe] = useState<{ name: string; email: string } | null>(null)
 
   useEffect(() => {
-    const getUser = async () => {
-      const supabase = createClient()
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      
-      if (authUser) {
-        let profile = null;
-        try {
-          profile = await forceFetchProfile(authUser.id)
-        } catch (err) {
-          console.error("Profile fetch strictly failed:", err)
-        }
-        
-        setUser({ 
-          email: authUser.email, 
-          role: profile?.role || authUser.app_metadata?.role || authUser.user_metadata?.role, 
-          full_name: profile?.full_name || authUser.user_metadata?.full_name, 
-          avatar_url: profile?.avatar_url,
-          user_metadata: authUser.user_metadata
-        })
-      }
-    }
-    getUser()
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setMe({ name: (user.user_metadata?.full_name as string) || 'Admin', email: user.email || '' })
+    })
   }, [])
 
-  const handleSignOut = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
+  const signOut = async () => {
+    await createClient().auth.signOut()
     router.push('/')
     router.refresh()
   }
 
-  const getPageTitle = () => {
-    const item = adminNavItems.find((item) => item.href === pathname)
-    return item ? `Admin — ${item.label}` : 'Admin Panel'
-  }
+  const isActive = (href: string) => (href === '/admin' ? pathname === '/admin' : pathname.startsWith(href))
 
   return (
-    <div className={dashStyles.dashboardLayout}>
-      <div
-        className={`${dashStyles.sidebarOverlay} ${sidebarOpen ? dashStyles.open : ''}`}
-        onClick={() => setSidebarOpen(false)}
-      />
+    <div className={styles.shell}>
+      <aside className={`${styles.sidebar} ${open ? styles.sidebarOpen : ''}`}>
+        <Link href="/admin" className={styles.brand} onClick={() => setOpen(false)}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7" rx="1.5" fill="currentColor" />
+            <rect x="14" y="3" width="7" height="7" rx="1.5" fill="currentColor" />
+            <rect x="3" y="14" width="7" height="7" rx="1.5" fill="currentColor" />
+            <rect x="14" y="14" width="7" height="7" rx="1.5" fill="currentColor" />
+          </svg>
+          GrayDocket
+          <span className={styles.brandTag}>Admin</span>
+        </Link>
 
-      <aside className={`${dashStyles.sidebar} ${sidebarOpen ? dashStyles.open : ''}`}>
-        <div className={dashStyles.sidebarHeader}>
-          <Link href="/admin" className={dashStyles.sidebarLogo}>
-            <span className={dashStyles.sidebarLogoIcon} style={{ background: user?.role === 'registrar' ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)' : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' }}>
-              {user?.role === 'registrar' ? 'R' : 'A'}
-            </span>
-            <span>{user?.role === 'registrar' ? 'Registry Control' : 'Admin Panel'}</span>
-          </Link>
-        </div>
-
-        <nav className={dashStyles.sidebarNav}>
-          <div className={dashStyles.sidebarLink} style={{ gap: 'var(--space-2)', opacity: 0.7, cursor: 'default', pointerEvents: 'none' }}>
-            <Shield size={14} />
-            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: 'var(--color-neutral-400)' }}>
-              Administration
-            </span>
-          </div>
-          {adminNavItems
-            .filter((item) => !item.roles || item.roles.includes(user?.role || 'user'))
-            .map((item) => {
-              const Icon = item.icon
-              const isActive =
-                pathname === item.href ||
-                (item.href !== '/admin' && pathname.startsWith(item.href))
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`${dashStyles.sidebarLink} ${isActive ? dashStyles.active : ''}`}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <Icon size={20} />
-                  {item.label}
-                </Link>
-              )
-            })}
-
-          <div className={dashStyles.sidebarSection}>
-            <div className={dashStyles.sidebarSectionTitle}>Quick Links</div>
-            <Link href="/dashboard" className={dashStyles.sidebarLink}>
-              <LayoutDashboard size={20} />
-              User Dashboard
+        <nav aria-label="Admin">
+          {NAV.map(({ label, href, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className={`${styles.navLink} ${isActive(href) ? styles.navActive : ''}`}
+              aria-current={isActive(href) ? 'page' : undefined}
+              onClick={() => setOpen(false)}
+            >
+              <Icon size={18} strokeWidth={1.9} />
+              {label}
             </Link>
-            <Link href="/" className={dashStyles.sidebarLink}>
-              <Building2 size={20} />
-              Landing Page
-            </Link>
-          </div>
+          ))}
         </nav>
 
-        <div className={dashStyles.sidebarFooter}>
-          <div className={dashStyles.sidebarUser}>
-            <div 
-              className={dashStyles.sidebarAvatar} 
-              style={{ 
-                background: !user?.avatar_url ? (user?.role === 'registrar' ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)' : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)') : 'none',
-                overflow: 'hidden'
-              }}
-            >
-              {user?.avatar_url ? (
-                <img src={user.avatar_url} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                user?.role === 'registrar' ? 'R' : 'A'
-              )}
+        <div className={styles.sidebarFooter}>
+          {me && (
+            <div className={styles.who}>
+              <strong>{me.name}</strong>
+              {me.email}
             </div>
-            <div className={dashStyles.sidebarUserInfo}>
-              <div className={dashStyles.sidebarUserName}>
-                {user?.full_name || user?.user_metadata?.full_name || 'Admin'}
-              </div>
-              <div className={dashStyles.sidebarUserEmail}>
-                {user?.email || ''}
-              </div>
-            </div>
-          </div>
-          <button
-            className={dashStyles.sidebarLink}
-            onClick={handleSignOut}
-            style={{ marginTop: 'var(--space-2)', width: '100%' }}
-            id="admin-sign-out"
-          >
-            <LogOut size={20} />
-            Sign Out
+          )}
+          <Link href="/dashboard" className={styles.navLink}>
+            <ArrowLeftRight size={18} strokeWidth={1.9} />
+            Customer view
+          </Link>
+          <button type="button" className={styles.navLink} onClick={signOut} style={{ border: 0, background: 'none', cursor: 'pointer', font: 'inherit' }}>
+            <LogOut size={18} strokeWidth={1.9} />
+            Sign out
           </button>
         </div>
       </aside>
 
-      <div className={dashStyles.mainContent}>
-        <div className={dashStyles.topBar}>
-          <div className={dashStyles.topBarLeft}>
-            <button
-              className={dashStyles.mobileMenuBtn}
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              aria-label="Toggle sidebar"
-              id="admin-sidebar-toggle"
-            >
-              {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-            <h1 className={dashStyles.pageTitle}>{getPageTitle()}</h1>
-          </div>
-          <div className={dashStyles.topBarRight}>
-            <button className={dashStyles.notifBtn} aria-label="Notifications" id="admin-notif">
-              <Bell size={20} />
-              <span className={dashStyles.notifDot} />
-            </button>
-          </div>
+      <div>
+        <div className={styles.topBar}>
+          <button type="button" onClick={() => setOpen(!open)} aria-label="Menu" style={{ border: 0, background: 'none', cursor: 'pointer' }}>
+            {open ? <X size={22} /> : <Menu size={22} />}
+          </button>
+          <strong>GrayDocket Admin</strong>
+          <span style={{ width: 22 }} />
         </div>
-
-        <main className={dashStyles.content}>{children}</main>
+        <main className={styles.main}>{children}</main>
       </div>
     </div>
   )

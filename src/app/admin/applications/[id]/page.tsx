@@ -1,1409 +1,647 @@
 'use client'
 
-import { useState, useEffect, use, useRef, useCallback } from 'react'
+import { use, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, FileText, UploadCloud, ExternalLink, Copy, Printer, Clock, Save, User, CheckCircle, XCircle, AlertCircle, Edit2, X } from 'lucide-react'
-import { getApplicationDetails, updateApplicationStatus, uploadApplicationDocument, updateApplicationNotes, assignApplication, getRegistrarsForAssignment, verifyDocument, requestFieldCorrection, adminUpdateApplicationData, getAllBusinessTypes, sendDirectSmsToApplicant } from '@/lib/actions'
-import { createClient } from '@/lib/supabase/client'
+import { ArrowLeft, Copy, Flag, MessageSquare, Pencil, Phone, Printer, UploadCloud, X } from 'lucide-react'
+import Tabs from '@/components/ui/Tabs'
+import {
+  adminUpdateApplicationData,
+  requestFieldCorrection,
+  sendDirectSmsToApplicant,
+  updateApplicationNotes,
+  uploadApplicationDocument,
+} from '@/lib/actions'
+import { getAdminApplicationView } from '@/lib/admin-data'
+import { stageOf } from '@/lib/application-flow'
+import { issuedDocuments, providedDocuments } from '@/lib/documents'
+import { canonicalRow, priceForType, type DbBusinessType } from '@/app/dashboard/applications/new/pricing'
+import { businessTypes as typeCatalog } from '@/app/dashboard/applications/new/constants'
 import Modal from '../../components/Modal'
-import styles from '../../../dashboard/overview.module.css'
-import EmptyState from '@/components/ui/EmptyState'
+import WorkflowPanel from './WorkflowPanel'
+import { CardSkeleton, PaymentChip, Skeleton, StageChip, shortDate, ui } from '../../ui'
+import styles from './detail-admin.module.css'
 
-type JsonPrimitive = string | number | boolean | null
-type JsonValue = JsonPrimitive | JsonObject | JsonValue[]
-type JsonObject = { [key: string]: JsonValue | undefined }
+// One application, everything an admin needs: the workflow on the right, the details, documents and
+// activity on the left. Every field can be flagged (asks the customer to fix it) or edited in place.
 
-type CurrentUser = {
+type Json = Record<string, unknown>
+type History = { id?: string; status: string; notes?: string | null; created_at: string; updater?: { full_name?: string | null } | null }
+type App = Json & {
   id: string
-  app_metadata?: {
-    role?: string
-  } | null
-}
-
-type RegistrarOption = {
-  id: string
-  full_name: string
-}
-
-type ApplicationDocument = {
-  title: string
-  url: string
-  uploadedAt: string
-  verification_status?: 'approved' | 'rejected' | 'pending' | null
-  admin_notes?: string | null
-}
-
-type DirectorEntry = {
-  firstName?: string
-  surname?: string
-  ghanaCardNumber?: string
-  tinNumber?: string
-  email?: string
-  phone?: string
-  ghanaCardPhotoUrl?: string
-} & JsonObject
-
-type EntityEntry = {
-  firstName?: string
-  surname?: string
-  ghanaCardNumber?: string
-  tinNumber?: string
-  email?: string
-  phone?: string
-  ghanaCardPhotoUrl?: string
-} & JsonObject
-
-type ShareholderEntry = {
-  name?: string
-  type?: string
-  tinNumber?: string
-  nationality?: string
-  numberOfShares?: number | string
-  valuePerShare?: number | string
-  address?: string
-} & JsonObject
-
-type ApplicationFormData = JsonObject & {
-  natureOfBusiness?: string
-  dateOfCommencement?: string
-  mobilePhone?: string
-  directors?: DirectorEntry[]
-  documents?: ApplicationDocument[]
-  corrections?: Record<string, string>
-  proprietor?: EntityEntry
-  secretary?: EntityEntry
-  shareholders?: ShareholderEntry[]
-  members?: EntityEntry[]
-}
-
-type ApplicationHistoryEntry = {
-  id: string
-  status: string
-  notes?: string | null
-  created_at: string
-  updater?: {
-    full_name?: string | null
-  } | null
-}
-
-type ApplicationDetail = {
-  id: string
-  tracking_id: string
   business_name: string
   status: string
-  notes?: string | null
-  created_at: string
-  total_amount?: number | null
   payment_status?: string | null
-  assigned_to?: string | null
-  form_data?: ApplicationFormData | null
-  business_types?: {
-    id?: string
-    name?: string | null
-    orc_fee?: number | null
-    agent_fee?: number | null
-    returns_portion?: number | null
-    required_fields?: any
-  } | null
+  tracking_id?: string | null
+  created_at: string
   business_type_id?: string | null
-  assigned_registrar?: {
-    full_name?: string | null
-  } | null
-  application_status_history?: ApplicationHistoryEntry[]
-  profiles?: {
-    phone?: string | null
-  } | null
-  referred_by_id?: string | null
+  notes?: string | null
+  form_data?: Json | null
+  business_types?: { name?: string | null } | null
+  profiles?: { full_name?: string | null; email?: string | null; phone?: string | null } | null
+  application_status_history?: History[]
+  document_rows?: Array<{ id: string; name: string; file_url: string; document_type?: string | null; uploaded_at?: string | null }>
 }
 
-const statusOptions = [
-  'draft', 'submitted', 'name_search', 'under_review', 
-  'approved', 'rejected', 'dispatched', 'delivered', 'completed', 'cancelled', 'on_hold'
+// Fields handled elsewhere on the page (or internal bookkeeping)
+const HIDDEN = new Set([
+  'documents', 'corrections', 'idPhotos', 'ghanaCardPhotoUrl', 'price_lines', 'paystack_reference', 'paystackReference',
+  'selectedAddOns', 'ready_for_payment', 'total_amount', 'businessType', 'delivery_method', 'delivery_address',
+  'proprietor', 'directors', 'secretary', 'shareholders', 'members', 'companyDetails', 'formData', 'affiliateCode',
+])
+
+const LABELS: Record<string, string> = {
+  tinNumber: 'TIN',
+  ghanaCardNumber: 'Ghana Card number',
+  businessNameAlt: 'Backup name',
+  dateOfCommencement: 'Commencement date',
+  mobilePhone: 'Mobile phone',
+  digitalAddress: 'Digital address (GPS)',
+  auditorLater: 'Auditor to be added later',
+  capitalAuto: 'Capital calculated automatically',
+}
+
+// Sentence case: "dateOfBirth" -> "Date of birth"
+const humanize = (key: string) => {
+  if (LABELS[key]) return LABELS[key]
+  const words = key.replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().trim()
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+// The order fields are read in, for people and for the business. Anything else follows.
+const ORDER = [
+  'title', 'firstName', 'otherNames', 'surname', 'fullName', 'name', 'gender', 'dateOfBirth', 'nationality', 'occupation',
+  'ghanaCardNumber', 'tinNumber', 'phone', 'mobilePhone', 'email', 'residentialAddress',
+  'businessNameAlt', 'businessSector', 'businessSectorOther', 'natureOfBusiness', 'dateOfCommencement',
+  'buildingName', 'streetName', 'city', 'district', 'region', 'digitalAddress', 'poBox',
+  'numberOfShares', 'valuePerShare', 'statedCapital',
 ]
+const byOrder = (a: string, b: string) => {
+  const ia = ORDER.indexOf(a)
+  const ib = ORDER.indexOf(b)
+  return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib)
+}
 
-export default function ApplicationDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params)
-  const appId = resolvedParams.id
+const personLabel = (p: Json) =>
+  (String(p.fullName || p.name || [p.firstName, p.otherNames, p.surname].filter(Boolean).join(' ')) || '').replace(/\s+/g, ' ').trim()
 
-  
-  const [app, setApp] = useState<ApplicationDetail | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  
-  // Auth & Assignment State
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
-  const [registrars, setRegistrars] = useState<RegistrarOption[]>([])
-  const [assigning, setAssigning] = useState(false)
-  
-  // Doc Upload State
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [uploading, setUploading] = useState(false)
-  const [docTitle, setDocTitle] = useState('')
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+/** Has at least one filled-in simple field */
+const hasContent = (p: Json) => Object.keys(p || {}).some((k) => !HIDDEN.has(k) && isPrimitive(p[k]) && p[k] !== '' && p[k] !== null)
 
-  // Notes State
+const isPrimitive = (v: unknown) => v === null || ['string', 'number', 'boolean'].includes(typeof v)
+
+const display = (v: unknown) => {
+  if (v === true) return 'Yes'
+  if (v === false) return 'No'
+  if (v === null || v === undefined || v === '') return null
+  if (Array.isArray(v)) return v.filter(isPrimitive).join(', ') || null
+  return String(v)
+}
+
+/** Read and write nested values by "directors.0.tinNumber" style paths */
+const getAt = (obj: Json, path: string): unknown => path.split('.').reduce<unknown>((o, k) => (o as Json | undefined)?.[k], obj)
+function setAt(obj: Json, path: string, value: unknown): Json {
+  const [head, ...rest] = path.split('.')
+  const clone: Json = Array.isArray(obj) ? ([...(obj as unknown[])] as unknown as Json) : { ...obj }
+  clone[head] = rest.length ? setAt((obj[head] as Json) || {}, rest.join('.'), value) : value
+  return clone
+}
+
+type FieldProps = {
+  data: Json
+  path: string
+  corrections: Record<string, string>
+  editing: boolean
+  draft: Json
+  onDraft: (path: string, value: unknown) => void
+  onFlag: (path: string, label: string) => void
+}
+
+/** The primitive fields of one object as a label/value grid */
+function Fields({ data, path, corrections, editing, draft, onDraft, onFlag, skip = HIDDEN }: FieldProps & { skip?: Set<string> }) {
+  const keys = Object.keys(data || {}).filter((k) => !skip.has(k) && isPrimitive(data[k])).sort(byOrder)
+  if (keys.length === 0) return <p className={ui.muted}>Nothing recorded.</p>
+  return (
+    <dl className={styles.fields}>
+      {keys.map((k) => {
+        const full = path ? `${path}.${k}` : k
+        const value = display(editing ? getAt(draft, full) : data[k])
+        const correction = corrections[full]
+        return (
+          <div key={full} className={`${styles.field} ${correction ? styles.fieldFlagged : ''}`}>
+            <dt>{humanize(k)}</dt>
+            <dd>
+              {editing && typeof data[k] !== 'boolean' ? (
+                <input className={ui.input} value={String(getAt(draft, full) ?? '')} onChange={(e) => onDraft(full, e.target.value)} />
+              ) : (
+                value ?? <span className={ui.muted}>—</span>
+              )}
+              {!editing && (
+                <button type="button" className={styles.flag} onClick={() => onFlag(full, humanize(k))} aria-label={`Ask the customer to fix ${humanize(k)}`} title="Ask the customer to fix this">
+                  <Flag size={13} />
+                </button>
+              )}
+            </dd>
+            {correction && <p className={styles.correction}>Asked to fix: {correction}</p>}
+          </div>
+        )
+      })}
+    </dl>
+  )
+}
+
+export default function ApplicationPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
+  const [app, setApp] = useState<App | null>(null)
+  const [error, setError] = useState('')
+  const [tab, setTab] = useState<'details' | 'documents' | 'activity'>('details')
+  const [types, setTypes] = useState<Array<DbBusinessType & { id: string }>>([])
+
+  // Editing
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState<Json>({})
+  const [draftName, setDraftName] = useState('')
+  const [draftType, setDraftType] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  // Dialogs
+  const [flagging, setFlagging] = useState<{ path: string; label: string } | null>(null)
+  const [flagReason, setFlagReason] = useState('')
+  const [smsOpen, setSmsOpen] = useState(false)
+  const [sms, setSms] = useState('')
+  const [viewing, setViewing] = useState<{ src: string; title: string } | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  // Notes and uploads
   const [notes, setNotes] = useState('')
-  const [savingNotes, setSavingNotes] = useState(false)
+  const [notesSaved, setNotesSaved] = useState(true)
+  const [docTitle, setDocTitle] = useState('')
+  const [docFile, setDocFile] = useState<File | null>(null)
+  const [team, setTeam] = useState<Array<{ id: string; full_name: string | null; email: string | null }>>([])
 
-  // Edit Mode State
-  const [isEditingForm, setIsEditingForm] = useState(false)
-  const [businessTypes, setBusinessTypes] = useState<any[]>([])
-  const [editPayload, setEditPayload] = useState<any>({ businessTypeId: '', businessName: '', formData: {} })
-  const [savingForm, setSavingForm] = useState(false)
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null)
-  
-  // SMS Modal State
-  const [isSmsModalOpen, setIsSmsModalOpen] = useState(false)
-  const [smsMessage, setSmsMessage] = useState('')
-  const [sendingSms, setSendingSms] = useState(false)
-
-  // Correction Modal State
-  const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false)
-  const [correctionFieldKey, setCorrectionFieldKey] = useState('')
-  const [correctionFieldName, setCorrectionFieldName] = useState('')
-  const [correctionReason, setCorrectionReason] = useState('')
-  const [submittingCorrection, setSubmittingCorrection] = useState(false)
-
-  const fetchData = useCallback(async () => {
-    if (!appId) return
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    let adminFlag = false
-    if (user) {
-      setCurrentUser(user as CurrentUser)
-      if (user.app_metadata?.role === 'admin') {
-        adminFlag = true
-        setIsSuperAdmin(true)
-      } else {
-        const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
-        if (prof?.role === 'admin') {
-          adminFlag = true
-          setIsSuperAdmin(true)
-        }
-      }
+  const load = useCallback(async () => {
+    // One call: application, price rows and the team (server actions run one at a time)
+    const res = await getAdminApplicationView(id)
+    if (res.error || !res.application) {
+      setError(res.error || 'Application not found.')
+      return
     }
-
-    const [regs, bTypes, res] = await Promise.all([
-      adminFlag ? getRegistrarsForAssignment() : Promise.resolve([]),
-      adminFlag ? getAllBusinessTypes() : Promise.resolve({ business_types: [], error: null }),
-      getApplicationDetails(appId)
-    ])
-
-    if (res.error) setError(res.error)
-    const application = (res.application as ApplicationDetail | null) || null
-    setApp(application)
-    setNotes(application?.notes || '')
-    setLoading(false)
-
-    if (adminFlag) {
-      setRegistrars(regs as RegistrarOption[])
-      const uniqueBTypes = (bTypes.business_types || []).filter((v: any, i: number, a: any[]) => 
-        a.findIndex(t => t.name === v.name) === i
-      )
-      if (application?.business_type_id && !uniqueBTypes.some(b => b.id === application.business_type_id)) {
-        const matchingBType = (bTypes.business_types || []).find(b => b.id === application.business_type_id)
-        if (matchingBType) {
-          uniqueBTypes.push(matchingBType)
-        }
-      }
-      setBusinessTypes(uniqueBTypes)
+    const a = res.application as unknown as App
+    setApp(a)
+    setNotes(a.notes || '')
+    setNotesSaved(true)
+    setTeam(res.team)
+    const rows = (res.businessTypes || []) as Array<DbBusinessType & { id: string }>
+    const canonical = typeCatalog.map((t) => canonicalRow(t.name, rows)).filter(Boolean) as Array<DbBusinessType & { id: string }>
+    if (a.business_type_id && !canonical.some((r) => r.id === a.business_type_id)) {
+      const current = rows.find((r) => r.id === a.business_type_id)
+      if (current) canonical.push(current)
     }
-  }, [appId])
+    setTypes(canonical)
+  }, [id])
 
   useEffect(() => {
-    if (appId) {
-      fetchData()
-    }
-  }, [appId, fetchData])
+    // Loads the application once on mount
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load()
+  }, [load])
 
-  const handleAssignAction = async (targetUserId: string) => {
-    if (!appId || !targetUserId) return
-    setAssigning(true)
-    const res = await assignApplication(appId, targetUserId)
-    if (res.error) alert(res.error)
-    else await fetchData()
-    setAssigning(false)
-  }
+  const form = useMemo(() => (app?.form_data || {}) as Json, [app])
+  // Applications saved through the edit page keep business fields under form_data.formData
+  const businessPath = form.formData && typeof form.formData === 'object' ? 'formData' : ''
+  const businessData = (businessPath ? form.formData : form) as Json
+  const corrections = (form.corrections || {}) as Record<string, string>
+  // Files in the documents table as well as ones attached to the form
+  const issued = useMemo(() => issuedDocuments(form, app?.document_rows || []), [form, app])
+  const provided = useMemo(() => providedDocuments(form), [form])
+  const history = app?.application_status_history || []
 
-  const handleVerify = async (docUrl: string, status: 'approved' | 'rejected') => {
-    if (!appId) return
-    let notes = ''
-    if (status === 'rejected') {
-      notes = window.prompt('Why are you rejecting this document?') || ''
-      if (!notes) return // Don't reject without a reason
-    }
-
-    const res = await verifyDocument(appId, docUrl, status, notes)
-    if (res.error) alert(res.error)
-    else await fetchData()
-  }
-
-  const handleSaveNotes = async () => {
-    if (!appId) return
-    setSavingNotes(true)
-    const res = await updateApplicationNotes(appId, notes)
-    if (res.error) alert(res.error)
-    else {
-      setApp((currentApp) => (
-        currentApp
-          ? { ...currentApp, notes }
-          : currentApp
-      ))
-    }
-    setSavingNotes(false)
-  }
-
-  const handleStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    if (!app || !appId) return
-
-    const newStatus = e.target.value
-    const currentStatus = app.status
-
-    // 1. Irreversibility Alert (Client-side Guard)
-    const terminalStates = ['completed', 'cancelled']
-    const checkpointStates = ['dispatched', 'delivered']
-    
-    let warning = ''
-    if (terminalStates.includes(newStatus)) {
-      warning = `CRITICAL: Moving to ${newStatus.toUpperCase()} is PERMANENT. You will NOT be able to change the status again. Are you absolutely sure?`
-    } else if (checkpointStates.includes(newStatus)) {
-      warning = `LOGISTICS ALERT: Moving to ${newStatus.toUpperCase()} is a procedural checkpoint. Reversing this state later will be restricted by the system. Proceed?`
-    }
-
-    if (warning && !window.confirm(warning)) {
-      // Revert the UI state if cancelled
-      e.target.value = currentStatus
-      return
-    }
-
-    const customNote = window.prompt(`Add a status update note for the customer (sent via SMS):`) || undefined
-    
-    setApp({ ...app, status: newStatus }) // Optimistic UI
-    const { error } = await updateApplicationStatus(appId, newStatus, customNote)
-    if (error) {
-      alert(error)
-      await fetchData() // Rollback
-    } else {
-      await fetchData()
-    }
-  }
-
-  const handleSendCustomSms = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault()
-    if (!appId) return
-    if (!smsMessage || !smsMessage.trim()) {
-      alert('Please enter a message.')
-      return
-    }
-
-    setSendingSms(true)
-    const res = await sendDirectSmsToApplicant(appId, smsMessage.trim())
-    if (res.error) {
-      alert(`Error sending SMS: ${res.error}`)
-    } else {
-      alert('SMS successfully queued for sending!')
-      setIsSmsModalOpen(false)
-      setSmsMessage('')
-      await fetchData() // Refresh history timeline
-    }
-    setSendingSms(false)
-  }
-
-  const handleFlagField = (fieldKey: string, fieldName: string) => {
-    setCorrectionFieldKey(fieldKey)
-    setCorrectionFieldName(fieldName)
-    setCorrectionReason('')
-    setIsCorrectionModalOpen(true)
-  }
-
-  const submitCorrectionRequest = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!appId || !correctionFieldKey || !correctionReason.trim()) return
-
-    setSubmittingCorrection(true)
-    const res = await requestFieldCorrection(appId, correctionFieldKey, correctionReason.trim())
-    if (res.error) {
-      alert(res.error)
-    } else {
-      setIsCorrectionModalOpen(false)
-      await fetchData()
-    }
-    setSubmittingCorrection(false)
-  }
-
-  const handleUpload = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!appId || !selectedFile || !docTitle) {
-      alert('Please provide both a title and a file.')
-      return
-    }
-
-    setUploading(true)
-    const formData = new FormData()
-    formData.append('file', selectedFile)
-    formData.append('title', docTitle)
-
-    const res = await uploadApplicationDocument(appId, formData)
-    if (res.error) {
-      alert(`Upload failed: ${res.error}`)
-    } else {
-      // Re-fetch to get updated documents list
-      await fetchData()
-      setDocTitle('')
-      setSelectedFile(null)
-      if (fileInputRef.current) fileInputRef.current.value = ''
-    }
-    setUploading(false)
-  }
-
-  const generateText = (obj: JsonValue | undefined, indent = 0): string => {
-    if (!obj) return ''
-    if (typeof obj !== 'object') return String(obj)
-    
-    let text = ''
-    const spaces = '  '.repeat(indent)
-    for (const [key, val] of Object.entries(obj)) {
-      if (key === 'documents') continue
-      const readableKey = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())
-      
-      if (Array.isArray(val)) {
-        if (val.length === 0) {
-          text += `${spaces}${readableKey}: Empty\n`
-        } else {
-          text += `${spaces}${readableKey}:\n`
-          val.forEach((item, i) => {
-            text += `${spaces}  [Item ${i + 1}]\n`
-            text += typeof item === 'object' ? generateText(item, indent + 2) : `${spaces}    ${item}\n`
-          })
-        }
-      } else if (typeof val === 'object') {
-        text += `${spaces}${readableKey}:\n`
-        text += generateText(val, indent + 1)
-      } else {
-        text += `${spaces}${readableKey}: ${val === '' ? 'N/A' : val}\n`
-      }
-    }
-    return text
-  }
-
-  const getFormattedText = () => {
-    if (!app) return ''
-    const fd = app.form_data || {}
-    let text = `APPLICATION DETAILS - ${app.tracking_id}\n`
-    text += `Business Name: ${app.business_name}\n`
-    text += `Type: ${app.business_types?.name}\n\n`
-    text += `--- EXTRACTED DATA ---\n\n`
-    text += generateText(fd)
-    return text
-  }
-
-  const handleCopyData = () => {
-    navigator.clipboard.writeText(getFormattedText())
-    alert('Application data copied to clipboard!')
-  }
-
-  const generateObjectHTML = (obj: JsonValue | undefined): string => {
-    if (!obj) return ''
-    if (typeof obj !== 'object') return `<span>${obj}</span>`
-    
-    let html = `<table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">`
-    for (const [key, val] of Object.entries(obj)) {
-      if (key === 'documents') continue
-      
-      const readableKey = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())
-      
-      html += `<tr><td style="padding: 10px; border: 1px solid #ddd; width: 35%; background: #f4f4f5; font-weight: 600; font-size: 12px; text-transform: uppercase;">${readableKey}</td>`
-      html += `<td style="padding: 10px; border: 1px solid #ddd; font-size: 14px;">`
-      
-      if (Array.isArray(val)) {
-        if (val.length === 0) {
-          html += `<span style="color: #999; font-style: italic;">Empty</span>`
-        } else {
-          val.forEach((item, i) => {
-            html += `<div style="margin-bottom: ${i < val.length - 1 ? '15px' : '0'}; padding-bottom: ${i < val.length - 1 ? '15px' : '0'}; border-bottom: ${i < val.length - 1 ? '1px dashed #ccc' : 'none'};">`
-            html += `<div style="font-size: 10px; color: #666; margin-bottom: 4px; text-transform: uppercase; font-weight: 600;">Item ${i + 1}</div>`
-            html += typeof item === 'object' ? generateObjectHTML(item) : item
-            html += `</div>`
-          })
-        }
-      } else if (typeof val === 'object') {
-        html += generateObjectHTML(val)
-      } else {
-        html += val === '' ? `<span style="color: #999; font-style: italic;">N/A</span>` : val
-      }
-      
-      html += `</td></tr>`
-    }
-    html += `</table>`
-    return html
-  }
-
-  const handlePrintPDF = () => {
-    if (!app) return
-
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) {
-      alert('Pop-up blocked. Please allow pop-ups to print PDF.')
-      return
-    }
-    const fd = app.form_data || {}
-    const restData = { ...fd }
-    delete restData.documents
-    
-    let html = `<html><head><title>App_${app.tracking_id}</title><style>
-      body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; line-height: 1.6; color: #111; max-width: 900px; margin: 0 auto; }
-      h1 { font-size: 28px; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 25px; font-weight: 800; }
-      h2 { font-size: 18px; color: #444; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-top: 40px; margin-bottom: 20px; }
-      .meta { margin-bottom: 40px; background: #fafafa; padding: 20px; border-radius: 8px; border: 1px solid #eee; font-size: 14px; }
-      .meta strong { color: #555; }
-    </style></head><body>`
-    
-    html += `<h1>${app.business_name}</h1>`
-    html += `<div class="meta">
-      <div style="margin-bottom: 8px;"><strong>Tracking ID:</strong> <span style="font-family: monospace; color: #dc2626;">${app.tracking_id}</span></div>
-      <div style="margin-bottom: 8px;"><strong>Entity Type:</strong> ${app.business_types?.name}</div>
-      <div><strong>Date Submitted:</strong> ${new Date(app.created_at).toLocaleString()}</div>
-    </div>`
-    html += `<h2>Submitted Business Information</h2>`
-    html += generateObjectHTML(restData)
-    html += `</body></html>`
-    
-    printWindow.document.write(html)
-    printWindow.document.close()
-    printWindow.focus()
-    setTimeout(() => {
-      printWindow.print()
-    }, 500)
-  }
-
-  const startEditing = () => {
-    setIsEditingForm(true)
-    setEditPayload({
-      businessTypeId: app?.business_type_id || app?.business_types?.id || '',
-      businessName: app?.business_name || '',
-      formData: app?.form_data || {}
-    })
-  }
-
-  const saveEditedForm = async () => {
-    if (!appId) return
-    setSavingForm(true)
-    const res = await adminUpdateApplicationData(appId, editPayload)
-    if (res.error) {
-       alert(res.error)
-    } else {
-       setIsEditingForm(false)
-       await fetchData()
-    }
-    setSavingForm(false)
-  }
-
-  const renderEditField = (field: string) => {
-    const isComplex = ['directors', 'secretary', 'shareholders', 'members', 'proprietor'].includes(field)
-    
-    if (isComplex) {
-       const isArray = ['directors', 'secretary', 'shareholders', 'members'].includes(field) && field !== 'secretary';
-       const rawVal = editPayload.formData[field] || (isArray ? [] : {});
-       
-       const getEmptyEntityTemplate = () => {
-         if (['directors', 'secretary', 'proprietor', 'members'].includes(field)) {
-            return { title: '', surname: '', firstName: '', otherNames: '', dateOfBirth: '', gender: '', nationality: '', occupation: '', ghanaCardNumber: '', tinNumber: '', residentialAddress: '', city: '', region: '', digitalAddress: '', phone: '', email: '', idPhotos: [], ghanaCardPhotoUrl: '' };
-         }
-         if (field === 'shareholders') {
-            return { type: 'individual', name: '', tinNumber: '', nationality: '', address: '', numberOfShares: '', valuePerShare: '' };
-         }
-         return {};
-       };
-
-       const handlePhotoUpload = (idx: number, files: FileList | null) => {
-          if (!files) return;
-          const fileArray = Array.from(files);
-          const promises = fileArray.map(file => new Promise<string>((resolve) => {
-             const reader = new FileReader();
-             reader.onloadend = () => resolve(reader.result as string);
-             reader.readAsDataURL(file);
-          }));
-          Promise.all(promises).then(results => {
-             if (isArray) {
-                const arr = [...(editPayload.formData[field] || [])];
-                const existingPhotos = arr[idx].idPhotos || [];
-                arr[idx] = { ...arr[idx], idPhotos: [...existingPhotos, ...results] };
-                setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: arr } });
-             } else {
-                const currentVal = editPayload.formData[field] || {};
-                const existingPhotos = currentVal.idPhotos || [];
-                const updated = { ...currentVal, idPhotos: [...existingPhotos, ...results] };
-                setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: updated } });
-             }
-          });
-       };
-
-       const removePhoto = (idx: number, photoIdx: number, isOldGhanaCardUrl: boolean) => {
-          if (isArray) {
-             const arr = [...(editPayload.formData[field] || [])];
-             if (isOldGhanaCardUrl) {
-                arr[idx] = { ...arr[idx], ghanaCardPhotoUrl: '' };
-             } else {
-                const newPhotos = [...(arr[idx].idPhotos || [])];
-                newPhotos.splice(photoIdx, 1);
-                arr[idx] = { ...arr[idx], idPhotos: newPhotos };
-             }
-             setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: arr } });
-          } else {
-             const currentVal = editPayload.formData[field] || {};
-             if (isOldGhanaCardUrl) {
-                setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: { ...currentVal, ghanaCardPhotoUrl: '' } } });
-             } else {
-                const newPhotos = [...(currentVal.idPhotos || [])];
-                newPhotos.splice(photoIdx, 1);
-                setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: { ...currentVal, idPhotos: newPhotos } } });
-             }
-          }
-       };
-
-       const updateItem = (idx: number, key: string, val: any) => {
-          if (isArray) {
-             const arr = [...(editPayload.formData[field] || [])];
-             arr[idx] = { ...arr[idx], [key]: val };
-             setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: arr } });
-          } else {
-             const currentVal = editPayload.formData[field] || {};
-             setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: { ...currentVal, [key]: val } } });
-          }
-       };
-
-       const renderEntityCard = (item: any, idx: number) => {
-         const standardKeys = Object.keys(getEmptyEntityTemplate()).filter(k => k !== 'idPhotos' && k !== 'ghanaCardPhotoUrl');
-         return (
-           <div key={idx} style={{ background: 'white', border: '1px solid var(--color-neutral-200)', padding: '16px', borderRadius: '8px', marginBottom: '12px' }}>
-             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <strong style={{ fontSize: '13px' }}>{isArray ? `Item #${idx + 1}` : 'Details'}</strong>
-                {isArray && (
-                   <button type="button" onClick={() => {
-                      const arr = [...(editPayload.formData[field] || [])];
-                      arr.splice(idx, 1);
-                      setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: arr } });
-                   }} style={{ background: 'none', border: 'none', color: 'var(--color-error)', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>Remove</button>
-                )}
-             </div>
-             <div className={styles.formGrid}>
-               {standardKeys.map(k => (
-                 <div key={k}>
-                    <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-neutral-500)', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>{k.replace(/([A-Z])/g, ' $1')}</label>
-                    <input type="text" className="form-input" style={{ fontSize: '12px', padding: '6px' }} value={item[k] || ''} onChange={(e) => updateItem(idx, k, e.target.value)} />
-                 </div>
-               ))}
-             </div>
-             <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--color-neutral-100)' }}>
-                <label style={{ fontSize: '11px', fontWeight: 700, marginBottom: '8px', display: 'block', color: 'var(--color-neutral-600)' }}>UPLOADED ID PHOTOS</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                   {item.ghanaCardPhotoUrl && (
-                     <div style={{ position: 'relative', width: '60px', height: '60px' }}>
-                        <img src={item.ghanaCardPhotoUrl} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--color-neutral-200)' }} />
-                        <button type="button" onClick={() => removePhoto(idx, -1, true)} style={{ position: 'absolute', top: '-6px', right: '-6px', background: 'white', border: '1px solid var(--color-error)', borderRadius: '50%', color: 'var(--color-error)', cursor: 'pointer', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', padding: 0 }}>&times;</button>
-                     </div>
-                   )}
-                   {item.idPhotos?.map((p: string, pIdx: number) => (
-                     <div key={pIdx} style={{ position: 'relative', width: '60px', height: '60px' }}>
-                        <img src={p} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--color-neutral-200)' }} />
-                        <button type="button" onClick={() => removePhoto(idx, pIdx, false)} style={{ position: 'absolute', top: '-6px', right: '-6px', background: 'white', border: '1px solid var(--color-error)', borderRadius: '50%', color: 'var(--color-error)', cursor: 'pointer', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', padding: 0 }}>&times;</button>
-                     </div>
-                   ))}
-                   <label style={{ width: '60px', height: '60px', border: '1px dashed var(--color-neutral-300)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'var(--color-neutral-50)' }}>
-                      <span style={{ fontSize: '20px', color: 'var(--color-neutral-400)' }}>+</span>
-                      <input type="file" multiple accept="image/*" style={{ display: 'none' }} onChange={(e) => handlePhotoUpload(idx, e.target.files)} />
-                   </label>
-                </div>
-             </div>
-           </div>
-         );
-       };
-
-       return (
-         <div style={{ background: 'var(--color-neutral-50)', padding: '16px', borderRadius: '8px', border: '1px solid var(--color-neutral-200)' }}>
-           {isArray ? (
-              <>
-                {(rawVal as any[]).map((item, idx) => renderEntityCard(item, idx))}
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => {
-                   const arr = [...(editPayload.formData[field] || [])];
-                   arr.push(getEmptyEntityTemplate());
-                   setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: arr } });
-                }} style={{ marginTop: '8px' }}>+ Add New</button>
-              </>
-           ) : (
-              renderEntityCard(rawVal, 0)
-           )}
-         </div>
-       );
-    }
-
+  if (error) {
     return (
-       <input 
-         type="text" 
-         className="form-input" 
-         value={editPayload.formData[field] || ''}
-         onChange={(e) => setEditPayload({ ...editPayload, formData: { ...editPayload.formData, [field]: e.target.value } })}
-       />
-    )
-  }
-
-  const renderUIDataNode = (obj: JsonValue | undefined, level = 0, path = ''): React.ReactNode => {
-    if (!obj) return null
-    if (typeof obj !== 'object') return <span style={{ fontWeight: 500 }}>{String(obj)}</span>
-    
-    const corrections = app?.form_data?.corrections || {}
-
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {Object.entries(obj).map(([key, val]) => {
-          if (key === 'documents' || key === 'corrections' || key === 'paystackReference' || key === 'total_amount' || key === 'delivery_method' || key === 'delivery_address' || key === 'businessType') return null
-          
-          const currentPath = path ? `${path}.${key}` : key
-          const readableKey = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())
-          const existingCorrection = corrections[currentPath]
-          
-          return (
-            <div key={key} style={{ 
-              background: level === 0 ? 'white' : 'transparent', 
-              padding: level === 0 ? '16px' : '0', 
-              border: level === 0 ? (existingCorrection ? '1px solid var(--color-error)' : '1px solid var(--color-neutral-200)') : 'none', 
-              borderRadius: '8px',
-              position: 'relative',
-              transition: 'all 0.2s'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: existingCorrection ? 'var(--color-error)' : 'var(--color-neutral-500)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  {readableKey}
-                </div>
-                {(!Array.isArray(val) && typeof val !== 'object') && (
-                  <button 
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleFlagField(currentPath, readableKey);
-                    }}
-                    style={{ background: 'none', border: 'none', color: existingCorrection ? 'var(--color-error)' : 'var(--color-neutral-200)', cursor: 'pointer', display: 'flex' }}
-                    title="Flag for Correction"
-                  >
-                    <AlertCircle size={14} />
-                  </button>
-                )}
-              </div>
-              
-              {existingCorrection && (
-                <div style={{ background: 'var(--color-error-light)', color: 'var(--color-error)', fontSize: '11px', padding: '8px 12px', borderRadius: '6px', marginBottom: '12px', border: '1px solid var(--color-error-light)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                   <div style={{ fontWeight: 900 }}>REVISION REQUIRED:</div> {existingCorrection}
-                </div>
-              )}
-              
-              {Array.isArray(val) ? (
-                val.length === 0 ? <span style={{ color: 'var(--color-neutral-400)', fontSize: '13px', fontStyle: 'italic' }}>Empty</span> : (
-                  key === 'idPhotos' ? (
-                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
-                        {val.map((item, i) => (
-                           String(item).startsWith('data:image') 
-                             ? (
-                                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'white', padding: '8px', borderRadius: '8px', border: '1px solid var(--color-neutral-200)', width: '240px' }}>
-                                   <img src={String(item)} alt={`ID Photo ${i+1}`} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--color-neutral-100)', cursor: 'zoom-in' }} onClick={() => setLightboxImage(String(item))} />
-                                   <a href={String(item)} download={`ID_Photo_${i+1}.png`} style={{ textAlign: 'center', fontSize: '12px', fontWeight: 600, color: 'var(--color-primary-600)', textDecoration: 'none', padding: '8px', border: '1px solid var(--color-primary-200)', borderRadius: '4px', background: 'var(--color-primary-50)', transition: 'background 0.2s' }}>
-                                      Download
-                                   </a>
-                                </div>
-                             )
-                             : <span key={i}>{String(item)}</span>
-                        ))}
-                     </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
-                      {val.map((item, i) => (
-                        <div key={i} style={{ padding: '16px', background: 'var(--color-neutral-50)', border: '1px solid var(--color-neutral-200)', borderRadius: '8px' }}>
-                          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-primary-600)', textTransform: 'uppercase', marginBottom: '12px' }}>Item {i + 1}</div>
-                          {typeof item === 'object' ? renderUIDataNode(item, level + 1, `${currentPath}.${i}`) : String(item)}
-                        </div>
-                      ))}
-                    </div>
-                  )
-                )
-              ) : typeof val === 'object' ? (
-                <div style={{ marginTop: '8px', padding: '12px', background: 'var(--color-neutral-50)', borderRadius: '8px', border: '1px solid var(--color-neutral-200)' }}>
-                  {renderUIDataNode(val, level + 1, currentPath)}
-                </div>
-              ) : (
-                <div style={{ fontSize: '14px', color: val === '' ? 'var(--color-neutral-400)' : 'var(--color-neutral-900)', fontWeight: val === '' ? 400 : 500, fontStyle: val === '' ? 'italic' : 'normal' }}>
-                  {val === '' ? 'N/A' : (
-                    (key === 'ghanaCardPhotoUrl' && String(val).startsWith('data:image')) ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'white', padding: '8px', borderRadius: '8px', border: '1px solid var(--color-neutral-200)', marginTop: '8px', width: '240px' }}>
-                         <img src={String(val)} alt="Ghana Card" style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--color-neutral-100)', cursor: 'zoom-in' }} onClick={() => setLightboxImage(String(val))} />
-                         <a href={String(val)} download="Ghana_Card.png" style={{ textAlign: 'center', fontSize: '12px', fontWeight: 600, color: 'var(--color-primary-600)', textDecoration: 'none', padding: '8px', border: '1px solid var(--color-primary-200)', borderRadius: '4px', background: 'var(--color-primary-50)', transition: 'background 0.2s' }}>
-                            Download
-                         </a>
-                      </div>
-                    ) : String(val)
-                  )}
-                </div>
-              )}
-            </div>
-          )
-        })}
+      <div className={ui.page}>
+        <Link href="/admin/applications" className={styles.back}><ArrowLeft size={16} /> Applications</Link>
+        <p className={ui.error}>{error}</p>
       </div>
     )
   }
-
-  if (loading) {
-    return <div className={styles.overview} style={{ padding: 'var(--space-8)' }}>Loading application details...</div>
-  }
-
   if (!app) {
+    // Same shape as the loaded page: header, tabs and main column, workflow and customer on the side
     return (
-      <div className={styles.overview} style={{ padding: 'var(--space-8)' }}>
-        <h2 style={{ color: 'var(--color-error)' }}>Application not found.</h2>
-        {error && (
-          <div style={{ marginTop: '12px', padding: '12px', background: 'var(--color-error-light)', border: '1px solid var(--color-error)', borderRadius: '8px', fontSize: '14px' }}>
-            <strong>System Error:</strong> {error}
+      <div className={ui.page} aria-busy="true" aria-label="Loading application">
+        <Link href="/admin/applications" className={styles.back}><ArrowLeft size={16} /> Applications</Link>
+        <div style={{ display: 'grid', gap: 10 }}>
+          <Skeleton width="min(360px, 70%)" height={32} radius={8} />
+          <Skeleton width="min(420px, 85%)" height={18} />
+        </div>
+        <div className={ui.split}>
+          <div className={ui.stack}>
+            <div style={{ display: 'flex', gap: 24 }}>
+              <Skeleton width={60} height={18} /><Skeleton width={90} height={18} /><Skeleton width={70} height={18} />
+            </div>
+            <CardSkeleton lines={6} />
+            <CardSkeleton lines={3} />
           </div>
-        )}
-        <p style={{ marginTop: '20px', color: 'var(--color-neutral-500)', fontSize: '14px' }}>
-          Verify the ID in your URL bar is correct. If you are a Super Admin, double-check your browser session.
-        </p>
+          <div className={ui.stack}>
+            <CardSkeleton lines={5} />
+            <CardSkeleton lines={3} />
+          </div>
+        </div>
       </div>
     )
   }
 
-  const fd = (app.form_data || {}) as ApplicationFormData
-  const directors = Array.isArray(fd.directors) ? fd.directors : []
-  const docs = Array.isArray(fd.documents) ? fd.documents : []
-  const history = Array.isArray(app.application_status_history) ? app.application_status_history : []
-  const proprietor = fd.proprietor
-  const secretary = fd.secretary
-  const shareholders = Array.isArray(fd.shareholders) ? fd.shareholders : []
-  const members = Array.isArray(fd.members) ? fd.members : []
+  const customer = app.profiles || {}
+  const phone = customer.phone || (form.mobilePhone as string) || ''
+  const waNumber = phone.replace(/\D/g, '')
+  const people: Array<[string, Json[], string]> = [
+    ['Owner', form.proprietor ? [form.proprietor as Json] : [], 'proprietor'],
+    ['Directors', Array.isArray(form.directors) ? (form.directors as Json[]) : [], 'directors'],
+    ['Company secretary', form.secretary ? [form.secretary as Json] : [], 'secretary'],
+    ['Shareholders', Array.isArray(form.shareholders) ? (form.shareholders as Json[]) : [], 'shareholders'],
+    ['Members', Array.isArray(form.members) ? (form.members as Json[]) : [], 'members'],
+  ]
+  // Skip empty entries (e.g. a secretary section never filled in)
+  const filledPeople = people.filter(([, list]) => list.some(hasContent))
+
+  const startEdit = () => {
+    setDraft(form)
+    setDraftName(app.business_name)
+    setDraftType(app.business_type_id || '')
+    setEditing(true)
+  }
+
+  const saveEdit = async () => {
+    setSaving(true)
+    const res = await adminUpdateApplicationData(app.id, { businessTypeId: draftType, businessName: draftName.trim(), formData: { ...draft, businessName: draftName.trim() } })
+    setSaving(false)
+    if (res?.error) return alert(res.error)
+    setEditing(false)
+    load()
+  }
+
+  const sendFlag = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!flagging || !flagReason.trim()) return
+    setBusy(true)
+    const res = await requestFieldCorrection(app.id, flagging.path, flagReason.trim())
+    setBusy(false)
+    if (res?.error) return alert(res.error)
+    setFlagging(null)
+    setFlagReason('')
+    load()
+  }
+
+  const sendSms = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!sms.trim()) return
+    setBusy(true)
+    const res = await sendDirectSmsToApplicant(app.id, sms.trim())
+    setBusy(false)
+    if (res?.error) return alert(res.error)
+    setSmsOpen(false)
+    setSms('')
+    load()
+  }
+
+  const saveNotes = async () => {
+    const res = await updateApplicationNotes(app.id, notes)
+    if (res?.error) alert(res.error)
+    else setNotesSaved(true)
+  }
+
+  const upload = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!docFile || !docTitle.trim()) return
+    setBusy(true)
+    const fd = new FormData()
+    fd.append('file', docFile)
+    fd.append('title', docTitle.trim())
+    const res = await uploadApplicationDocument(app.id, fd)
+    setBusy(false)
+    if (res?.error) return alert(res.error)
+    setDocTitle('')
+    setDocFile(null)
+    load()
+  }
+
+  const copySummary = async () => {
+    const lines = [`${app.business_name} (${app.business_types?.name || ''})`, `Tracking: ${app.tracking_id || '—'}`, '']
+    const add = (title: string, obj: Json) => {
+      lines.push(title)
+      Object.keys(obj).filter((k) => !HIDDEN.has(k) && isPrimitive(obj[k])).forEach((k) => lines.push(`  ${humanize(k)}: ${display(obj[k]) ?? '—'}`))
+      lines.push('')
+    }
+    add('Business', businessData)
+    people.forEach(([title, list]) => list.forEach((p, i) => add(list.length > 1 ? `${title} ${i + 1}` : title, p)))
+    if (form.companyDetails) add('Company details', form.companyDetails as Json)
+    await navigator.clipboard.writeText(lines.join('\n'))
+    alert('Details copied.')
+  }
+
+  const fieldProps = { corrections, editing, draft, onDraft: (p: string, v: unknown) => setDraft((d) => setAt(d, p, v)), onFlag: (p: string, label: string) => setFlagging({ path: p, label }) }
+  const deliveryAddress = (form.delivery_address || (app as Json).delivery_address) as Json | null
+  const addOns = Array.isArray(form.selectedAddOns) ? (form.selectedAddOns as string[]) : []
 
   return (
-    <div className={styles.overview}>
-      <div style={{ marginBottom: 'var(--space-6)' }}>
-        <Link href="/admin/applications" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-neutral-500)', fontSize: '13px', textDecoration: 'none' }}>
-          <ArrowLeft size={16} /> Back to Requirements
-        </Link>
-      </div>
+    <div className={ui.page}>
+      <Link href="/admin/applications" className={styles.back}><ArrowLeft size={16} /> Applications</Link>
 
-      <div className={styles.sectionHeader}>
+      <header className={styles.header}>
         <div>
-          <h2 className={styles.sectionTitle}>{app.business_name}</h2>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--color-primary-600)', marginTop: '4px' }}>
-            Tracking ID: {app.tracking_id} | Created: {new Date(app.created_at).toLocaleString()}
+          <h1 className={ui.pageTitle}>{app.business_name}</h1>
+          <div className={styles.meta}>
+            <StageChip status={app.status} />
+            <PaymentChip status={app.payment_status} />
+            <span>{app.business_types?.name}</span>
+            {app.tracking_id && <span className={ui.mono}>{app.tracking_id}</span>}
+            <span>Created {shortDate(app.created_at)}</span>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-neutral-500)' }}>Status:</span>
-          <select 
-            value={app.status}
-            onChange={handleStatusChange}
-            className="form-input"
-            style={{ width: 'auto', padding: '6px 12px', fontWeight: 600 }}
-          >
-            {statusOptions.map(opt => (
-              <option key={opt} value={opt}>{opt.toUpperCase()}</option>
-            ))}
-          </select>
+        <div className={ui.actions}>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={copySummary}><Copy size={15} /> Copy</button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => window.print()}><Printer size={15} /> Print</button>
         </div>
-      </div>
+      </header>
 
-      <div 
-         className={styles.ownershipBanner} 
-         style={{ 
-            background: app.assigned_to ? 'var(--color-neutral-50)' : '#fffbeb30', 
-            border: app.assigned_to ? '1px solid var(--color-neutral-200)' : '1px solid #f59e0b50', 
-            borderLeft: app.assigned_to ? '4px solid var(--color-neutral-300)' : '4px solid #f59e0b', 
-            padding: '16px 20px', 
-            borderRadius: '12px', 
-            marginTop: '24px' 
-         }}
-      >
-         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <User size={20} style={{ color: app.assigned_to ? 'var(--color-neutral-500)' : '#f59e0b' }} />
-            <div>
-               <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-neutral-500)', letterSpacing: '0.05em' }}>Working Ownership</div>
-               <div style={{ fontSize: '15px', fontWeight: 600, color: app.assigned_to ? 'var(--color-neutral-900)' : '#f59e0b', marginTop: '2px' }}>
-                  {app.assigned_registrar?.full_name ? `Assigned to ${app.assigned_registrar.full_name}` : 'UNASSIGNED (Awaiting Pickup)'}
-               </div>
-            </div>
-         </div>
+      <div className={ui.split}>
+        {/* Main column */}
+        <div className={ui.stack}>
+          <Tabs
+            label="Application"
+            value={tab}
+            onChange={setTab}
+            items={[
+              { id: 'details', label: 'Details' },
+              { id: 'documents', label: 'Documents', count: issued.length + provided.length },
+              { id: 'activity', label: 'Activity', count: history.length },
+            ]}
+          />
 
-         {isSuperAdmin ? (
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-               <select 
-                  className="form-input" 
-                  style={{ width: '200px', padding: '8px 12px', fontSize: '13px' }}
-                  value={app.assigned_to || ''}
-                  onChange={(e) => handleAssignAction(e.target.value)}
-                  disabled={assigning}
-               >
-                  <option value="">-- Unassigned --</option>
-                  {registrars.map(r => (
-                     <option key={r.id} value={r.id}>{r.full_name}</option>
-                  ))}
-               </select>
-            </div>
-         ) : !app.assigned_to ? (
-            <button 
-               className="btn btn-primary" 
-               style={{ background: '#f59e0b', borderColor: '#f59e0b' }}
-               onClick={() => {
-                 if (currentUser?.id) {
-                   void handleAssignAction(currentUser.id)
-                 }
-               }}
-               disabled={assigning || !currentUser}
-            >
-               {assigning ? 'Claiming...' : 'Pick Up Application'}
-            </button>
-         ) : app.assigned_to === currentUser?.id ? (
-            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-success)', background: 'var(--color-success-light)', padding: '4px 12px', borderRadius: '20px' }}>Your Case</span>
-         ) : null}
-      </div>
-
-      <div className={styles.appDetailGrid} style={{ marginTop: 'var(--space-6)' }}>
-        
-        {/* Left Column: Form Details */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
-          
-          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: 'var(--space-4)', paddingBottom: 'var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)' }}>
-              Core Application Data
-            </h3>
-            
-            <div className={styles.coreDataGrid}>
-              <div>
-                <label style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--color-neutral-400)', fontWeight: 600 }}>Entity Type</label>
-                <div style={{ fontWeight: 500, fontSize: '14px' }}>{app.business_types?.name || 'Unknown'}</div>
-              </div>
-              <div>
-                <label style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--color-neutral-400)', fontWeight: 600 }}>Nature of Business</label>
-                <div style={{ fontWeight: 500, fontSize: '14px' }}>{fd.natureOfBusiness || 'N/A'}</div>
-              </div>
-              <div>
-                <label style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--color-neutral-400)', fontWeight: 600 }}>Commencement</label>
-                <div style={{ fontWeight: 500, fontSize: '14px' }}>{fd.dateOfCommencement || 'N/A'}</div>
-              </div>
-            </div>
-          </div>
-
-          {directors.length > 0 && (
-             <div style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
-               <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: 'var(--space-4)', paddingBottom: 'var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)' }}>
-                 Directors ({directors.length})
-               </h3>
-               {directors.map((d, idx) => (
-                 <div key={idx} style={{ marginBottom: idx < directors.length - 1 ? 'var(--space-4)' : 0, paddingBottom: idx < directors.length - 1 ? 'var(--space-4)' : 0, borderBottom: idx < directors.length - 1 ? '1px dashed var(--color-neutral-200)' : 'none' }}>
-                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                     <div>
-                       <div style={{ fontWeight: 600 }}>{d.firstName} {d.surname}</div>
-                       <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>Ghana Card: {d.ghanaCardNumber} | TIN: {d.tinNumber}</div>
-                       <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>{d.email} | {d.phone}</div>
-                     </div>
-                     {d.ghanaCardPhotoUrl && typeof d.ghanaCardPhotoUrl === 'string' && (
-                       <a href={d.ghanaCardPhotoUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', background: 'var(--color-neutral-100)', padding: '4px 8px', borderRadius: '4px', textDecoration: 'none', color: 'var(--color-neutral-700)', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid var(--color-neutral-200)' }}>
-                         View ID Photo
-                       </a>
-                     )}
-                   </div>
-                 </div>
-               ))}
-              </div>
-           )}
-
-            {proprietor && (proprietor.firstName || proprietor.surname) && (
-               <div style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
-                 <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: 'var(--space-4)', paddingBottom: 'var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)' }}>
-                   Proprietor
-                 </h3>
-                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                   <div>
-                     <div style={{ fontWeight: 600 }}>{proprietor.firstName} {proprietor.surname}</div>
-                     <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>Ghana Card: {proprietor.ghanaCardNumber || 'N/A'} | TIN: {proprietor.tinNumber || 'N/A'}</div>
-                     <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>{proprietor.email || 'N/A'} | {proprietor.phone || 'N/A'}</div>
-                   </div>
-                   {proprietor.ghanaCardPhotoUrl && typeof proprietor.ghanaCardPhotoUrl === 'string' && (
-                     <a href={proprietor.ghanaCardPhotoUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', background: 'var(--color-neutral-100)', padding: '4px 8px', borderRadius: '4px', textDecoration: 'none', color: 'var(--color-neutral-700)', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid var(--color-neutral-200)' }}>
-                       View ID Photo
-                     </a>
-                   )}
-                 </div>
-               </div>
-            )}
-
-            {secretary && (secretary.firstName || secretary.surname) && (
-               <div style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
-                 <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: 'var(--space-4)', paddingBottom: 'var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)' }}>
-                   Secretary
-                 </h3>
-                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                   <div>
-                     <div style={{ fontWeight: 600 }}>{secretary.firstName} {secretary.surname}</div>
-                     <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>Ghana Card: {secretary.ghanaCardNumber || 'N/A'} | TIN: {secretary.tinNumber || 'N/A'}</div>
-                     <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>{secretary.email || 'N/A'} | {secretary.phone || 'N/A'}</div>
-                   </div>
-                   {secretary.ghanaCardPhotoUrl && typeof secretary.ghanaCardPhotoUrl === 'string' && (
-                     <a href={secretary.ghanaCardPhotoUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', background: 'var(--color-neutral-100)', padding: '4px 8px', borderRadius: '4px', textDecoration: 'none', color: 'var(--color-neutral-700)', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid var(--color-neutral-200)' }}>
-                       View ID Photo
-                     </a>
-                   )}
-                 </div>
-               </div>
-            )}
-
-            {shareholders.length > 0 && (
-               <div style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
-                 <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: 'var(--space-4)', paddingBottom: 'var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)' }}>
-                   Shareholders ({shareholders.length})
-                 </h3>
-                 {shareholders.map((s, idx) => (
-                   <div key={idx} style={{ marginBottom: idx < shareholders.length - 1 ? 'var(--space-4)' : 0, paddingBottom: idx < shareholders.length - 1 ? 'var(--space-4)' : 0, borderBottom: idx < shareholders.length - 1 ? '1px dashed var(--color-neutral-200)' : 'none' }}>
-                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                       <div>
-                         <div style={{ fontWeight: 600 }}>{s.name} ({s.type || 'Individual'})</div>
-                         <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>TIN: {s.tinNumber || 'N/A'} | Nationality: {s.nationality || 'N/A'}</div>
-                         <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>Shares: {s.numberOfShares || 0} (Value: GH₵ {s.valuePerShare || 0}/share)</div>
-                         <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>Address: {s.address || 'N/A'}</div>
-                       </div>
-                     </div>
-                   </div>
-                 ))}
-               </div>
-            )}
-
-            {members.length > 0 && (
-               <div style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
-                 <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: 'var(--space-4)', paddingBottom: 'var(--space-4)', borderBottom: '1px solid var(--color-neutral-100)' }}>
-                   Members ({members.length})
-                 </h3>
-                 {members.map((m, idx) => (
-                   <div key={idx} style={{ marginBottom: idx < members.length - 1 ? 'var(--space-4)' : 0, paddingBottom: idx < members.length - 1 ? 'var(--space-4)' : 0, borderBottom: idx < members.length - 1 ? '1px dashed var(--color-neutral-200)' : 'none' }}>
-                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                       <div>
-                         <div style={{ fontWeight: 600 }}>{m.firstName} {m.surname}</div>
-                         <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>Ghana Card: {m.ghanaCardNumber || 'N/A'} | TIN: {m.tinNumber || 'N/A'}</div>
-                         <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>{m.email || 'N/A'} | {m.phone || 'N/A'}</div>
-                       </div>
-                       {m.ghanaCardPhotoUrl && typeof m.ghanaCardPhotoUrl === 'string' && (
-                         <a href={m.ghanaCardPhotoUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', background: 'var(--color-neutral-100)', padding: '4px 8px', borderRadius: '4px', textDecoration: 'none', color: 'var(--color-neutral-700)', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid var(--color-neutral-200)' }}>
-                           View ID Photo
-                         </a>
-                       )}
-                     </div>
-                   </div>
-                 ))}
-               </div>
-            )}
-
-           {isEditingForm ? (
-            <div style={{ background: '#f8fafc', borderRadius: '12px', padding: 'var(--space-6)', border: '1px solid #cbd5e1' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#0f172a' }}>Edit Application Data</h3>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button className="btn btn-primary btn-sm" onClick={saveEditedForm} disabled={savingForm}>
-                    {savingForm ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
+          {tab === 'details' && (
+            <>
+              <div className={styles.editBar}>
+                {editing ? (
+                  <>
+                    <span className={ui.hint}>Editing. Changes are saved to the application; the customer isn’t notified.</span>
+                    <span className={ui.actions}>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(false)}>Cancel</button>
+                      <button type="button" className="btn btn-primary btn-sm" onClick={saveEdit} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</button>
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className={ui.hint}>Use <Flag size={12} /> on any field to ask the customer to fix it.</span>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={startEdit}><Pencil size={14} /> Edit details</button>
+                  </>
+                )}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-                <div>
-                  <label className="form-label">Business Type</label>
-                  <select 
-                    className="form-input" 
-                    value={editPayload.businessTypeId}
-                    onChange={(e) => {
-                       const newBType = businessTypes.find(b => b.id === e.target.value)
-                       if (newBType && window.confirm('Changing the business type will alter the required fields. Continue?')) {
-                          const newRequiredFields = newBType.required_fields || [];
-                          const cleanedFormData = { ...editPayload.formData };
-                          
-                          // Keys that should be preserved across all business types
-                          const standardKeys = ['documents', 'corrections', 'delivery_method', 'delivery_address', 'total_amount', 'paystackReference', 'businessType'];
-                          
-                          // Remove fields that are no longer needed
-                          Object.keys(cleanedFormData).forEach(key => {
-                             if (!newRequiredFields.includes(key) && !standardKeys.includes(key)) {
-                                delete cleanedFormData[key];
-                             }
-                          });
-                          
-                          // Initialize any new required fields
-                          newRequiredFields.forEach((field: string) => {
-                             if (cleanedFormData[field] === undefined) {
-                                 const isComplex = ['directors', 'secretary', 'shareholders', 'members'].includes(field);
-                                 cleanedFormData[field] = isComplex ? [] : '';
-                             }
-                          });
-
-                          setEditPayload({ 
-                             ...editPayload, 
-                             businessTypeId: e.target.value,
-                             formData: cleanedFormData
-                          });
-                       }
-                    }}
-                  >
-                    <option value="" disabled>-- Select Business Type --</option>
-                    {businessTypes.map(b => {
-                       const orcFee = b.orc_fee || 0;
-                       const agentFee = b.agent_fee || 0;
-                       const returnsPortion = b.returns_portion || 0;
-                       const basePrice = b.base_price || 0;
-                       const serviceFee = b.service_fee || 0;
-                       const totalPrice = returnsPortion > 0 
-                          ? (orcFee + agentFee + returnsPortion) 
-                          : (basePrice + serviceFee);
-                       return (
-                          <option key={b.id} value={b.id}>
-                             {b.name} (GH₵ {totalPrice.toLocaleString()})
-                          </option>
-                       );
-                    })}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="form-label">Business Name</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    value={editPayload.businessName}
-                    onChange={(e) => setEditPayload({ ...editPayload, businessName: e.target.value })}
-                  />
-                </div>
-
-                <div style={{ marginTop: 'var(--space-4)', paddingTop: 'var(--space-4)', borderTop: '1px solid #e2e8f0' }}>
-                   <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: 'var(--space-4)' }}>Form Fields</h4>
-                   {(() => {
-                      const selectedBType = businessTypes.find(b => b.id === editPayload.businessTypeId) || app.business_types;
-                      let fields = selectedBType?.required_fields || [];
-                      
-                      if (selectedBType?.name?.toLowerCase().includes('sole proprietor') && !fields.includes('proprietor')) {
-                         fields = [...fields, 'proprietor'];
-                      }
-                      
-                      return (
-                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                            {fields.map((field: string) => (
-                               <div key={field}>
-                                  <label className="form-label" style={{ textTransform: 'capitalize' }}>
-                                     {field.replace(/_/g, ' ')}
-                                  </label>
-                                  {renderEditField(field)}
-                               </div>
-                            ))}
-                         </div>
-                      )
-                   })()}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div style={{ background: 'var(--color-neutral-0)', borderRadius: '12px', padding: '0' }}>
-              <div className={styles.cardHeaderWithActions} style={{ marginBottom: 'var(--space-6)', padding: 'var(--space-6) var(--space-6) 0 var(--space-6)' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: 600 }}>
-                  Comprehensive Form Payload
-                </h3>
-                <div className={styles.actionButtonGroup}>
-                  {isSuperAdmin && (
-                    <button className="btn btn-secondary btn-sm" onClick={startEditing} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Edit2 size={14} /> Edit Data
-                    </button>
+              <section className={ui.card}>
+                <div className={ui.cardHead}><h2 className={ui.cardTitle}>Business</h2></div>
+                <div className={ui.cardBody}>
+                  {editing && (
+                    <div className={ui.formGrid} style={{ marginBottom: 14 }}>
+                      <label className={ui.field}>
+                        <span className={ui.label}>Business name</span>
+                        <input className={ui.input} value={draftName} onChange={(e) => setDraftName(e.target.value)} />
+                      </label>
+                      <label className={ui.field}>
+                        <span className={ui.label}>Business type</span>
+                        <select className={ui.input} value={draftType} onChange={(e) => setDraftType(e.target.value)}>
+                          {types.map((t) => {
+                            const typeId = typeCatalog.find((c) => c.name === t.name)?.id || ''
+                            return <option key={t.id} value={t.id}>{t.name} (GH₵ {priceForType(typeId, [t]).total.toLocaleString()})</option>
+                          })}
+                        </select>
+                      </label>
+                    </div>
                   )}
-                  <button className="btn btn-secondary btn-sm" onClick={() => window.location.href = `mailto:${(app.profiles as any)?.email}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    Email User
-                  </button>
-                  <button 
-                    className="btn btn-primary btn-sm" 
-                    onClick={() => setIsSmsModalOpen(true)}
-                    style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                  >
-                    SMS Applicant
-                  </button>
-                  <button className="btn btn-secondary btn-sm" onClick={handleCopyData} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Copy size={14} /> Copy All
-                  </button>
-                  <button className="btn btn-primary btn-sm" onClick={handlePrintPDF} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Printer size={14} /> Export to PDF
-                  </button>
+                  <Fields data={businessData} path={businessPath} {...fieldProps} skip={new Set([...HIDDEN, 'businessName'])} />
                 </div>
-              </div>
-              
-              <div style={{ padding: '0 var(--space-6) var(--space-6) var(--space-6)' }}>
-                {renderUIDataNode(fd)}
-              </div>
-            </div>
+              </section>
+
+              {filledPeople.map(([title, list, key]) =>
+                list.length === 0 ? null : (
+                  <section key={key} className={ui.card}>
+                    <div className={ui.cardHead}><h2 className={ui.cardTitle}>{title}</h2><span className={ui.cardNote}>{list.length}</span></div>
+                    <div className={ui.cardBody} style={{ display: 'grid', gap: 16 }}>
+                      {list.map((person, i) => {
+                        const path = Array.isArray(form[key]) ? `${key}.${i}` : key
+                        const photos = providedDocuments({ proprietor: person }).length
+                        return (
+                          <div key={path} className={styles.person}>
+                            <p className={styles.personTitle}>
+                              {list.length > 1 ? `${title.replace(/s$/, '')} ${i + 1}` : title}
+                              {personLabel(person) && <span> · {personLabel(person)}</span>}
+                            </p>
+                            <Fields data={person} path={path} {...fieldProps} />
+                            {photos > 0 && (
+                              <button type="button" className={styles.linkBtn} onClick={() => setTab('documents')}>
+                                {photos} ID photo{photos === 1 ? '' : 's'} attached →
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </section>
+                )
+              )}
+
+              {form.companyDetails ? (
+                <section className={ui.card}>
+                  <div className={ui.cardHead}><h2 className={ui.cardTitle}>Company details</h2></div>
+                  <div className={ui.cardBody}><Fields data={form.companyDetails as Json} path="companyDetails" {...fieldProps} /></div>
+                </section>
+              ) : null}
+
+              <section className={ui.card}>
+                <div className={ui.cardHead}><h2 className={ui.cardTitle}>Delivery and extras</h2></div>
+                <div className={ui.cardBody} style={{ display: 'grid', gap: 12 }}>
+                  <dl className={ui.kv}>
+                    <div><dt>Delivery</dt><dd>{(app as Json).delivery_method === 'courier' ? 'Courier' : 'Digital (documents in their account)'}</dd></div>
+                    <div><dt>Add-ons</dt><dd>{addOns.length ? addOns.join(', ') : 'None'}</dd></div>
+                  </dl>
+                  {deliveryAddress && <Fields data={deliveryAddress} path="delivery_address" {...fieldProps} />}
+                </div>
+              </section>
+            </>
           )}
-          
+
+          {tab === 'documents' && (
+            <>
+              <section className={ui.card}>
+                <div className={ui.cardHead}>
+                  <div>
+                    <h2 className={ui.cardTitle}>From GrayDocket</h2>
+                    <p className={ui.cardNote}>Certificates and filings. The customer sees these in their Documents.</p>
+                  </div>
+                </div>
+                <div className={ui.cardBody} style={{ display: 'grid', gap: 12 }}>
+                  {issued.length === 0 ? (
+                    <p className={ui.muted}>Nothing issued yet.</p>
+                  ) : (
+                    <ul className={styles.docList}>
+                      {issued.map((d) => (
+                        <li key={d.id}>
+                          <a href={d.url} target="_blank" rel="noopener noreferrer">{d.title}</a>
+                          <span className={ui.muted}>{shortDate(d.addedAt)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <form onSubmit={upload} className={styles.upload}>
+                    <span className={ui.label}>Add a document</span>
+                    <input className={ui.input} placeholder="Name, e.g. Certificate of Registration" value={docTitle} onChange={(e) => setDocTitle(e.target.value)} required />
+                    <div className={styles.uploadRow}>
+                      <label className={styles.filePick}>
+                        <input type="file" hidden onChange={(e) => setDocFile(e.target.files?.[0] || null)} />
+                        <span className="btn btn-secondary btn-sm">Choose file</span>
+                        <span className={styles.fileName}>{docFile ? docFile.name : 'No file chosen'}</span>
+                      </label>
+                      <button type="submit" className="btn btn-primary btn-sm" disabled={busy || !docFile || !docTitle.trim()}>
+                        <UploadCloud size={15} /> {busy ? 'Uploading…' : 'Upload'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </section>
+
+              <section className={ui.card}>
+                <div className={ui.cardHead}>
+                  <div>
+                    <h2 className={ui.cardTitle}>From the customer</h2>
+                    <p className={ui.cardNote}>ID photos attached in the application.</p>
+                  </div>
+                </div>
+                <div className={ui.cardBody}>
+                  {provided.length === 0 ? (
+                    <p className={ui.muted}>No photos attached.</p>
+                  ) : (
+                    <ul className={styles.photos}>
+                      {provided.map((d) => (
+                        <li key={d.id}>
+                          <button type="button" onClick={() => setViewing({ src: d.src, title: `${d.title} · ${d.person}` })}>
+                            {/* eslint-disable-next-line @next/next/no-img-element -- inline data URLs from the form */}
+                            <img src={d.src} alt={`${d.title} for ${d.person}`} loading="lazy" />
+                            <span><strong>{d.person}</strong><small>{d.role}</small></span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </section>
+            </>
+          )}
+
+          {tab === 'activity' && (
+            <section className={ui.card}>
+              <div className={ui.cardBody}>
+                {history.length === 0 ? (
+                  <p className={ui.muted}>No activity yet.</p>
+                ) : (
+                  <ol className={styles.timeline}>
+                    {history.map((h, i) => (
+                      <li key={h.id || i}>
+                        <span className={styles.dot} />
+                        <div>
+                          <p className={styles.timelineTitle}>{stageOf(h.status).admin}</p>
+                          {h.notes && <p className={styles.timelineNote}>{h.notes}</p>}
+                          <p className={ui.muted}>
+                            {new Date(h.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            {' · '}
+                            {h.updater?.full_name || 'Customer or system'}
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+            </section>
+          )}
         </div>
 
-        {/* Right Column: Documents and Actions */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
-          
-          <div style={{ background: 'var(--color-neutral-50)', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', fontWeight: 600, marginBottom: 'var(--space-4)' }}>
-              <FileText size={18} /> Official Documents
-            </h3>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', marginBottom: 'var(--space-6)' }}>
-              {docs.length === 0 ? (
-                <EmptyState variant="documents" size="sm" message="No documents uploaded yet." />
-              ) : (
-                docs.map((d, idx) => (
-                  <div key={idx} style={{ padding: '12px', background: 'white', border: '1px solid var(--color-neutral-200)', borderRadius: '12px' }}>
-                    <div className={styles.documentItem}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                         <div style={{ background: 'var(--color-neutral-50)', padding: '8px', borderRadius: '8px' }}>
-                            <FileText size={16} style={{ color: 'var(--color-primary-600)' }} />
-                         </div>
-                         <div>
-                            <div style={{ fontWeight: 600, fontSize: '13px' }}>{d.title}</div>
-                            <div style={{ fontSize: '10px', color: 'var(--color-neutral-400)' }}>{new Date(d.uploadedAt).toLocaleString()}</div>
-                         </div>
-                      </div>
-                      
-                      <div className={styles.documentActions}>
-                        {d.verification_status === 'approved' ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--brand)', fontSize: '11px', fontWeight: 600, background: 'color-mix(in srgb, var(--brand) 9%, transparent)', padding: '4px 8px', borderRadius: '6px' }}>
-                            <CheckCircle size={14} /> VERIFIED
-                          </div>
-                        ) : d.verification_status === 'rejected' ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#ef4444', fontSize: '11px', fontWeight: 600, background: '#ef444415', padding: '4px 8px', borderRadius: '6px' }}>
-                            <XCircle size={14} /> REJECTED
-                          </div>
-                        ) : (
-                          <>
-                             <button 
-                               onClick={() => handleVerify(d.url, 'approved')}
-                               style={{ border: 'none', background: 'color-mix(in srgb, var(--brand) 9%, transparent)', color: 'var(--brand)', padding: '6px', borderRadius: '6px', cursor: 'pointer' }}
-                               title="Approve"
-                             >
-                                <CheckCircle size={16} />
-                             </button>
-                             <button 
-                               onClick={() => handleVerify(d.url, 'rejected')}
-                               style={{ border: 'none', background: '#ef444415', color: '#ef4444', padding: '6px', borderRadius: '6px', cursor: 'pointer' }}
-                               title="Reject"
-                             >
-                                <XCircle size={16} />
-                             </button>
-                          </>
-                        )}
-                        <a href={d.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', padding: '6px', borderRadius: '6px', background: 'var(--color-neutral-100)', color: 'var(--color-neutral-600)' }}>
-                          <ExternalLink size={16} />
-                        </a>
-                      </div>
-                    </div>
-                    {d.verification_status === 'rejected' && d.admin_notes && (
-                      <div style={{ fontSize: '12px', color: '#ef4444', background: '#fef2f2', padding: '8px 12px', borderRadius: '6px', marginTop: '8px', borderLeft: '3px solid #ef4444' }}>
-                         <strong>Reason:</strong> {d.admin_notes}
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
+        {/* Side column */}
+        <div className={ui.stack}>
+          <WorkflowPanel
+            app={app as unknown as Parameters<typeof WorkflowPanel>[0]['app']}
+            team={team}
+            onRequestChanges={() => setFlagging({ path: 'general', label: 'the application' })}
+            onChanged={load}
+          />
 
-            <div style={{ borderTop: '1px solid var(--color-neutral-200)', paddingTop: 'var(--space-4)' }}>
-              <h4 style={{ fontSize: '12px', fontWeight: 600, marginBottom: 'var(--space-2)' }}>Upload New Document</h4>
-              <form onSubmit={handleUpload} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="Document Title (e.g. Form 3 Signed)"
-                  value={docTitle}
-                  onChange={e => setDocTitle(e.target.value)}
-                  required
-                />
-                <input 
-                  type="file" 
-                  ref={fileInputRef}
-                  onChange={e => setSelectedFile(e.target.files?.[0] || null)}
-                  className="form-input" 
-                  style={{ padding: '8px', fontSize: '12px' }}
-                  required
-                />
-                <button type="submit" disabled={uploading} className="btn btn-primary btn-sm" style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-                  {uploading ? 'Uploading...' : <><UploadCloud size={14} /> Upload to Storage</>}
-                </button>
-              </form>
-            </div>
-          </div>
-          
-          {isSuperAdmin && (
-            <div style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
-              <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: 'var(--space-4)' }}>
-                Revenue & Disbursement Split
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-neutral-500)' }}>
-                  <span>ORC Government:</span>
-                  <span style={{ fontWeight: 600 }}>GH₵ {app.business_types?.orc_fee || 0}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-neutral-500)' }}>
-                  <span>Registrar Agent:</span>
-                  <span style={{ fontWeight: 600 }}>GH₵ {app.business_types?.agent_fee || 0}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-neutral-500)' }}>
-                  <span>Returns (GD/Aff):</span>
-                  <span style={{ fontWeight: 600 }}>GH₵ {app.business_types?.returns_portion || 0}</span>
-                </div>
-                
-                <div style={{ margin: '8px 0', borderTop: '1px solid var(--color-neutral-100)', paddingTop: '8px', display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontWeight: 800 }}>Total Paid:</span>
-                  <span style={{ fontWeight: 800, color: 'var(--color-primary-600)' }}>GH₵ {(Number(app.total_amount) || 0).toLocaleString()}</span>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
-                  <span style={{ color: 'var(--color-neutral-500)' }}>Status:</span>
-                  <span style={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', color: app.payment_status === 'paid' ? 'var(--color-success)' : 'var(--color-neutral-400)' }}>
-                    {app.payment_status || 'Unpaid'}
-                  </span>
-                </div>
+          <section className={ui.card}>
+            <div className={ui.cardHead}><h2 className={ui.cardTitle}>Customer</h2></div>
+            <div className={ui.cardBody} style={{ display: 'grid', gap: 12 }}>
+              <dl className={ui.kv}>
+                <div><dt>Name</dt><dd>{customer.full_name || '—'}</dd></div>
+                <div><dt>Phone</dt><dd>{phone || '—'}</dd></div>
+                {customer.email && !customer.email.endsWith('@graydocket.user') && <div><dt>Email</dt><dd>{customer.email}</dd></div>}
+              </dl>
+              <div className={ui.actions}>
+                {phone && <a className="btn btn-secondary btn-sm" href={`tel:${phone}`}><Phone size={14} /> Call</a>}
+                {waNumber && <a className="btn btn-secondary btn-sm" href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSmsOpen(true)}><MessageSquare size={14} /> Text</button>
               </div>
             </div>
-          )}
+          </section>
 
-          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
-            <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: 'var(--space-3)', display: 'flex', justifyContent: 'space-between' }}>
-              Internal Diagnostic Notes
-              <button 
-                onClick={handleSaveNotes} 
-                disabled={savingNotes} 
-                style={{ background: 'none', border: 'none', color: 'var(--color-primary-600)', cursor: 'pointer', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
-              >
-                {savingNotes ? 'Saving...' : <><Save size={14} /> Save</>}
-              </button>
-            </h3>
-            <p style={{ fontSize: '12px', color: 'var(--color-neutral-500)', marginBottom: 'var(--space-3)' }}>
-              Client cannot see these notes. Use for internal tasks and flags.
-            </p>
-            <textarea 
-              className="form-input" 
-              style={{ minHeight: '120px', resize: 'vertical', fontSize: '13px' }}
-              placeholder="e.g., Client missing valid Ghana card scan..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
-
-          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--color-neutral-200)', padding: 'var(--space-6)' }}>
-            <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: 'var(--space-4)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Clock size={16} /> Audit Timeline
-            </h3>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-              {history.length > 0 ? (
-                history.map((hist, i) => (
-                  <div key={hist.id} style={{ display: 'flex', gap: '12px', position: 'relative' }}>
-                    {/* Timeline Line */}
-                    {i < history.length - 1 && (
-                      <div style={{ position: 'absolute', top: '20px', bottom: '-16px', left: '5px', width: '2px', background: 'var(--color-neutral-200)' }} />
-                    )}
-                    
-                    {/* Timeline Dot */}
-                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: 'white', border: '3px solid var(--color-primary-500)', zIndex: 1, marginTop: '4px' }} />
-                    
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 600 }}>{hist.notes || `Status: ${hist.status}`}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--color-neutral-500)' }}>
-                        {new Date(hist.created_at).toLocaleString()} • {hist.updater?.full_name || 'System Action'}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)' }}>No timeline events recorded.</div>
-              )}
+          <section className={ui.card}>
+            <div className={ui.cardHead}>
+              <h2 className={ui.cardTitle}>Internal notes</h2>
+              <span className={ui.cardNote}>Only admins see these</span>
             </div>
-          </div>
-
+            <div className={ui.cardBody} style={{ display: 'grid', gap: 10 }}>
+              <textarea
+                className={ui.input}
+                style={{ height: 110, padding: 10, resize: 'vertical' }}
+                value={notes}
+                onChange={(e) => { setNotes(e.target.value); setNotesSaved(false) }}
+                placeholder="Anything the team should know about this application"
+              />
+              <button type="button" className="btn btn-secondary btn-sm" onClick={saveNotes} disabled={notesSaved}>{notesSaved ? 'Saved' : 'Save notes'}</button>
+            </div>
+          </section>
         </div>
       </div>
 
-      {/* Lightbox Modal */}
-      {lightboxImage && (
-        <div 
-          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }}
-          onClick={() => setLightboxImage(null)}
-        >
-          <button style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px', borderRadius: '50%', backgroundClip: 'padding-box', backgroundColor: 'rgba(255,255,255,0.1)' }} onClick={(e) => { e.stopPropagation(); setLightboxImage(null); }}>
-             <X size={32} />
-          </button>
-          <img src={lightboxImage} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }} onClick={(e) => e.stopPropagation()} />
+      <Modal isOpen={Boolean(flagging)} onClose={() => setFlagging(null)} title="Ask the customer to fix something">
+        <form onSubmit={sendFlag} style={{ display: 'grid', gap: 12 }}>
+          <p className={ui.hint}>
+            About <strong>{flagging?.label}</strong>. The application moves to <strong>Waiting on customer</strong> and they’re sent a text with your note.
+          </p>
+          <textarea className={ui.input} style={{ height: 96, padding: 10 }} required value={flagReason} onChange={(e) => setFlagReason(e.target.value)} placeholder="e.g. The TIN doesn’t match the Ghana Card. Please check and update it." />
+          <div className={ui.actions}>
+            <button type="submit" className="btn btn-primary btn-sm" disabled={busy || !flagReason.trim()}>{busy ? 'Sending…' : 'Send request'}</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setFlagging(null)}>Cancel</button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal isOpen={smsOpen} onClose={() => setSmsOpen(false)} title={`Text ${customer.full_name || 'the customer'}`}>
+        <form onSubmit={sendSms} style={{ display: 'grid', gap: 12 }}>
+          <textarea className={ui.input} style={{ height: 96, padding: 10 }} required maxLength={300} value={sms} onChange={(e) => setSms(e.target.value)} placeholder="Your message" />
+          <span className={ui.hint}>{sms.length}/300 · Sent to {phone || 'their phone'}</span>
+          <div className={ui.actions}>
+            <button type="submit" className="btn btn-primary btn-sm" disabled={busy || !sms.trim()}>{busy ? 'Sending…' : 'Send text'}</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSmsOpen(false)}>Cancel</button>
+          </div>
+        </form>
+      </Modal>
+
+      {viewing && (
+        <div className={styles.viewer} role="dialog" aria-modal="true" aria-label={viewing.title} onClick={() => setViewing(null)}>
+          <div className={styles.viewerBox} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.viewerHead}>
+              <strong>{viewing.title}</strong>
+              <button type="button" onClick={() => setViewing(null)} aria-label="Close"><X size={20} /></button>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element -- inline data URLs from the form */}
+            <img src={viewing.src} alt={viewing.title} />
+          </div>
         </div>
       )}
-
-      {/* SMS Modal */}
-      <Modal isOpen={isSmsModalOpen} onClose={() => setIsSmsModalOpen(false)} title="Send SMS to Applicant">
-        <form onSubmit={handleSendCustomSms}>
-          <div className="form-group" style={{ marginBottom: 'var(--space-4)' }}>
-            <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>SMS Message</span>
-              <span style={{ fontSize: '11px', color: smsMessage.length > 160 ? 'var(--color-error)' : 'var(--color-neutral-400)' }}>
-                {smsMessage.length}/160 chars
-              </span>
-            </label>
-            <textarea
-              className="form-input"
-              style={{ minHeight: '100px', fontSize: '14px', resize: 'vertical' }}
-              value={smsMessage}
-              onChange={(e) => setSmsMessage(e.target.value)}
-              placeholder="e.g. Please log in to complete your signature requirements..."
-              required
-            />
-            <p style={{ fontSize: '11px', color: 'var(--color-neutral-500)', marginTop: '8px' }}>
-              This will be sent directly to the applicant's phone number as "GrayDocket".
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-            <button type="button" className="btn btn-secondary" onClick={() => setIsSmsModalOpen(false)}>
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={sendingSms || !smsMessage.trim()}>
-              {sendingSms ? 'Sending...' : 'Send Message'}
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Correction Modal */}
-      <Modal 
-        isOpen={isCorrectionModalOpen} 
-        onClose={() => setIsCorrectionModalOpen(false)} 
-        title={`Request Correction: ${correctionFieldName}`}
-      >
-        <form onSubmit={submitCorrectionRequest}>
-          <div className="form-group" style={{ marginBottom: 'var(--space-4)' }}>
-            <label className="form-label">
-              Reason for Correction
-            </label>
-            <textarea
-              className="form-input"
-              style={{ minHeight: '100px', fontSize: '14px', resize: 'vertical' }}
-              value={correctionReason}
-              onChange={(e) => setCorrectionReason(e.target.value)}
-              placeholder={`Explain why "${correctionFieldName}" is incorrect...`}
-              required
-            />
-            <p style={{ fontSize: '11px', color: 'var(--color-neutral-500)', marginTop: '8px' }}>
-              The application status will be moved to "rejected" and the customer will receive an automated SMS alert to log in and correct this field.
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-            <button type="button" className="btn btn-secondary" onClick={() => setIsCorrectionModalOpen(false)}>
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-primary" style={{ background: 'var(--color-error)', borderColor: 'var(--color-error)' }} disabled={submittingCorrection || !correctionReason.trim()}>
-              {submittingCorrection ? 'Sending...' : 'Request Correction'}
-            </button>
-          </div>
-        </form>
-      </Modal>
     </div>
   )
-} 
+}

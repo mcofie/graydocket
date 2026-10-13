@@ -2,28 +2,22 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import PayNowButton from '@/components/checkout/PayNowButton'
 import { ArrowLeft, ArrowRight, ArrowUpRight, FileText, X, Download, ChevronRight } from 'lucide-react'
 import Tabs from '@/components/ui/Tabs'
 import styles from './detail.module.css'
 import EmptyState from '@/components/ui/EmptyState'
+import { STAGES, isReminderNote } from '@/lib/application-flow'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- application rows and form_data are untyped JSON */
 
 type Tab = 'progress' | 'details' | 'documents'
 type Tone = 'neutral' | 'blue' | 'amber' | 'green' | 'red'
 
-const statusMap: Record<string, { tone: Tone; label: string }> = {
-  draft: { tone: 'neutral', label: 'Draft' },
-  submitted: { tone: 'blue', label: 'Submitted' },
-  name_search: { tone: 'amber', label: 'Name search' },
-  under_review: { tone: 'amber', label: 'Under review' },
-  on_hold: { tone: 'amber', label: 'On hold' },
-  approved: { tone: 'green', label: 'Approved' },
-  completed: { tone: 'green', label: 'Active' },
-  delivered: { tone: 'green', label: 'Delivered' },
-  rejected: { tone: 'red', label: 'Action required' },
-  cancelled: { tone: 'neutral', label: 'Cancelled' },
-}
+// Customer wording for each stage comes from the shared workflow (src/lib/application-flow.ts)
+const statusMap = Object.fromEntries(
+  Object.entries(STAGES).map(([status, stage]) => [status, { tone: stage.tone, label: stage.customer }])
+) as Record<string, { tone: Tone; label: string }>
 
 const statusLabel = (status: string) =>
   statusMap[status]?.label ?? status.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
@@ -74,8 +68,10 @@ export default function ApplicationDetailContent({ app, appId }: { app: any; app
   const tone = statusMap[status]?.tone ?? 'neutral'
   const formData = app.form_data || {}
   const corrections: Record<string, string> = formData.corrections || {}
-  const hasCorrections = status === 'rejected' && Object.keys(corrections).length > 0
-  const history: any[] = app.application_status_history || []
+  // Changes requested by our team (older applications used 'rejected' for this)
+  const hasCorrections = (status === 'on_hold' || status === 'rejected') && Object.keys(corrections).length > 0
+  // Reminder texts are logged for our team; customers don't need them in their timeline
+  const history: any[] = (app.application_status_history || []).filter((h: { notes?: string }) => !isReminderNote(h.notes))
   const documents: any[] = app.documents || []
   const directors: any[] = formData.directors || []
   const shareholders: any[] = formData.shareholders || []
@@ -107,7 +103,7 @@ export default function ApplicationDetailContent({ app, appId }: { app: any; app
       {hasCorrections && (
         <section className={`${styles.callout} ${styles.calloutRed}`}>
           <h2>Some details need fixing</h2>
-          <p>Our registrar asked for these changes before your application can continue.</p>
+          <p>Our team asked for these changes before your application can continue.</p>
           <ul className={styles.corrections}>
             {Object.entries(corrections).map(([key, reason]) => (
               <li key={key}>
@@ -132,14 +128,29 @@ export default function ApplicationDetailContent({ app, appId }: { app: any; app
         </section>
       )}
 
-      {status === 'draft' && (
-        <section className={`${styles.callout} ${styles.calloutBlue}`}>
-          <h2>This application isn&apos;t submitted yet</h2>
-          <p>Pick up where you left off and submit when you&apos;re ready.</p>
-          <Link href={editHref} className={styles.primaryBtn}>
-            Continue application <ArrowRight size={16} />
-          </Link>
-        </section>
+      {status === 'draft' && app.payment_status !== 'paid' && (
+        formData.ready_for_payment ? (
+          // Reviewed and priced: payment is the only step left before our team starts
+          <section className={`${styles.callout} ${styles.calloutBlue}`}>
+            <h2>Pay to send this to our team</h2>
+            <p>
+              Your details are saved. Once payment goes through, we start on your registration straight away.
+              {app.total_amount ? <> Total: <strong>GH₵ {Number(app.total_amount).toLocaleString()}</strong>.</> : null}
+            </p>
+            <div className={styles.calloutActions}>
+              <PayNowButton applicationId={appId} />
+              <Link href={editHref} className={styles.secondaryLink}>Edit details</Link>
+            </div>
+          </section>
+        ) : (
+          <section className={`${styles.callout} ${styles.calloutBlue}`}>
+            <h2>This application isn&apos;t finished yet</h2>
+            <p>Pick up where you left off. You&apos;ll review everything and pay at the end.</p>
+            <Link href={editHref} className={styles.primaryBtn}>
+              Continue application <ArrowRight size={16} />
+            </Link>
+          </section>
+        )
       )}
 
       {/* Tabs */}
@@ -296,9 +307,9 @@ export default function ApplicationDetailContent({ app, appId }: { app: any; app
 
       {/* Footer */}
       <footer className={styles.footer}>
-        {app.assigned_registrar?.full_name && (
+        {app.assigned_admin?.full_name && (
           <p>
-            Your case manager is <strong>{app.assigned_registrar.full_name}</strong>.
+            Your case manager is <strong>{app.assigned_admin.full_name}</strong>.
           </p>
         )}
         <p>

@@ -1,4 +1,4 @@
-// Emoji/icon avatars live in auth user_metadata.avatar_choice; uploaded photos live in profiles.avatar_url.
+// Avatars live in auth user_metadata: emoji/icon in avatar_choice, an uploaded photo's URL in avatar_url.
 
 export type AvatarChoice = { type: 'emoji'; value: string } | { type: 'icon'; value: AvatarIconName }
 

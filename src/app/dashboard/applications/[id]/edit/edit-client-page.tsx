@@ -304,7 +304,8 @@ export default function EditSubmissionContent({ applicationId }: Props) {
       return
     }
 
-    router.push(`/dashboard/applications/${applicationId}`)
+    // Unpaid applications are saved; payment (then submission) happens on the details page
+    router.push(`/dashboard/applications/${applicationId}${'needsPayment' in result && result.needsPayment ? '?pay=1' : ''}`)
   }
 
   if (loading) return <div className={styles.newReg} aria-busy="true" />
@@ -399,7 +400,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
         <p className={styles.stepDesc}>
           {isDraft
             ? 'Your progress saves automatically. Submit when everything is complete.'
-            : 'Our registrar flagged a few details. Update the highlighted fields, then resubmit. There is nothing extra to pay.'}
+            : 'Our team flagged a few details. Update the highlighted fields, then resubmit. There is nothing extra to pay.'}
         </p>
       </div>
 

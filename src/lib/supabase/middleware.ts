@@ -70,11 +70,11 @@ export async function updateSession(request: NextRequest) {
       .single()
 
     role = profile?.role || user.app_metadata?.role || 'user'
-    isAdminRole = ['admin', 'registrar', 'bank_manager', 'service_manager'].includes(role)
+    isAdminRole = role === 'admin' // one staff role
   }
 
   // Protected paths logic: Only redirect AWAY from /admin if we are CERTAIN they are not an admin
-  if (isScanningAdmin && user && !isAdminRole && role === 'user') {
+  if (isScanningAdmin && user && !isAdminRole) {
     // We only redirect if we explicitly fetched 'user' and not an admin role
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'

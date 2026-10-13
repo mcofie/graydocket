@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { MoreHorizontal, Eye, Pencil, Globe, Copy, Check, LifeBuoy, ArrowUpRight } from 'lucide-react'
 import styles from './overview.module.css'
+import { STAGES } from '@/lib/application-flow'
 
 export type Business = {
   id: string
@@ -13,16 +14,10 @@ export type Business = {
   business_types?: { name?: string } | null
 }
 
-const statusMap: Record<string, { tone: 'neutral' | 'blue' | 'amber' | 'green' | 'red'; label: string }> = {
-  draft: { tone: 'neutral', label: 'Draft' },
-  submitted: { tone: 'blue', label: 'Submitted' },
-  name_search: { tone: 'amber', label: 'Name search' },
-  under_review: { tone: 'amber', label: 'Under review' },
-  approved: { tone: 'green', label: 'Approved' },
-  rejected: { tone: 'red', label: 'Action required' },
-  completed: { tone: 'green', label: 'Active' },
-  cancelled: { tone: 'neutral', label: 'Cancelled' },
-}
+// Customer wording for each stage comes from the shared workflow (src/lib/application-flow.ts)
+const statusMap = Object.fromEntries(
+  Object.entries(STAGES).map(([status, stage]) => [status, { tone: stage.tone, label: stage.customer }])
+) as Record<string, { tone: 'neutral' | 'blue' | 'amber' | 'green' | 'red'; label: string }>
 
 // Soft, stable avatar colours picked from the business name
 const AVATAR_COLORS = ['#34c759', '#5aa9f2', '#f5b041', '#a78bfa', '#f472b6', '#2dd4bf']

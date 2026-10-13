@@ -1,0 +1,391 @@
+/* Affiliates page: partner list, link cards and the partner detail panel */
+
+.filters {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: #f3f4f6;
+}
+
+.filter {
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.filterOn {
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.08);
+}
+
+.search {
+  flex: 0 1 280px;
+  min-width: 180px;
+  height: 38px;
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #f3f4f6;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.avatarBrand {
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+}
+
+.code {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 7px;
+  background: #f3f4f6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.fresh {
+  background: var(--brand-soft);
+}
+
+.emptyHint {
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.emptyHint a,
+.footnote a {
+  color: #111827;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.footnote {
+  max-width: 720px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #6b7280;
+}
+
+/* Modal */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(17, 24, 39, 0.45);
+}
+
+.modal {
+  width: min(520px, 100%);
+  max-height: calc(100dvh - 40px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border-radius: 18px;
+  background: #ffffff;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(17, 24, 39, 0.18);
+}
+
+.modalWide {
+  width: min(720px, 100%);
+}
+
+.modalHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #f1f1f3;
+}
+
+.modalTitle {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.close {
+  padding: 4px;
+  border: 0;
+  background: none;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.modalBody {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+}
+
+.codeInput {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-transform: uppercase;
+}
+
+.codeInput::placeholder {
+  font-family: var(--font-sans);
+  text-transform: none;
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Partner panel */
+.panel {
+  display: grid;
+  gap: 22px;
+}
+
+.links {
+  display: grid;
+  gap: 8px;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #f7f7f8;
+}
+
+.linkText {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.linkLabel {
+  font-size: 12px;
+  color: #8a8a90;
+}
+
+.linkUrl {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panelStats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid #ececef;
+  border-radius: 14px;
+}
+
+.panelStats > div {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+}
+
+.panelStats > div + div {
+  border-left: 1px solid #ececef;
+}
+
+.panelStats span {
+  font-size: 12px;
+  color: #8a8a90;
+}
+
+.panelStats strong {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.payBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent-gold) 14%, #ffffff);
+  font-size: 13px;
+  color: #6b4700;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.sectionTitle {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8a8a90;
+}
+
+section > .sectionTitle {
+  margin-bottom: 10px;
+}
+
+.none {
+  padding: 14px;
+  border-radius: 12px;
+  background: #f7f7f8;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.referrals {
+  list-style: none;
+  display: grid;
+  border: 1px solid #ececef;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.referrals li + li {
+  border-top: 1px solid #f1f1f3;
+}
+
+.referral {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+  transition: background-color 0.12s ease;
+}
+
+.referral:hover {
+  background: #fafafa;
+}
+
+.referralSide {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.commission {
+  font-size: 12px;
+  color: #6b7280;
+  text-transform: capitalize;
+}
+
+.danger {
+  padding-top: 14px;
+  border-top: 1px solid #f1f1f3;
+}
+
+.removeBtn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #b91c1c;
+  cursor: pointer;
+}
+
+.removeBtn:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+  /* Paid and revenue live in the partner panel on phones */
+  .wide {
+    display: none;
+  }
+
+  .toolbar {
+    flex-wrap: wrap;
+  }
+
+  .table th,
+  .table td {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .search {
+    flex: 1 1 100%;
+  }
+
+  .panelStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .panelStats > div:nth-child(3) {
+    border-left: 0;
+  }
+
+  .panelStats > div:nth-child(n + 3) {
+    border-top: 1px solid #ececef;
+  }
+
+  .link {
+    flex-wrap: wrap;
+  }
+
+  .commission {
+    display: none;
+  }
+
+  .overlay {
+    align-items: end;
+    padding: 0;
+  }
+
+  .modal,
+  .modalWide {
+    width: 100%;
+    max-height: 92dvh;
+    border-radius: 18px 18px 0 0;
+  }
+}

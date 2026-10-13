@@ -56,7 +56,7 @@ export default function SecurityPage() {
       <section>
         <h2>Who can see your applications</h2>
         <p>
-          You can manage your applications from your dashboard. Authorised staff, including administrators and registrars,
+          You can manage your applications from your dashboard. Authorised GrayDocket administrators,
           access records to process applications and provide support. We share details with government agencies like the ORC to complete the
           services you request.
         </p>

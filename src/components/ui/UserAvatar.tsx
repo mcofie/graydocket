@@ -47,8 +47,9 @@ export default function UserAvatar({ size, name, avatarUrl, choice, className }:
   if (avatarUrl) {
     return (
       <span className={cls} style={style}>
+        {/* no-referrer: Google profile photos can refuse requests that name the site they came from */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={avatarUrl} alt="" className={styles.img} />
+        <img src={avatarUrl} alt="" className={styles.img} referrerPolicy="no-referrer" loading="lazy" />
       </span>
     )
   }

@@ -10,6 +10,7 @@
 // Sends run after the response (next/server `after`), so a slow Discord never slows a user down.
 
 import { after } from 'next/server'
+import { stageOf } from '@/lib/application-flow'
 
 const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://graydocket.com').replace(/\/$/, '')
@@ -84,21 +85,7 @@ export function describeChanges(changes: Record<string, unknown>) {
   return lines.join('\n') || null
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft',
-  submitted: 'Submitted',
-  pending: 'Pending',
-  in_review: 'In review',
-  review: 'In review',
-  correction_requested: 'Correction requested',
-  approved: 'Approved',
-  rejected: 'Rejected',
-  completed: 'Completed',
-  delivered: 'Delivered',
-}
-
-export const statusLabel = (status: string | null | undefined) =>
-  status ? (STATUS_LABELS[status] ?? status.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())) : null
+export const statusLabel = (status: string | null | undefined) => (status ? stageOf(status).admin : null)
 
 // ---------- Sending ----------
 

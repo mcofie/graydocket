@@ -1,276 +1,133 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { getAdminPayments } from '@/lib/actions'
-import Link from 'next/link'
-import { DollarSign, TrendingUp, CreditCard, Activity, RefreshCw, AlertCircle, Filter } from 'lucide-react'
-import styles from '../../dashboard/overview.module.css'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Tabs from '@/components/ui/Tabs'
+import { getAdminPaymentsPage } from '@/lib/admin-data'
+import { PageHeader, Pagination, StageChip, StatsSkeleton, TableSkeleton, cedis, shortDate, ui } from '../ui'
 
-export default function AdminRevenueDashboard() {
-  const [payments, setPayments] = useState<any[]>([])
+type Result = Awaited<ReturnType<typeof getAdminPaymentsPage>>
+type Tab = 'paid' | 'awaiting'
+
+export default function AdminPaymentsPage() {
+  const router = useRouter()
+  const [tab, setTab] = useState<Tab>('paid')
+  const [page, setPage] = useState(1)
+  const [data, setData] = useState<Result | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [statusFilter, setStatusFilter] = useState<'paid' | 'all'>('paid')
 
   useEffect(() => {
-    fetchPayments()
-  }, [statusFilter])
-
-  const fetchPayments = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const res = await getAdminPayments(statusFilter === 'all' ? undefined : 'paid')
-      if (res.error) {
-        setError(res.error)
-      } else {
-        setPayments(res.payments || [])
-      }
-    } catch (err: any) {
-      setError(err.message || 'Synchronization failure in financial layer.')
-    } finally {
+    let live = true
+    // Shows the refreshing state while the next page loads
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true)
+    getAdminPaymentsPage({ tab, page }).then((res) => {
+      if (!live) return
+      setData(res)
       setLoading(false)
+    })
+    return () => {
+      live = false
     }
-  }
+  }, [tab, page])
 
-  // --- Calculations ---
-  const paidPayments = payments.filter(p => p.payment_status === 'paid')
-  const totalRevenue = paidPayments.reduce((sum, p) => sum + (Number(p.total_amount) || 0), 0)
-  const totalTransactions = paidPayments.length
-  const averageTicket = totalTransactions > 0 ? totalRevenue / totalTransactions : 0
-
-  // Quick 30-day calculation
-  const now = new Date()
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-  const recentPayments = paidPayments.filter(p => new Date(p.updated_at) >= thirtyDaysAgo)
-  const recentRevenue = recentPayments.reduce((sum, p) => sum + (Number(p.total_amount) || 0), 0)
-
-  if (loading && payments.length === 0) {
-    return (
-      <div className={styles.overview} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '400px' }}>
-        <RefreshCw className="animate-spin" size={32} color="var(--color-primary-500)" />
-        <p style={{ marginTop: '16px', color: 'var(--color-neutral-500)', fontWeight: 600 }}>Syncing ledger...</p>
-      </div>
-    )
-  }
+  const s = data?.summary
+  const rows = data?.rows || []
 
   return (
-    <div className={styles.overview}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-8)' }}>
-        <div>
-          <h2 className={styles.sectionTitle}>Financial Oversight</h2>
-          <p style={{ fontSize: '13px', color: 'var(--color-neutral-500)', marginTop: '4px' }}>
-            Audited revenue metrics and real-time transaction reconciliation.
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <Tabs
-            label="Payment status"
-            value={statusFilter}
-            onChange={setStatusFilter}
-            items={[
-              { id: 'paid', label: 'Settled only' },
-              { id: 'all', label: 'All activity' },
-            ]}
-          />
-          <button onClick={() => fetchPayments()} className="btn btn-secondary" style={{ width: '40px', padding: 0 }}>
-             <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-          </button>
-        </div>
-      </div>
+    <div className={ui.page}>
+      <PageHeader title="Payments" sub="Money is taken at checkout, after the customer reviews their application. Nothing is submitted to the team until it’s paid." />
 
-      {error && (
-        <div style={{ 
-          background: 'var(--color-error-light)', 
-          border: '1px solid var(--color-error)', 
-          borderRadius: '12px', 
-          padding: '16px', 
-          marginBottom: '24px',
-          display: 'flex',
-          gap: '12px',
-          alignItems: 'center',
-          color: 'var(--color-error-dark)'
-        }}>
-          <AlertCircle size={20} />
-          <div style={{ fontSize: '14px', fontWeight: 600 }}>{error}</div>
+      {!s ? <StatsSkeleton /> : (
+      <section className={ui.stats}>
+        <div className={ui.stat}>
+          <span className={ui.statLabel}>Paid this month</span>
+          <span className={ui.statValue}>{cedis(s.monthTotal)}</span>
+          <span className={ui.statHint}>{`${s.monthCount} payment${s.monthCount === 1 ? '' : 's'}`}</span>
         </div>
+        <div className={ui.stat}>
+          <span className={ui.statLabel}>Of which ORC fees</span>
+          <span className={ui.statValue}>{cedis(s.monthOrc)}</span>
+          <span className={ui.statHint}>Passed on to the government</span>
+        </div>
+        <div className={ui.stat}>
+          <span className={ui.statLabel}>All time</span>
+          <span className={ui.statValue}>{cedis(s.allTotal)}</span>
+          <span className={ui.statHint}>{`${s.allCount} paid application${s.allCount === 1 ? '' : 's'}`}</span>
+        </div>
+        <div className={ui.stat}>
+          <span className={ui.statLabel}>Awaiting payment</span>
+          <span className={ui.statValue}>{cedis(s.awaitingTotal)}</span>
+          <span className={ui.statHint}>{`${s.awaitingCount} reviewed, not yet paid`}</span>
+        </div>
+      </section>
       )}
 
-      {/* --- Stat Cards --- */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--space-6)', marginBottom: 'var(--space-8)' }}>
-        <div style={{ background: 'linear-gradient(135deg, #18181b 0%, #27272a 100%)', color: 'white', padding: 'var(--space-6)', borderRadius: '16px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.2)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-4)' }}>
-            <div style={{ padding: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '8px' }}><DollarSign size={20} color="#fff" /></div>
-          </div>
-          <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#a1a1aa', fontWeight: 600 }}>Total Revenue</div>
-          <div style={{ fontSize: '32px', fontWeight: 700, marginTop: '4px' }}>GH₵ {totalRevenue.toLocaleString()}</div>
-        </div>
+      <Tabs
+        label="Payments"
+        value={tab}
+        onChange={(t) => {
+          setTab(t)
+          setPage(1)
+        }}
+        items={[
+          { id: 'paid', label: 'Paid', count: s?.allCount },
+          { id: 'awaiting', label: 'Awaiting payment', count: s?.awaitingCount },
+        ]}
+      />
 
-        <div style={{ background: 'white', padding: 'var(--space-6)', borderRadius: '16px', border: '1px solid var(--color-neutral-200)', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-4)' }}>
-            <div style={{ padding: '8px', background: 'var(--brand-soft)', borderRadius: '8px' }}><TrendingUp size={20} color="var(--brand-ink)" /></div>
-          </div>
-          <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-neutral-500)', fontWeight: 600 }}>Past 30 Days</div>
-          <div style={{ fontSize: '28px', fontWeight: 700, marginTop: '4px', color: 'var(--color-neutral-900)' }}>GH₵ {recentRevenue.toLocaleString()}</div>
-        </div>
+      {data?.error && <p className={ui.error}>{data.error}</p>}
 
-        <div style={{ background: 'white', padding: 'var(--space-6)', borderRadius: '16px', border: '1px solid var(--color-neutral-200)', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-4)' }}>
-            <div style={{ padding: '8px', background: 'var(--color-primary-50)', borderRadius: '8px' }}><CreditCard size={20} color="var(--color-primary-600)" /></div>
-          </div>
-          <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-neutral-500)', fontWeight: 600 }}>Settled Transactions</div>
-          <div style={{ fontSize: '28px', fontWeight: 700, marginTop: '4px', color: 'var(--color-neutral-900)' }}>{totalTransactions}</div>
-        </div>
-
-        <div style={{ background: 'white', padding: 'var(--space-6)', borderRadius: '16px', border: '1px solid var(--color-neutral-200)', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-4)' }}>
-            <div style={{ padding: '8px', background: 'var(--color-neutral-100)', borderRadius: '8px' }}><Activity size={20} color="var(--color-neutral-700)" /></div>
-          </div>
-          <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-neutral-500)', fontWeight: 600 }}>Avg. Transaction</div>
-          <div style={{ fontSize: '28px', fontWeight: 700, marginTop: '4px', color: 'var(--color-neutral-900)' }}>GH₵ {Math.round(averageTicket).toLocaleString()}</div>
-        </div>
-      </div>
-
-      <div style={{ background: 'white', borderRadius: '20px', border: '1px solid var(--color-neutral-200)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--color-neutral-200)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fafafa' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Filter size={18} style={{ color: 'var(--color-neutral-400)' }} />
-            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-neutral-900)' }}>Transaction Ledger</h3>
-          </div>
-          <span style={{ fontSize: '11px', color: 'var(--color-neutral-500)', background: 'white', padding: '4px 12px', borderRadius: '20px', fontWeight: 750, border: '1px solid var(--color-neutral-200)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-            {payments.length} Entities Found
-          </span>
-        </div>
-        
-        {payments.length === 0 ? (
-          <div style={{ padding: '80px 24px', textAlign: 'center' }}>
-            <div style={{ width: '64px', height: '64px', background: 'var(--color-neutral-100)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-              <DollarSign size={32} style={{ color: 'var(--color-neutral-300)' }} />
-            </div>
-            <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-neutral-900)' }}>No records detected</h3>
-            <p style={{ color: 'var(--color-neutral-500)', marginTop: '8px', fontSize: '14px' }}>
-              Financial activities matching your current filters will appear here.
-            </p>
-          </div>
+      <section className={ui.card}>
+        {data === null ? (
+          <TableSkeleton cols={5} />
+        ) : rows.length === 0 ? (
+          <p className={ui.empty}>{tab === 'paid' ? 'No payments yet.' : 'Nobody is waiting to pay.'}</p>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className={`${ui.tableWrap} ${loading ? ui.refreshing : ''}`}>
+            <table className={ui.table}>
               <thead>
                 <tr>
-                  <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-neutral-400)', borderBottom: '1px solid var(--color-neutral-100)' }}>Timestamp</th>
-                  <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-neutral-400)', borderBottom: '1px solid var(--color-neutral-100)' }}>Business Entity</th>
-                  <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-neutral-400)', borderBottom: '1px solid var(--color-neutral-100)' }}>Financial Split (GH₵)</th>
-                  <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-neutral-400)', borderBottom: '1px solid var(--color-neutral-100)' }}>Status</th>
-                  <th style={{ padding: '16px 24px', textAlign: 'right', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-neutral-400)', borderBottom: '1px solid var(--color-neutral-100)' }}>Total</th>
+                  <th>Date</th>
+                  <th>Business</th>
+                  <th>Customer</th>
+                  <th>{tab === 'paid' ? 'Stage' : 'Status'}</th>
+                  <th className={ui.right}>Amount</th>
+                  {tab === 'paid' && <th>Paystack ref</th>}
                 </tr>
               </thead>
               <tbody>
-                {payments.map((p) => {
-                  const isPaid = p.payment_status === 'paid'
-                  const bizType = p.business_types
-                  const hasAffiliate = !!p.referred_by_id
-
-                  // Logic for breakdown
-                  const orcFee = Number(bizType?.orc_fee) || 0
-                  const agentFee = Number(bizType?.agent_fee) || 0
-                  const returns = Number(bizType?.returns_portion) || 0
-                  
-                  // If no breakdown found, fall back to simple GD Fee
-                  const gdFeeLegacy = Number(bizType?.service_fee) || 0
-                  
-                  const affiliateRate = (Number(bizType?.affiliate_share_percentage) || 40) / 100
-                  
-                  const gdShare = returns > 0 ? (hasAffiliate ? returns * (1 - affiliateRate) : returns) : gdFeeLegacy
-                  const affiliateShare = (returns > 0 && hasAffiliate) ? returns * affiliateRate : 0
-
-                  return (
-                    <tr key={p.id} style={{ transition: 'all 0.2s', borderBottom: '1px solid var(--color-neutral-50)' }} className="hover-row">
-                      <td style={{ padding: '16px 24px' }}>
-                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--color-neutral-900)' }}>{new Date(p.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-neutral-400)', marginTop: '2px' }}>{new Date(p.updated_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                      </td>
-                      <td style={{ padding: '16px 24px' }}>
-                        <Link href={`/admin/applications/${p.id}`} style={{ fontSize: '14px', fontWeight: 750, color: 'var(--color-neutral-900)', textDecoration: 'none' }} className="hover-primary">
-                          {p.business_name || 'Unnamed Project'}
-                        </Link>
-                        <div style={{ fontSize: '12px', color: 'var(--color-neutral-500)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', background: 'var(--color-neutral-100)', padding: '2px 6px', borderRadius: '4px' }}>{p.tracking_id}</span>
-                          • {p.profiles?.full_name || 'Anonymous'}
-                        </div>
-                      </td>
-                      <td style={{ padding: '16px 24px' }}>
-                         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                             {orcFee > 0 && (
-                               <div style={{ padding: '2px 8px', background: '#f3f4f6', borderRadius: '6px', fontSize: '10px', fontWeight: 700, color: '#4b5563' }} title="ORC Government Fee">
-                                 ORC {orcFee}
-                               </div>
-                             )}
-                             {agentFee > 0 && (
-                               <div style={{ padding: '2px 8px', background: '#fef2f2', borderRadius: '6px', fontSize: '10px', fontWeight: 700, color: '#991b1b' }} title="Registrar Agent Fee">
-                                 AGT {agentFee}
-                               </div>
-                             )}
-                             <div style={{ padding: '2px 8px', background: 'var(--color-primary-50)', borderRadius: '6px', fontSize: '10px', fontWeight: 700, color: 'var(--color-primary-700)' }} title="GrayDocket Operating Profit">
-                               GD {gdShare.toFixed(1)}
-                             </div>
-                             {affiliateShare > 0 && (
-                               <div style={{ padding: '2px 8px', background: 'var(--brand-soft)', borderRadius: '6px', fontSize: '10px', fontWeight: 700, color: 'var(--brand-ink)' }} title="Affiliate Commission">
-                                 AFF {affiliateShare.toFixed(1)}
-                               </div>
-                             )}
-                         </div>
-                      </td>
-                      <td style={{ padding: '16px 24px' }}>
-                        <div style={{ 
-                          display: 'inline-flex', 
-                          padding: '4px 10px', 
-                          borderRadius: '20px', 
-                          fontSize: '10px', 
-                          fontWeight: 800, 
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em',
-                          background: isPaid ? 'var(--brand-soft)' : '#fff7ed',
-                          color: isPaid ? 'var(--brand-ink)' : '#c2410c',
-                          border: `1px solid ${isPaid ? 'var(--brand-soft)' : '#ffedd5'}`
-                        }}>
-                          {p.payment_status || 'Pending'}
-                        </div>
-                      </td>
-                      <td style={{ padding: '16px 24px', textAlign: 'right' }}>
-                        <div style={{ fontSize: '15px', fontWeight: 800, color: isPaid ? 'var(--color-neutral-900)' : 'var(--color-neutral-400)' }}>
-                          GH₵ {(Number(p.total_amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </div>
-                        {p.form_data?.paystack_reference && (
-                          <div style={{ fontSize: '9px', color: 'var(--color-neutral-400)', marginTop: '4px', fontFamily: 'var(--font-mono)' }}>
-                            REF: {p.form_data.paystack_reference}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
+                {rows.map((p) => (
+                  <tr key={p.id} className={ui.rowLink} onClick={() => router.push(`/admin/applications/${p.id}`)}>
+                    <td className={ui.muted}>{shortDate(p.updated_at || p.created_at)}</td>
+                    <td>
+                      <span className={ui.cellMain}>
+                        <strong>{p.business_name}</strong>
+                        <small>{p.business_types?.name}</small>
+                      </span>
+                    </td>
+                    <td>
+                      <span className={ui.cellMain}>
+                        <span>{p.profiles?.full_name || 'No name'}</span>
+                        <small>{p.profiles?.phone}</small>
+                      </span>
+                    </td>
+                    <td>{tab === 'paid' ? <StageChip status={p.status} /> : <span className={`${ui.chip} ${ui.amber}`}>Checkout started</span>}</td>
+                    <td className={ui.right}>
+                      <span className={ui.cellMain}>
+                        <strong>{cedis(p.total_amount)}</strong>
+                        {tab === 'paid' && p.government > 0 && <small>{cedis(p.government)} to ORC</small>}
+                      </span>
+                    </td>
+                    {tab === 'paid' && <td className={ui.mono}>{p.paystack_reference || '—'}</td>}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         )}
-      </div>
-      <style jsx global>{`
-        .hover-row:hover {
-          background-color: #fbfbfb;
-        }
-        .hover-primary:hover {
-          color: var(--color-primary-600) !important;
-          text-decoration: underline !important;
-        }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        .animate-spin {
-          animation: spin 1s linear infinite;
-        }
-      `}</style>
+        {data && <Pagination page={page} total={data.total} pageSize={data.pageSize} onChange={setPage} busy={loading} />}
+      </section>
     </div>
   )
 }

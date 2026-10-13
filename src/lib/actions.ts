@@ -6,6 +6,13 @@ import { revalidatePath } from 'next/cache'
 import { formatPhoneNumber } from '@/lib/sms'
 import { notify, money, code, statusLabel, describeChanges, adminApplicationLink } from '@/lib/discord'
 import { parseAvatarChoice, type AvatarChoice } from '@/lib/avatar'
+import { canMove, isAppStatus, stageOf } from '@/lib/application-flow'
+import { issuedDocuments, providedDocuments } from '@/lib/documents'
+import { currentAdminId, isAdminRequest } from '@/lib/admin-auth'
+import { signDocumentLinks, DOCUMENTS_BUCKET } from '@/lib/document-links'
+import { finalizePaidApplication, sendSms } from '@/lib/checkout-core'
+import { quoteApplication, type DbBusinessType } from '@/app/dashboard/applications/new/pricing'
+import { businessTypes } from '@/app/dashboard/applications/new/constants'
 
 type JsonPrimitive = string | number | boolean | null
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[]
@@ -13,19 +20,6 @@ type JsonObject = { [key: string]: JsonValue | undefined }
 
 type DeliveryAddress = Record<string, unknown> | null
 
-type ApplicationPayload = {
-  user_id: string
-  business_type_id: string
-  tracking_id: string
-  business_name: string
-  status: string
-  form_data: Record<string, unknown>
-  total_amount: number
-  paystack_reference?: string
-  payment_status: string
-  referred_by_id: string | null
-  updated_at: string
-}
 
 type DraftPayload = {
   user_id: string
@@ -35,10 +29,6 @@ type DraftPayload = {
   form_data: Record<string, unknown>
   total_amount: number
   updated_at: string
-}
-
-type PhoneContact = {
-  phone?: string | null
 }
 
 function extractPhoneFromApplication(application: any): string {
@@ -75,14 +65,7 @@ type ProfileApplicationsRow = {
   applications?: { id: string }[] | null
 }
 
-type UserIdRow = {
-  user_id: string | null
-}
 
-type AdminApplicationRow = {
-  assigned_to?: string | null
-  status?: string
-}
 
 type ServiceMutation = {
   name?: string
@@ -105,20 +88,9 @@ type BusinessTypeMutation = {
   is_active?: boolean
 }
 
-type BankingPartnerMutation = {
-  name?: string
-  description?: string
-  logo_url?: string
-  is_active?: boolean
-}
-
 type ProfileAffiliateUpdate = {
   is_affiliate: boolean
   affiliate_code?: string | null
-}
-
-type RoleMetadata = {
-  role?: string
 }
 
 type ApplicationFormDocument = {
@@ -135,22 +107,6 @@ type ApplicationFormData = JsonObject & {
   mobilePhone?: string
   documents?: ApplicationFormDocument[]
   corrections?: Record<string, string>
-}
-
-function generateTrackingId(): string {
-  const prefix = 'GD'
-  const timestamp = Date.now().toString(36).toUpperCase()
-  const random = Math.random().toString(36).substring(2, 6).toUpperCase()
-  return `${prefix}-${timestamp}-${random}`
-}
-
-function normalizePaystackReference(reference?: string) {
-  const normalized = reference?.trim()
-  return normalized ? normalized : undefined
-}
-
-function hasValidPaystackSecretKey() {
-  return Boolean(process.env.PAYSTACK_SECRET_KEY?.startsWith('sk_'))
 }
 
 async function generateUniqueAffiliateCode() {
@@ -170,64 +126,11 @@ async function generateUniqueAffiliateCode() {
   throw new Error('Unable to generate a unique affiliate code')
 }
 
-async function reservePaystackReference(reference: string, draftId?: string) {
-  const adminClient = await createAdminClient()
-  let query = adminClient
-    .from('applications')
-    .select('id, tracking_id')
-    .eq('paystack_reference', reference)
-
-  if (draftId) {
-    query = query.neq('id', draftId)
-  }
-
-  const { data: existing } = await query.maybeSingle()
-  if (existing) return existing
-
-  let fallbackQuery = adminClient
-    .from('applications')
-    .select('id, tracking_id')
-    .filter('form_data->>paystack_reference', 'eq', reference)
-
-  if (draftId) {
-    fallbackQuery = fallbackQuery.neq('id', draftId)
-  }
-
-  const { data: fallbackExisting } = await fallbackQuery.maybeSingle()
-  if (fallbackExisting) return fallbackExisting
-
-  let legacyFallbackQuery = adminClient
-    .from('applications')
-    .select('id, tracking_id')
-    .filter('form_data->>paystackReference', 'eq', reference)
-
-  if (draftId) {
-    legacyFallbackQuery = legacyFallbackQuery.neq('id', draftId)
-  }
-
-  const { data: legacyFallbackExisting } = await legacyFallbackQuery.maybeSingle()
-  return legacyFallbackExisting
-}
-
-async function reconcileStoredPaystackEvents(reference: string, applicationId: string) {
-  const adminClient = await createAdminClient()
-
-  await adminClient
-    .from('paystack_webhook_events')
-    .update({
-      application_id: applicationId,
-      processed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('reference', reference)
-    .is('application_id', null)
-}
-
 type AffiliateCommissionContext = {
   referred_by_id: string | null
   payment_status: string | null
   business_types?: {
-    service_fee?: number | string | null
+    agent_fee?: number | string | null
     returns_portion?: number | string | null
     affiliate_share_percentage?: number | string | null
   } | null
@@ -237,346 +140,15 @@ function calculateAffiliateCommissionAmount(app: AffiliateCommissionContext) {
   if (!app.referred_by_id || app.payment_status !== 'paid') return 0
 
   const returnsPortion = Number(app.business_types?.returns_portion || 0)
-  const serviceFee = Number(app.business_types?.service_fee || 0)
+  const agentFee = Number(app.business_types?.agent_fee || 0)
   const affiliateRate = Number(app.business_types?.affiliate_share_percentage ?? 40) / 100
 
   if (returnsPortion > 0) {
     return returnsPortion * affiliateRate
   }
 
-  return serviceFee * 0.2
-}
-
-export async function submitApplication(data: {
-  businessTypeId: string
-  businessTypeName: string
-  businessName: string
-  formData: Record<string, unknown>
-  selectedAddOns: string[]
-  totalAmount: number
-  deliveryMethod: string
-  deliveryAddress: DeliveryAddress
-  affiliateCode?: string
-  paystackReference?: string
-}) {
-  const supabase = await createClient()
-  const paystackReference = normalizePaystackReference(data.paystackReference)
-
-  let referredById = null
-  if (data.affiliateCode) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('affiliate_code', data.affiliateCode)
-      .eq('is_affiliate', true)
-      .single()
-    if (profile) referredById = profile.id
-  }
-
-  // Get current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser()
-  if (userError || !user) {
-    return { error: 'You must be logged in to submit an application.' }
-  }
-
-  // Debug: check if profile exists
-  const { data: profileCheck } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('id', user.id)
-    .single()
-
-  if (!profileCheck) {
-    console.error(`Profile missing for user ${user.id}. Expect FK error.`)
-    // If Admin client is needed, we'd do it here, but let's just surface the error cleanly
-    return { error: `Profile missing. Did you register? (ID: ${user.id})` }
-  }
-
-  const trackingId = generateTrackingId()
-
-  // Check for existing draft to promote early so we can safely exclude it
-  // from unique payment reference checks.
-  const { data: existingDraft } = await supabase
-    .from('applications')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('business_type_id', data.businessTypeId)
-    .eq('status', 'draft')
-    .single()
-
-  if (paystackReference) {
-    const existingPayment = await reservePaystackReference(paystackReference, existingDraft?.id)
-    if (existingPayment) {
-      return {
-        error: `This payment reference has already been used on application ${existingPayment.tracking_id}. Please contact support if you need help.`
-      }
-    }
-  }
-
-  const applicationPayload: ApplicationPayload = {
-    user_id: user.id,
-    business_type_id: data.businessTypeId,
-    tracking_id: trackingId,
-    business_name: data.businessName,
-    status: 'submitted',
-    form_data: { 
-      ...data.formData, 
-      delivery_method: data.deliveryMethod,
-      delivery_address: data.deliveryAddress,
-      total_amount: data.totalAmount,
-      paystack_reference: paystackReference
-    },
-    total_amount: data.totalAmount,
-    paystack_reference: paystackReference,
-    payment_status: 'pending', // Default to pending
-    referred_by_id: referredById,
-    updated_at: new Date().toISOString()
-  }
-
-  // --- Server-side Paystack Verification ---
-  if (paystackReference) {
-    if (!hasValidPaystackSecretKey()) {
-      console.error('PAYSTACK_SECRET_KEY is not configured.')
-      return { error: 'Payment verification failed (Configuration Error).' }
-    }
-
-    try {
-      const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${paystackReference}`, {
-        headers: {
-          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      const verifyData = await verifyRes.json()
-
-      if (verifyData.status && verifyData.data.status === 'success') {
-        applicationPayload.payment_status = 'paid'
-        // Ensure the amount matches (Paystack amount is in pesewas)
-        const expectedAmountPesewas = Math.round(data.totalAmount * 100)
-        const actualAmountPesewas = verifyData.data.amount
-        const currencyMatch = verifyData.data.currency === 'GHS'
-
-        if (actualAmountPesewas < expectedAmountPesewas || !currencyMatch) {
-              console.warn(`Payment integrity violation: Expected ${expectedAmountPesewas} GHS, got ${actualAmountPesewas} ${verifyData.data.currency}`)
-              notify({
-                channel: 'alerts',
-                title: '🚨 Payment amount mismatch',
-                summary: 'Paystack confirmed a payment that doesn’t match the application total. The application was not submitted.',
-                user: { id: user.id },
-                fields: [
-                  ['Business', data.businessName],
-                  ['Expected', money(data.totalAmount)],
-                  ['Received', `${(actualAmountPesewas / 100).toLocaleString()} ${verifyData.data.currency}`],
-                  ['Paystack ref', code(paystackReference), false],
-                ],
-              })
-              return { error: 'Payment integrity check failed. Amount or currency mismatch detected.' }
-        }
-      } else {
-        return { error: 'Payment verification failed. Please contact support.' }
-      }
-    } catch (err) {
-      console.error('Paystack verification error:', err)
-      return { error: 'Technical error during payment verification.' }
-    }
-  }
-
-  let application;
-  let appError;
-
-  if (existingDraft) {
-    const { data: updated, error } = await supabase
-      .from('applications')
-      .update(applicationPayload)
-      .eq('id', existingDraft.id)
-      .select()
-      .single()
-    application = updated
-    appError = error
-  } else {
-    const { data: inserted, error } = await supabase
-      .from('applications')
-      .insert(applicationPayload)
-      .select()
-      .single()
-    application = inserted
-    appError = error
-  }
-
-  if (application && !appError) {
-    if (application.paystack_reference) {
-      await reconcileStoredPaystackEvents(application.paystack_reference, application.id)
-    }
-
-    if (application.payment_status === 'paid') {
-      notify({
-        channel: 'payments',
-        title: `💰 Paid application · ${application.business_name}`,
-        summary: `${data.businessTypeName} registration submitted and paid. Ready for review.`,
-        link: adminApplicationLink(application.id),
-        user: { id: user.id },
-        fields: [
-          ['Amount', money(application.total_amount)],
-          ['Type', data.businessTypeName],
-          ['Delivery', data.deliveryMethod === 'digital' ? 'Digital' : 'Courier'],
-          ['Tracking ID', code(application.tracking_id)],
-          ['Paystack ref', code(application.paystack_reference || (application.form_data?.paystack_reference as string | undefined))],
-          ['Add-ons', data.selectedAddOns.length ? data.selectedAddOns.join(', ') : null, false],
-          ['Referred by', data.affiliateCode ? code(data.affiliateCode) : null],
-        ],
-      })
-    } else {
-      notify({
-        channel: 'applications',
-        title: `📥 Submitted, awaiting payment · ${application.business_name}`,
-        summary: `${data.businessTypeName} registration submitted. Payment hasn’t been confirmed yet.`,
-        link: adminApplicationLink(application.id),
-        user: { id: user.id },
-        fields: [
-          ['Amount due', money(application.total_amount)],
-          ['Type', data.businessTypeName],
-          ['Tracking ID', code(application.tracking_id)],
-        ],
-      })
-    }
-  }
-
-  if (appError) {
-    console.error('Application insert error:', appError)
-    return { error: appError.message }
-  }
-
-  // Insert initial status history
-  await supabase.from('application_status_history').insert({
-    application_id: application.id,
-    status: 'submitted',
-    notes: `Application submitted for ${data.businessTypeName}`,
-    updated_by: user.id,
-  })
-
-  // Insert selected add-on services
-  if (data.selectedAddOns.length > 0) {
-    // Get service IDs from the database
-    const { data: services } = await supabase
-      .from('services')
-      .select('id, name, price')
-
-    if (services) {
-      const serviceMap: Record<string, { id: string; price: number }> = {}
-      services.forEach((s: { id: string; name: string; price: number }) => {
-        const key = s.name.toLowerCase().replace(/\s+/g, '_')
-        serviceMap[key] = { id: s.id, price: s.price }
-      })
-
-      const addOnMapping: Record<string, string> = {
-        domain: 'domain_name_purchase',
-        email: 'business_email_setup',
-        website: 'business_website',
-        bank: 'bank_account_setup',
-      }
-
-      const serviceInserts = data.selectedAddOns
-        .map((addon) => {
-          const serviceKey = addOnMapping[addon]
-          const service = serviceKey ? serviceMap[serviceKey] : null
-          if (service) {
-            return {
-              application_id: application.id,
-              service_id: service.id,
-              price: service.price,
-            }
-          }
-          return null
-        })
-        .filter((insert): insert is NonNullable<typeof insert> => insert !== null)
-
-      if (serviceInserts.length > 0) {
-        await supabase.from('application_services').insert(serviceInserts)
-      }
-    }
-  }
-
-  // --- Calculate and Insert Affiliate Commission ---
-  if (applicationPayload.payment_status === 'paid' && referredById) {
-     await processAffiliateCommission(application.id)
-  }
-
-  // --- Send SMS Notification ---
-  if (paystackReference && process.env.ZEND_API_KEY) {
-    const rawPhone = data.formData.mobilePhone || data.formData.phone || ''
-    const phoneNumber = String(rawPhone)
-    if (phoneNumber) {
-      const trackingLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://graydocket.com'}/track/${trackingId}`
-      const message = `Payment received! Your GrayDocket application for "${data.businessName}" is processing. Track your status here: ${trackingLink}`
-      
-      const normalizedPhone = formatPhoneNumber(phoneNumber)
-      try {
-        await fetch('https://api.tryzend.com/messages', {
-          method: 'POST',
-          headers: {
-            'x-api-key': process.env.ZEND_API_KEY as string,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            to: normalizedPhone,
-            body: message,
-            preferred_channels: ['sms'],
-            sender_id: 'GrayDocket'
-          })
-        })
-      } catch (err) {
-        console.error('Failed to send SMS via Zend:', err)
-      }
-    }
-  }
-
-  // --- Alert All Registrars via SMS ---
-  if (paystackReference && process.env.ZEND_API_KEY) {
-    try {
-      const { createAdminClient } = await import('@/lib/supabase/server')
-      const adminClient = await createAdminClient()
-      
-      // Fetch registrars from public schema first, then graydocket if needed
-      let { data: registrars } = await adminClient.schema('graydocket').from('profiles').select('phone').eq('role', 'registrar')
-      if (!registrars || registrars.length === 0) {
-        const { data: pubRegistrars } = await adminClient.schema('public').from('profiles').select('phone').eq('role', 'registrar')
-        registrars = pubRegistrars || []
-      }
-
-      if (registrars && registrars.length > 0) {
-        const adminMsg = `New Case: ${data.businessName} has submitted an application. Log in to the dashboard to claim it.`
-        const uniquePhones = [...new Set(
-          (registrars as PhoneContact[])
-            .map((r) => r.phone)
-            .filter((phone): phone is string => Boolean(phone))
-        )]
-
-        await Promise.all(uniquePhones.map(async (phone) => {
-          const normalizedAdminPhone = formatPhoneNumber(phone)
-          await fetch('https://api.tryzend.com/messages', {
-            method: 'POST',
-            headers: {
-              'x-api-key': process.env.ZEND_API_KEY as string,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              to: normalizedAdminPhone,
-              body: adminMsg,
-              preferred_channels: ['sms'],
-              sender_id: 'GrayDocket'
-            })
-          })
-        }))
-      }
-    } catch (e) {
-      console.error('Failed to notify registrars:', e)
-    }
-  }
-
-  revalidatePath('/dashboard')
-  revalidatePath('/dashboard/applications')
-
-  return { success: true, trackingId, applicationId: application.id }
+  // Types without a returns portion: the share applies to our service fee instead
+  return agentFee * affiliateRate
 }
 
 export async function saveApplicationDraft(data: {
@@ -727,6 +299,47 @@ export async function getLatestDraft(businessTypeId?: string) {
   return { draft: data || null, error: error?.message || null }
 }
 
+/** Every document for each of the signed-in customer's businesses (issued by us and provided by them) */
+export async function getMyBusinessDocuments() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { businesses: [], error: 'Not authenticated' }
+
+  const { data: apps, error } = await supabase
+    .from('applications')
+    .select('id, business_name, status, tracking_id, form_data, updated_at, business_types:business_type_id (name)')
+    .eq('user_id', user.id)
+    .neq('status', 'cancelled')
+    .order('updated_at', { ascending: false })
+  if (error) return { businesses: [], error: error.message }
+
+  const ids = (apps || []).map((a) => a.id)
+  const { data: tableDocs } = ids.length
+    ? await supabase.from('documents').select('id, application_id, name, file_url, document_type, uploaded_at').in('application_id', ids)
+    : { data: [] }
+
+  // The bucket is private: swap stored links for signed ones (only this customer's files, fetched above)
+  const { formDatas, rows: signedRows } = await signDocumentLinks(
+    await createAdminClient(),
+    (apps || []).map((a) => (a.form_data || {}) as Record<string, unknown>),
+    tableDocs || []
+  )
+
+  const businesses = (apps || []).map((a, i) => {
+    const form = formDatas[i]
+    return {
+      id: a.id,
+      name: a.business_name || 'Untitled business',
+      status: a.status as string,
+      type: (a.business_types as { name?: string } | null)?.name || 'Business registration',
+      trackingId: a.tracking_id && !String(a.tracking_id).startsWith('DRAFT-') ? a.tracking_id : null,
+      issued: issuedDocuments(form, signedRows.filter((d) => d.application_id === a.id)),
+      provided: providedDocuments(form),
+    }
+  })
+  return { businesses, error: null }
+}
+
 export async function getMyApplications() {
   const supabase = await createClient()
 
@@ -756,13 +369,15 @@ export async function getMyProfile() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: profile } = await supabase
+  const { data } = await supabase
     .from('profiles')
-    .select('full_name, email, phone, avatar_url')
+    .select('full_name, email, phone')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
-  return { profile, user }
+  // Uploaded photos are stored in auth metadata (the profiles table has no avatar column)
+  const avatarUrl = typeof user.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : null
+  return { profile: data ? { ...data, avatar_url: avatarUrl } : { full_name: null, email: null, phone: null, avatar_url: avatarUrl }, user }
 }
 
 export async function getDashboardStats() {
@@ -812,7 +427,7 @@ export async function getBusinessTypes() {
     .from('business_types')
     .select('*')
     .eq('is_active', true)
-    .order('base_price', { ascending: true })
+    .order('name', { ascending: true })
 
   if (error) {
     console.error('Fetch business types error:', error)
@@ -820,16 +435,6 @@ export async function getBusinessTypes() {
   }
 
   return data || []
-}
-
-export async function getAllBusinessTypes() {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('business_types')
-    .select('*')
-    .order('base_price', { ascending: true })
-
-  return { business_types: data || [], error: error?.message || null }
 }
 
 export async function getServices() {
@@ -843,341 +448,245 @@ export async function getServices() {
 }
 
 
-async function checkIsAdmin(requiredRoles: string[] = ['admin', 'registrar', 'bank_manager', 'service_manager']) {
-  const { createClient, createAdminClient } = await import('@/lib/supabase/server')
-  
-  // Try to get the current user session
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+/**
+ * GrayDocket has one staff role: admin. The role is read from the profile (or server-only
+ * app_metadata), never from user_metadata, which users can change themselves.
+ */
+async function isAdminUser(user: { id: string; app_metadata?: Record<string, unknown> } | null | undefined) {
   if (!user) return false
-
+  if (user.app_metadata?.role === 'admin') return true
   const adminClient = await createAdminClient()
+  const { data } = await adminClient.from('profiles').select('role').eq('id', user.id).maybeSingle()
+  return data?.role === 'admin'
+}
 
-  // 1. Check Graydocket Schema
-  const { data } = await adminClient
-    .schema('graydocket')
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .limit(1)
-  
-  let profile = data?.[0] || null
+/** Pages that show prices, refreshed whenever pricing changes */
+function revalidatePricing() {
+  for (const path of ['/admin/pricing', '/pricing', '/find-your-business-type', '/support', '/dashboard/choose']) revalidatePath(path)
+}
 
-  if (!profile) {
-    // 2. Fallback to public
-    const { data: pubProf } = await adminClient
-      .schema('public')
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .limit(1)
-    
-    profile = pubProf?.[0] || null
-  }
-
-  const role = profile?.role || user.app_metadata?.role || user.user_metadata?.role
-  return role && requiredRoles.includes(role)
+async function checkIsAdmin() {
+  return isAdminRequest()
 }
 
 
-export async function getAdminStats() {
-  const isAuthorized = await checkIsAdmin()
-  if (!isAuthorized) return null
+// Affiliate partners: customers who opted in plus brands the team signs up. Profiles hold the code;
+// brand details live in auth app_metadata and payout details in user_metadata (no extra columns needed).
+type AffiliateMeta = { app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown> } | null | undefined
 
-  // Use regular client for session, admin client for data
-  const { createClient, createAdminClient } = await import('@/lib/supabase/server')
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
 
-  const client = await createAdminClient()
-
-  // Resolve role
-  const { data: profData } = await client.schema('graydocket').from('profiles').select('role').eq('id', user.id).limit(1)
-  const profile = profData?.[0] || null
-  const role = profile?.role || 'registrar'
-
-  // 1. Core Counts (Role-aware)
-  let appQuery = client.schema('graydocket').from('applications').select('id', { count: 'exact', head: true })
-  let completedQuery = client.schema('graydocket').from('applications').select('id', { count: 'exact', head: true }).eq('status', 'completed')
-  
-  if (role === 'registrar') {
-    appQuery = appQuery.or(`assigned_to.eq.${user.id},and(assigned_to.is.null,status.neq.draft)`)
-    completedQuery = completedQuery.eq('assigned_to', user.id)
-  }
-
-  const { count: appCount } = await appQuery
-  const { count: completedCount } = await completedQuery
-
-  // 2. Pulse: Stale/Urgent (Unassigned > 6 hours) - Registrars only see unassigned urgent (excluding drafts)
-  const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
-  const { count: urgentCount } = await client
-    .schema('graydocket')
-    .from('applications')
-    .select('id', { count: 'exact', head: true })
-    .is('assigned_to', null)
-    .neq('status', 'draft')
-    .lt('created_at', sixHoursAgo)
-
-  // 3. Pulse: Revenue This Month (Admins only see global revenue)
-  let monthlyRevenue = 0
-  if (role === 'admin') {
-     const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-     const { data: revenueData } = await client.schema('graydocket').from('applications').select('total_amount').eq('payment_status', 'paid').gt('created_at', firstOfMonth)
-     monthlyRevenue = (revenueData as AmountRow[] | null)?.reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0) || 0
-  }
-
-  // 4. Pulse: Registrar Performance (Admins see global, Registrars only see themselves?)
-  // Actually, keeping the "Radar" might be good for transparency, but let's make it admin-only info
-  const { data: performance } = await client.schema('graydocket').from('profiles').select('id, full_name, applications!assigned_to(id)').eq('role', 'registrar')
-  const registrarStats = role === 'admin' ? (performance as ProfileApplicationsRow[] | null)?.map(r => ({
-    name: r.full_name,
-    activeCases: r.applications?.length || 0
-  })) || [] : []
-
-  // 5. User Data (Synchronized with getAdminUsers logic)
-  let userCount = 0
-  if (role === 'admin') {
-     const { users } = await getAdminUsers()
-     userCount = users.length
-  }
-
-  // 6. Recent Apps (Filtered for Registrars)
-  let recentQuery = client
-    .schema('graydocket')
-    .from('applications')
-    .select('*, profiles:user_id(full_name)')
-    .order('created_at', { ascending: false })
-    .limit(8)
-  
-  if (role === 'registrar') {
-     recentQuery = recentQuery.or(`assigned_to.eq.${user.id},and(assigned_to.is.null,status.neq.draft)`)
-  }
-
-  const { data: recentApps } = await recentQuery
-
+function affiliateDetails(user: AffiliateMeta) {
   return {
-    role,
-    totalApplications: appCount || 0,
-    totalUsers: userCount || 0,
-    completedApplications: completedCount || 0,
-    urgentCount: urgentCount || 0,
-    monthlyRevenue,
-    registrarStats,
-    recentApplications: recentApps || []
+    kind: user?.app_metadata?.affiliate_kind === 'brand' ? ('brand' as const) : ('customer' as const),
+    contactName: str(user?.app_metadata?.affiliate_contact),
+    payoutMethod: str(user?.user_metadata?.payout_method),
+    payoutAddress: str(user?.user_metadata?.payout_address),
   }
 }
 
-export async function getAdminApplications() {
-  const isAdmin = await checkIsAdmin()
-  if (!isAdmin) return { applications: [], error: 'Unauthorized' }
+const AFFILIATE_CODE = /^[A-Z0-9][A-Z0-9-]{2,19}$/
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  if (!user) return { applications: [], error: 'Session expired' }
-
-  // Check the precise role of the logged in admin staff to apply filtering logic
-  const { data: profile } = await supabase.schema('graydocket').from('profiles').select('role').eq('id', user.id).maybeSingle()
-  let role = profile?.role || user.app_metadata?.role;
-  
-  // Apply fallback dual fetch just in case
-  if (!role) {
-    const { data: pubProf } = await supabase.schema('public').from('profiles').select('role').eq('id', user.id).maybeSingle()
-    role = pubProf?.role || 'registrar' // Default to least privilege if they made it here
-  }
-  
-  // Build the query
-  const query = supabase
-    .from('applications')
-    .select(`
-      *,
-      profiles:user_id (full_name, email),
-      business_types:business_type_id (name)
-    `)
-    .order('created_at', { ascending: false })
-
-  const { data, error } = await query
-
-  // Client-side array filtering ensures deterministic evaluation based on the resolved role context
-  // This circumvents RLS/Schema quirks while maintaining strictly secure constraints within this trusted server action
-  const finalApps = ((data as AdminApplicationRow[] | null) || []).filter((app) => {
-    if (role === 'admin') return true; // Admins view global unconstrained
-    
-    // If it is assigned to this specific registrar, they see it
-    if (app.assigned_to === user.id) return true;
-    
-    // If it is unassigned, registrars only see it if it has been submitted (i.e., not a draft)
-    if (!app.assigned_to && app.status !== 'draft') return true;
-    
-    // Otherwise, they do not see it (e.g. assigned to someone else, or is a draft)
-    return false;
-  })
-
-  return { applications: finalApps, role, error: error?.message || null }
-}
-
-export async function getAdminPayments(status: string = 'paid') {
-  const isAdmin = await checkIsAdmin(['admin', 'registrar'])
-  if (!isAdmin) return { payments: [], error: 'Unauthorized' }
-
-  const { createAdminClient } = await import('@/lib/supabase/server')
-  const adminClient = await createAdminClient()
-
-  const selectQuery = 'id, tracking_id, business_name, total_amount, payment_status, form_data, created_at, updated_at, referred_by_id, profiles:user_id(full_name, email), business_types:business_type_id(name, orc_fee, agent_fee, returns_portion, service_fee, affiliate_share_percentage)'
-
-  let query = adminClient
-    .schema('graydocket')
-    .from('applications')
-    .select(selectQuery)
-    .order('updated_at', { ascending: false })
-
-  if (status) {
-    query = query.eq('payment_status', status)
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-     // Fallback to public schema if graydocket doesn't have it yet
-     let fallbackQuery = adminClient
-       .from('applications')
-       .select(selectQuery)
-       .order('updated_at', { ascending: false })
-     
-     if (status) {
-       fallbackQuery = fallbackQuery.eq('payment_status', status)
-     }
-
-     const { data: publicData, error: publicErr } = await fallbackQuery
-     
-     if (publicErr) return { payments: [], error: publicErr.message }
-     return { payments: publicData || [], error: null }
-  }
-
-  return { payments: data || [], error: null }
+/** Codes are stored upper case; links and checkout normalise to match */
+function cleanAffiliateCode(raw: string | null | undefined) {
+  return (raw || '').trim().toUpperCase().replace(/\s+/g, '-')
 }
 
 export async function getAdminAffiliates() {
-  const isAdmin = await checkIsAdmin(['admin', 'registrar'])
+  const isAdmin = await checkIsAdmin()
   if (!isAdmin) return { affiliates: [], error: 'Unauthorized' }
 
-  const supabase = await createClient()
+  const admin = await createAdminClient()
 
-  // Use a direct edge-join. This avoids manual mapping and speeds up the response natively.
-  const { data: profiles, error } = await supabase
+  const { data: profiles, error } = await admin
     .from('profiles')
-    .select(`
-      id, 
-      full_name, 
-      email, 
-      phone, 
-      affiliate_code, 
-      created_at, 
-      payout_method, 
-      payout_address, 
-      commissions(id, amount, status, created_at)
-    `)
+    .select('id, full_name, email, phone, affiliate_code, created_at')
     .eq('is_affiliate', true)
     .order('created_at', { ascending: false })
 
-  if (error) {
-    console.error('Affiliate fetch error:', error)
-    return { affiliates: [], error: error.message }
-  }
+  if (error) return { affiliates: [], error: error.message }
 
-  const { data: referralRows, error: referralError } = await supabase
-    .from('applications')
-    .select('referred_by_id')
-    .not('referred_by_id', 'is', null)
+  const ids = (profiles || []).map((p) => p.id)
+  if (ids.length === 0) return { affiliates: [], error: null }
 
-  if (referralError) {
-    return { affiliates: [], error: referralError.message }
-  }
+  const [{ data: commissionRows }, { data: referralRows }, users] = await Promise.all([
+    admin.from('commissions').select('id, affiliate_id, application_id, amount, status, created_at').in('affiliate_id', ids),
+    admin
+      .from('applications')
+      .select('id, referred_by_id, business_name, tracking_id, status, payment_status, total_amount, created_at')
+      .in('referred_by_id', ids)
+      .order('created_at', { ascending: false }),
+    Promise.all(ids.map((id) => admin.auth.admin.getUserById(id).then((r) => r.data.user).catch(() => null))),
+  ])
 
-  const referralCounts = (referralRows || []).reduce<Record<string, number>>((acc, row: { referred_by_id: string | null }) => {
-    if (row.referred_by_id) {
-      acc[row.referred_by_id] = (acc[row.referred_by_id] || 0) + 1
+  const affiliates = (profiles || []).map((p, i) => {
+    const referrals = (referralRows || [])
+      .filter((r) => r.referred_by_id === p.id && r.status !== 'cancelled')
+      .map((r) => ({
+        id: r.id,
+        businessName: r.business_name as string | null,
+        trackingId: r.tracking_id as string | null,
+        status: r.status as string,
+        paid: r.payment_status === 'paid',
+        total: Number(r.total_amount) || 0,
+        createdAt: r.created_at as string,
+      }))
+    const commissions = (commissionRows || [])
+      .filter((c) => c.affiliate_id === p.id)
+      .map((c) => ({
+        id: c.id as string,
+        applicationId: c.application_id as string | null,
+        amount: Number(c.amount) || 0,
+        status: c.status as 'pending' | 'approved' | 'paid' | 'void',
+        createdAt: c.created_at as string,
+      }))
+    return {
+      id: p.id as string,
+      name: (p.full_name as string | null) || 'No name',
+      email: p.email as string | null,
+      phone: p.phone as string | null,
+      code: p.affiliate_code as string | null,
+      joinedAt: p.created_at as string,
+      ...affiliateDetails(users[i]),
+      referrals,
+      commissions,
     }
-    return acc
-  }, {})
-
-  const affiliates = (profiles || []).map((profile) => ({
-    ...profile,
-    referral_count: referralCounts[profile.id] || 0,
-  }))
+  })
 
   return { affiliates, error: null }
 }
 
-export async function getAdminUsers() {
+/** Sign up a brand (or anyone outside the app) as a partner and give them a referral code */
+export async function createBrandAffiliate(input: {
+  brandName: string
+  contactName?: string
+  email: string
+  phone?: string
+  code?: string
+}) {
   const isAdmin = await checkIsAdmin()
-  if (!isAdmin) return { users: [], error: 'Unauthorized' }
+  if (!isAdmin) return { error: 'Unauthorized' }
 
-  const { createAdminClient } = await import('@/lib/supabase/server')
-  const adminSupabase = await createAdminClient()
+  const brandName = input.brandName?.trim()
+  const email = input.email?.trim().toLowerCase()
+  if (!brandName) return { error: 'Enter the brand’s name.' }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: 'Enter a valid email for the brand.' }
 
-  // 1. Get all profiles from graydocket schema
-  const { data: profiles, error } = await adminSupabase
-    .schema('graydocket')
-    .from('profiles')
-    .select('*')
-    .order('created_at', { ascending: false })
+  const admin = await createAdminClient()
 
-  if (error) return { users: [], error: error.message }
-
-  // 2. Get auth users to check app_id metadata and phone verification status
-  const { data: { users: authUsers } } = await adminSupabase.auth.admin.listUsers({ perPage: 1000 })
-  const authMap = new Map((authUsers || []).map(u => [u.id, u]))
-  
-  // GrayDocket users are identified by:
-  // - Explicit app_id tag in metadata, OR
-  // - Having a confirmed phone (GrayDocket is the only app that sets phone_confirm:true)
-  const gdAuthIds = new Set(
-    (authUsers || [])
-      .filter(u => 
-        u.user_metadata?.app_id === 'graydocket' ||
-        u.phone_confirmed_at
-      )
-      .map(u => u.id)
-  )
-
-  // 3. Get user IDs with GrayDocket applications or drafts
-  const [{ data: appRows }, { data: draftRows }] = await Promise.all([
-    adminSupabase.schema('graydocket').from('applications').select('user_id'),
-    adminSupabase.schema('graydocket').from('application_drafts').select('user_id'),
-  ])
-  const activityIds = new Set([
-    ...((appRows as UserIdRow[] | null) || []).map((r) => r.user_id),
-    ...((draftRows as UserIdRow[] | null) || []).map((r) => r.user_id),
-  ])
-
-  // 4. A user belongs to GrayDocket if ANY of these are true:
-  //    - They registered via GrayDocket phone OTP (app_id or phone_confirmed_at)
-  //    - They have a GrayDocket application or draft
-  //    - They have a non-default role (admin, registrar, etc.)
-  //    - They are a GrayDocket affiliate partner
-  const appUsers = (profiles || []).filter((u: { id: string; role?: string | null; is_affiliate?: boolean | null }) =>
-    gdAuthIds.has(u.id) ||
-    activityIds.has(u.id) ||
-    (u.role && u.role !== 'user') ||
-    u.is_affiliate
-  )
-
-  // 5. Self-healing: retroactively tag any identified GrayDocket users
-  //    who are missing the app_id in their auth metadata. Fire-and-forget.
-  for (const user of appUsers) {
-    if (!gdAuthIds.has(user.id)) {
-      const authUser = authMap.get(user.id)
-      if (authUser) {
-        adminSupabase.auth.admin.updateUserById(user.id, {
-          user_metadata: { ...authUser.user_metadata, app_id: 'graydocket' }
-        }).catch(() => {}) // silent — best effort
-      }
-    }
+  let affiliateCode = cleanAffiliateCode(input.code)
+  if (affiliateCode) {
+    if (!AFFILIATE_CODE.test(affiliateCode)) return { error: 'Codes are 3–20 letters, numbers or dashes.' }
+    const { data: taken } = await admin.from('profiles').select('id').eq('affiliate_code', affiliateCode).maybeSingle()
+    if (taken) return { error: `The code ${affiliateCode} is already in use.` }
+  } else {
+    affiliateCode = await generateUniqueAffiliateCode()
   }
 
-  return { users: appUsers, error: null }
+  // Reuse the account if this email already has one in GrayDocket
+  const { data: existingProfile } = await admin.from('profiles').select('id, is_affiliate').ilike('email', email).maybeSingle()
+  let userId = existingProfile?.id as string | undefined
+  if (existingProfile?.is_affiliate) return { error: 'That email already belongs to a partner.' }
+
+  if (!userId) {
+    const { data: created, error: authError } = await admin.auth.admin.createUser({
+      email,
+      email_confirm: true,
+      user_metadata: { full_name: brandName, app_id: 'graydocket' },
+      app_metadata: { affiliate_kind: 'brand', affiliate_contact: input.contactName?.trim() || null },
+      password: crypto.randomBytes(24).toString('hex'),
+    })
+    if (authError || !created.user) return { error: authError?.message || 'Couldn’t create the partner account.' }
+    userId = created.user.id
+  } else {
+    const { data: existing } = await admin.auth.admin.getUserById(userId)
+    await admin.auth.admin.updateUserById(userId, {
+      app_metadata: { ...(existing.user?.app_metadata || {}), affiliate_kind: 'brand', affiliate_contact: input.contactName?.trim() || null },
+    })
+  }
+
+  const { error: profileError } = await admin.from('profiles').upsert(
+    {
+      id: userId,
+      email,
+      full_name: brandName,
+      phone: input.phone?.trim() || null,
+      is_affiliate: true,
+      affiliate_code: affiliateCode,
+      ...(existingProfile ? {} : { role: 'user' }),
+    },
+    { onConflict: 'id' }
+  )
+  if (profileError) return { error: profileError.message }
+
+  notify({
+    channel: 'partners',
+    title: `🤝 Brand partner added · ${brandName}`,
+    summary: 'The team signed up a new brand partner.',
+    link: '/admin/affiliates',
+    user: { id: userId },
+    userLabel: 'Partner',
+    fields: [['Referral code', code(affiliateCode)]],
+  })
+
+  revalidatePath('/admin/affiliates')
+  return { error: null, id: userId, code: affiliateCode }
+}
+
+/** Edit a partner's name, contact, code and payout details */
+export async function updateAffiliatePartner(
+  id: string,
+  input: { name?: string; contactName?: string; phone?: string; code?: string; payoutMethod?: string; payoutAddress?: string }
+) {
+  const isAdmin = await checkIsAdmin()
+  if (!isAdmin) return { error: 'Unauthorized' }
+
+  const admin = await createAdminClient()
+  const { data: profile } = await admin.from('profiles').select('id, affiliate_code').eq('id', id).eq('is_affiliate', true).maybeSingle()
+  if (!profile) return { error: 'Partner not found.' }
+
+  const updates: Record<string, unknown> = {}
+  if (input.name !== undefined) {
+    if (!input.name.trim()) return { error: 'Name can’t be empty.' }
+    updates.full_name = input.name.trim()
+  }
+  if (input.phone !== undefined) updates.phone = input.phone.trim() || null
+  if (input.code !== undefined) {
+    const next = cleanAffiliateCode(input.code)
+    if (!AFFILIATE_CODE.test(next)) return { error: 'Codes are 3–20 letters, numbers or dashes.' }
+    if (next !== profile.affiliate_code) {
+      const { data: taken } = await admin.from('profiles').select('id').eq('affiliate_code', next).maybeSingle()
+      if (taken) return { error: `The code ${next} is already in use.` }
+      updates.affiliate_code = next
+    }
+  }
+  if (Object.keys(updates).length > 0) {
+    const { error } = await admin.from('profiles').update(updates).eq('id', id)
+    if (error) return { error: error.message }
+  }
+
+  if (input.contactName !== undefined || input.payoutMethod !== undefined || input.payoutAddress !== undefined) {
+    const { data } = await admin.auth.admin.getUserById(id)
+    const user = data.user
+    const { error } = await admin.auth.admin.updateUserById(id, {
+      ...(input.contactName !== undefined
+        ? { app_metadata: { ...(user?.app_metadata || {}), affiliate_contact: input.contactName.trim() || null } }
+        : {}),
+      ...(input.payoutMethod !== undefined || input.payoutAddress !== undefined
+        ? {
+            user_metadata: {
+              ...(user?.user_metadata || {}),
+              ...(input.payoutMethod !== undefined ? { payout_method: input.payoutMethod.trim() || null } : {}),
+              ...(input.payoutAddress !== undefined ? { payout_address: input.payoutAddress.trim() || null } : {}),
+            },
+          }
+        : {}),
+    })
+    if (error) return { error: error.message }
+  }
+
+  revalidatePath('/admin/affiliates')
+  return { error: null }
 }
 
 export async function getBankingPartners() {
@@ -1192,47 +701,52 @@ export async function getBankingPartners() {
 
 // Update Actions
 export async function updateService(id: string, updates: ServiceMutation) {
-  const isAuthorized = await checkIsAdmin(['admin', 'registrar', 'service_manager'])
-  if (!isAuthorized) return { error: 'Unauthorized: Service Manager access required' }
-
-  const { createAdminClient } = await import('@/lib/supabase/server')
+  if (!(await checkIsAdmin())) return { error: 'Unauthorized' }
   const adminClient = await createAdminClient()
-  const { error } = await adminClient
-    .from('services')
-    .update(updates)
-    .eq('id', id)
-
-  revalidatePath('/admin/services')
-  return { error: error?.message || null }
-}
-
-export async function updateBusinessType(id: string, updates: BusinessTypeMutation) {
-  const isAuthorized = await checkIsAdmin(['admin', 'registrar', 'service_manager'])
-  if (!isAuthorized) return { error: 'Unauthorized: Pricing Manager access required' }
-
-  const { createAdminClient } = await import('@/lib/supabase/server')
-  const adminClient = await createAdminClient()
-  const { error } = await adminClient
-    .from('business_types')
-    .update(updates)
-    .eq('id', id)
-
+  const { data: row, error } = await adminClient.from('services').update(updates).eq('id', id).select('name').maybeSingle()
   if (!error) {
     notify({
       channel: 'team',
-      title: '🏷️ Pricing updated',
-      summary: `Changes to the ${id.replace(/_/g, ' ')} price.`,
+      title: `🏷️ ${row?.name || 'Add-on'} updated`,
       link: '/admin/pricing',
       fields: [['Changes', describeChanges(updates as Record<string, unknown>), false]],
     })
   }
+  revalidatePricing()
+  return { error: error?.message || null }
+}
 
-  revalidatePath('/admin/pricing')
+export async function updateBusinessType(id: string, updates: BusinessTypeMutation) {
+  if (!(await checkIsAdmin())) return { error: 'Unauthorized' }
+  const adminClient = await createAdminClient()
+
+  // The breakdown (orc_fee + agent_fee + returns_portion) is the price. Keep the legacy columns
+  // in step so older readers and the duplicate-row rule agree with it.
+  const next: BusinessTypeMutation = { ...updates }
+  if (updates.orc_fee !== undefined || updates.agent_fee !== undefined || updates.returns_portion !== undefined) {
+    const { data: current } = await adminClient.from('business_types').select('orc_fee, agent_fee, returns_portion').eq('id', id).maybeSingle()
+    const orc = Number(updates.orc_fee ?? current?.orc_fee ?? 0)
+    const agent = Number(updates.agent_fee ?? current?.agent_fee ?? 0)
+    const returns = Number(updates.returns_portion ?? current?.returns_portion ?? 0)
+    next.base_price = orc
+    next.service_fee = agent + returns
+  }
+
+  const { data: row, error } = await adminClient.from('business_types').update(next).eq('id', id).select('name').maybeSingle()
+  if (!error) {
+    notify({
+      channel: 'team',
+      title: updates.is_active === false ? `🗂️ Retired a duplicate · ${row?.name || 'business type'}` : `🏷️ Pricing updated · ${row?.name || 'business type'}`,
+      link: '/admin/pricing',
+      fields: [['Changes', describeChanges(updates as Record<string, unknown>), false]],
+    })
+  }
+  revalidatePricing()
   return { error: error?.message || null }
 }
 
 export async function deleteBusinessType(id: string) {
-  const isAuthorized = await checkIsAdmin(['admin', 'registrar', 'service_manager'])
+  const isAuthorized = await checkIsAdmin()
   if (!isAuthorized) return { error: 'Unauthorized: Pricing Manager access required' }
 
   const { createAdminClient } = await import('@/lib/supabase/server')
@@ -1255,60 +769,27 @@ export async function deleteBusinessType(id: string) {
   return { error: error?.message || null }
 }
 
-export async function updateBankingPartner(id: string, updates: BankingPartnerMutation) {
-  const isAuthorized = await checkIsAdmin(['admin', 'bank_manager'])
-  if (!isAuthorized) return { error: 'Unauthorized: Bank Manager access required' }
-
-  const { createAdminClient } = await import('@/lib/supabase/server')
-  const adminClient = await createAdminClient()
-  const { error } = await adminClient
-    .from('banking_partners')
-    .update(updates)
-    .eq('id', id)
-
-  if (!error) {
-    notify({
-      channel: 'team',
-      title: `🏦 Banking partner updated · ${updates.name || id}`,
-      link: '/admin/banking',
-      fields: [['Status', updates.is_active === undefined ? null : updates.is_active ? 'Active' : 'Inactive']],
-    })
-  }
-
-  revalidatePath('/admin/banking')
-  return { error: error?.message || null }
-}
-
 export async function updateApplicationStatus(id: string, status: string, adminNotes?: string) {
-  const isAuthorized = await checkIsAdmin(['admin', 'registrar'])
-  if (!isAuthorized) return { error: 'Unauthorized: Registrar access required' }
+  const isAuthorized = await checkIsAdmin()
+  if (!isAuthorized) return { error: 'Unauthorized' }
 
   const { createAdminClient } = await import('@/lib/supabase/server')
   const adminClient = await createAdminClient()
 
-  // 1. State Transition Validation
+  // 1. Only moves the workflow allows (src/lib/application-flow.ts)
   const { data: currentApp } = await adminClient
     .from('applications')
-    .select('status')
+    .select('status, payment_status')
     .eq('id', id)
     .single()
 
-  if (currentApp) {
-    // Rule: Terminal states cannot be changed
-    if (['completed', 'cancelled'].includes(currentApp.status)) {
-      return { error: `Restricted: Application is already in a terminal state (${currentApp.status})` }
-    }
-
-    // Rule: Logical Logistics (delivered can only go to completed)
-    if (currentApp.status === 'delivered' && !['completed', 'cancelled'].includes(status)) {
-      return { error: 'Logistics violation: Delivered applications can only move to Completed' }
-    }
-
-    // Rule: Dispatch protection (once it's in the real world, it stays there)
-    const processingStates = ['submitted', 'name_search', 'under_review', 'approved']
-    if (currentApp.status === 'dispatched' && processingStates.includes(status)) {
-      return { error: 'Logistics violation: Dispatched applications cannot move back to internal processing' }
-    }
+  if (!currentApp) return { error: 'Application not found.' }
+  if (!isAppStatus(status)) return { error: 'Unknown status.' }
+  if (currentApp.payment_status !== 'paid' && status !== 'cancelled') {
+    return { error: 'This application hasn’t been paid for yet, so it can’t move forward.' }
+  }
+  if (!canMove(currentApp.status, status)) {
+    return { error: `An application that is “${stageOf(currentApp.status).admin}” can’t move to “${stageOf(status).admin}”.` }
   }
 
   // 2. Update Status
@@ -1342,7 +823,9 @@ export async function updateApplicationStatus(id: string, status: string, adminN
     .eq('id', id)
     .single()
 
-  const { data: { user } } = await adminClient.auth.getUser()
+  // The admin making the change (the service-role client has no session of its own)
+  const sessionClient = await createClient()
+  const { data: { user } } = await sessionClient.auth.getUser()
 
   // 3. Log to history
   await adminClient
@@ -1350,7 +833,7 @@ export async function updateApplicationStatus(id: string, status: string, adminN
     .insert({
       application_id: id,
       status: status,
-      notes: adminNotes || `Status updated to ${status.replace('_', ' ').toUpperCase()}`,
+      notes: adminNotes || `Moved to ${stageOf(status).admin}`,
       updated_by: user?.id
     })
 
@@ -1428,7 +911,7 @@ export async function updateApplicationStatus(id: string, status: string, adminN
 }
 
 export async function sendDirectSmsToApplicant(id: string, customMessage: string) {
-  const isAuthorized = await checkIsAdmin(['admin', 'registrar'])
+  const isAuthorized = await checkIsAdmin()
   if (!isAuthorized) return { error: 'Unauthorized: Admin access required' }
   
   if (!customMessage || customMessage.trim() === '') {
@@ -1496,32 +979,6 @@ export async function sendDirectSmsToApplicant(id: string, customMessage: string
   return { error: null }
 }
 
-export async function updateUserRole(id: string, role: 'user' | 'admin' | 'registrar' | 'bank_manager' | 'service_manager') {
-  // Only SUPER ADMINS can update roles
-  const isSuperAdmin = await checkIsAdmin(['admin'])
-  if (!isSuperAdmin) return { error: 'Unauthorized: Super-admin access required' }
-
-  const supabase = await createClient()
-  const { error } = await supabase
-    .from('profiles')
-    .update({ role })
-    .eq('id', id)
-
-  if (!error) {
-    notify({
-      channel: 'team',
-      title: `🛡️ Role changed to ${role.replace(/_/g, ' ')}`,
-      summary: 'A team member’s access level changed.',
-      link: '/admin/users',
-      user: { id },
-      fields: [['New role', role.replace(/_/g, ' ')]],
-    })
-  }
-
-  revalidatePath('/admin/users')
-  return { error: error?.message || null }
-}
-
 export async function createService(service: ServiceMutation) {
   const isAdmin = await checkIsAdmin()
   if (!isAdmin) return { error: 'Unauthorized' }
@@ -1532,19 +989,6 @@ export async function createService(service: ServiceMutation) {
     .insert(service)
 
   revalidatePath('/admin/services')
-  return { error: error?.message || null }
-}
-
-export async function createBankingPartner(partner: BankingPartnerMutation) {
-  const isAdmin = await checkIsAdmin()
-  if (!isAdmin) return { error: 'Unauthorized' }
-
-  const supabase = await createClient()
-  const { error } = await supabase
-    .from('banking_partners')
-    .insert(partner)
-
-  revalidatePath('/admin/banking')
   return { error: error?.message || null }
 }
 
@@ -1568,29 +1012,6 @@ export async function deleteService(id: string) {
   }
 
   revalidatePath('/admin/services')
-  return { error: error?.message || null }
-}
-
-export async function deleteBankingPartner(id: string) {
-  const isAdmin = await checkIsAdmin()
-  if (!isAdmin) return { error: 'Unauthorized' }
-
-  const supabase = await createClient()
-  const { error } = await supabase
-    .from('banking_partners')
-    .delete()
-    .eq('id', id)
-
-  if (!error) {
-    notify({
-      channel: 'team',
-      title: '🗑️ Banking partner removed',
-      link: '/admin/banking',
-      fields: [['Partner', code(id)]],
-    })
-  }
-
-  revalidatePath('/admin/banking')
   return { error: error?.message || null }
 }
 
@@ -1703,7 +1124,7 @@ export async function processAffiliateCommission(applicationId: string) {
   // 1. Fetch application with business type context (Service Fee info)
   const { data: app, error: fetchErr } = await adminClient
     .from('applications')
-    .select('id, referred_by_id, payment_status, business_types(service_fee, returns_portion, affiliate_share_percentage)')
+    .select('id, referred_by_id, payment_status, business_types(agent_fee, returns_portion, affiliate_share_percentage)')
     .eq('id', applicationId)
     .single()
 
@@ -1758,7 +1179,7 @@ export async function updateAffiliateCommissionStatus(
   fromStatus: 'pending' | 'approved',
   toStatus: 'approved' | 'paid'
 ) {
-  const isAdmin = await checkIsAdmin(['admin', 'registrar'])
+  const isAdmin = await checkIsAdmin()
   if (!isAdmin) return { error: 'Unauthorized' }
 
   const adminClient = await createAdminClient()
@@ -1808,7 +1229,8 @@ export async function markUserAsAffiliate(userId: string, isAffiliate: boolean) 
   const isAdmin = await checkIsAdmin()
   if (!isAdmin) return { error: 'Unauthorized' }
 
-  const supabase = await createClient()
+  // Admin client: the team edits other people's profiles
+  const supabase = await createAdminClient()
   
   // Generate random 6 char code if enabling
   const updates: ProfileAffiliateUpdate = { is_affiliate: isAffiliate }
@@ -1825,6 +1247,7 @@ export async function markUserAsAffiliate(userId: string, isAffiliate: boolean) 
     .eq('id', userId)
 
   revalidatePath('/admin/users')
+  revalidatePath('/admin/affiliates')
   return { error: error?.message || null }
 }
 export async function applyToBeAffiliate() {
@@ -1861,14 +1284,12 @@ export async function updatePayoutInfo(method: string, address: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
+  if (!method.trim() || !address.trim()) return { error: 'Enter where we should send your payouts.' }
 
-  const { error } = await supabase
-    .from('profiles')
-    .update({ 
-      payout_method: method, 
-      payout_address: address 
-    })
-    .eq('id', user.id)
+  // Kept on the account (profiles has no payout columns); the admin Affiliates page reads it from here
+  const { error } = await supabase.auth.updateUser({
+    data: { payout_method: method.trim(), payout_address: address.trim() },
+  })
 
   if (!error) {
     notify({
@@ -1881,6 +1302,7 @@ export async function updatePayoutInfo(method: string, address: string) {
   }
 
   revalidatePath('/dashboard/affiliate')
+  revalidatePath('/admin/affiliates')
   return { error: error?.message || null }
 }
 
@@ -1907,46 +1329,18 @@ export async function getApplicationDetails(id: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { application: null, error: 'Unauthorized' }
   
-  // Logic Branching
-  const isOwner = rawApp.user_id === user.id
-  
-  let isAuthorized = isOwner
-
-  if (!isAuthorized) {
-    // Check official roles in the graydocket schema
-    const { data: staffProf } = await adminClient
-      .schema('graydocket')
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .maybeSingle()
-    
-    const metadataRole = (user.user_metadata as RoleMetadata | undefined)?.role
-    const role = staffProf?.role || user.app_metadata?.role || metadataRole
-    
-    if (role === 'admin') {
-      isAuthorized = true
-    } else if (role === 'registrar') {
-      // Registrars can only view if it's assigned to them, or unassigned (and not draft)
-      if (rawApp.assigned_to === user.id) {
-        isAuthorized = true
-      } else if (!rawApp.assigned_to && rawApp.status !== 'draft') {
-        isAuthorized = true
-      } else {
-        isAuthorized = false
-      }
-    } else if (['bank_manager', 'service_manager'].includes(role)) {
-      isAuthorized = true
-    } else {
-      isAuthorized = false
-    }
-  }
+  // Customers see their own applications; admins see all
+  const isAuthorized = rawApp.user_id === user.id || (await isAdminUser(user))
 
   if (!isAuthorized) {
     return { application: null, error: 'Unauthorized' }
   }
 
   const appData = { ...rawApp }
+  // Delivery is kept in form_data (there are no delivery columns); expose it where the pages expect it
+  const fd = (rawApp.form_data || {}) as Record<string, unknown>
+  appData.delivery_method = fd.delivery_method ?? null
+  appData.delivery_address = fd.delivery_address ?? null
 
   // 3. Hydration (Pinned to graydocket schema based on provided SQL)
   try {
@@ -1967,7 +1361,8 @@ export async function getApplicationDetails(id: string) {
     ])
 
     appData.profiles = creator
-    appData.assigned_registrar = reg
+    appData.assigned_admin = reg
+    appData.document_rows = dbDocs || []
     appData.business_types = bType
 
     // Timeline Updaters (Secondary Parallel Phase)
@@ -2009,7 +1404,7 @@ export async function getApplicationDetails(id: string) {
 }
 
 export async function updateApplicationNotes(id: string, notes: string) {
-  const isAuthorized = await checkIsAdmin(['admin', 'registrar'])
+  const isAuthorized = await checkIsAdmin()
   if (!isAuthorized) return { error: 'Unauthorized' }
 
   const supabase = await createClient()
@@ -2023,7 +1418,7 @@ export async function updateApplicationNotes(id: string, notes: string) {
 }
 
 export async function uploadApplicationDocument(id: string, formData: FormData) {
-  const isAuthorized = await checkIsAdmin(['admin', 'registrar'])
+  const isAuthorized = await checkIsAdmin()
   if (!isAuthorized) return { error: 'Unauthorized' }
 
   const { createAdminClient } = await import('@/lib/supabase/server')
@@ -2043,7 +1438,7 @@ export async function uploadApplicationDocument(id: string, formData: FormData) 
   const buffer = Buffer.from(bytes)
 
   const { error: uploadError } = await adminSupabase.storage
-    .from('documents')
+    .from(DOCUMENTS_BUCKET)
     .upload(filePath, buffer, {
       contentType: file.type,
       upsert: true
@@ -2051,16 +1446,15 @@ export async function uploadApplicationDocument(id: string, formData: FormData) 
 
   if (uploadError) return { error: uploadError.message }
 
-  const { data } = adminSupabase.storage.from('documents').getPublicUrl(filePath)
-  
   // Append to form_data.documents
   const { data: appData } = await adminSupabase.from('applications').select('form_data').eq('id', id).single()
   const currentFormData = appData?.form_data || {}
   const currentDocs = currentFormData.documents || []
   
+  // The bucket is private: keep the path and hand out signed links when the file is shown
   currentDocs.push({
     title,
-    url: data.publicUrl,
+    path: filePath,
     uploadedAt: new Date().toISOString()
   })
 
@@ -2082,16 +1476,16 @@ export async function uploadApplicationDocument(id: string, formData: FormData) 
 
   revalidatePath(`/admin/applications/${id}`)
   revalidatePath(`/dashboard/applications/${id}`)
-  return { error: updateError?.message || null, url: data.publicUrl }
+  return { error: updateError?.message || null, path: filePath }
 }
 
 export async function createAdminUser(userData: { 
   email: string; 
   full_name: string; 
   phone: string;
-  role: 'user' | 'admin' | 'registrar' | 'bank_manager' | 'service_manager' 
+  role: 'user' | 'admin'
 }) {
-  const isSuper = await checkIsAdmin(['admin'])
+  const isSuper = await checkIsAdmin()
   if (!isSuper) return { error: 'Unauthorized: Only Super Admins can create accounts manually' }
 
   const { createAdminClient } = await import('@/lib/supabase/server')
@@ -2139,8 +1533,10 @@ export async function createAdminUser(userData: {
 }
 
 export async function deleteAdminUser(id: string) {
-  const isSuper = await checkIsAdmin(['admin'])
-  if (!isSuper) return { error: 'Unauthorized' }
+  const sessionClient = await createClient()
+  const { data: { user: me } } = await sessionClient.auth.getUser()
+  if (!(await isAdminUser(me))) return { error: 'Unauthorized' }
+  if (me!.id === id) return { error: 'You can’t delete your own account here.' }
 
   const { createAdminClient } = await import('@/lib/supabase/server')
   const adminClient = await createAdminClient()
@@ -2156,9 +1552,13 @@ export async function deleteAdminUser(id: string) {
   return { error: null }
 }
 
-export async function updateAdminUserProfile(id: string, updates: { full_name: string, phone: string, role?: string }) {
-  const isSuper = await checkIsAdmin(['admin'])
-  if (!isSuper) return { error: 'Unauthorized' }
+export async function updateAdminUserProfile(id: string, updates: { full_name: string, phone: string, role?: 'user' | 'admin' }) {
+  const sessionClient = await createClient()
+  const { data: { user: me } } = await sessionClient.auth.getUser()
+  if (!(await isAdminUser(me))) return { error: 'Unauthorized' }
+  // Two roles only, and nobody can remove their own admin access by accident
+  if (updates.role && !['user', 'admin'].includes(updates.role)) return { error: 'Unknown role.' }
+  if (me!.id === id && updates.role === 'user') return { error: 'You can’t remove your own admin access.' }
 
   const { createAdminClient } = await import('@/lib/supabase/server')
   const adminClient = await createAdminClient()
@@ -2179,39 +1579,37 @@ export async function updateAdminUserProfile(id: string, updates: { full_name: s
   return { error: null }
 }
 
-export async function updateAdminAvatar(formData: FormData) {
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024
+const AVATAR_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }
+
+/** Upload a profile photo for the signed-in user (customers and admins alike). */
+export async function uploadMyAvatar(formData: FormData) {
   const supabase = await createClient()
-  const file = formData.get('file') as File
-  if (!file) return { error: 'No file provided' }
-
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Unauthorized' }
+  if (!user) return { error: 'Please log in again.' }
 
-  // 1. Upload to Supabase Storage (reusing the existing 'documents' bucket for reliability)
-  const fileExt = file.name.split('.').pop()
-  const fileName = `${user.id}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`
-  const filePath = `avatars/${fileName}`
+  const file = formData.get('file')
+  if (!(file instanceof File) || file.size === 0) return { error: 'Please choose a photo.' }
+  const ext = AVATAR_TYPES[file.type]
+  if (!ext) return { error: 'Please use a JPG, PNG, WebP or GIF image.' }
+  if (file.size > AVATAR_MAX_BYTES) return { error: 'Please choose an image under 2 MB.' }
 
-  const { error: uploadError } = await supabase.storage
-    .from('documents')
-    .upload(filePath, file)
+  // Uploaded with the service role after the checks above, so storage policies can't block it.
+  // Kept apart from customer documents, in the public avatars bucket under a GrayDocket folder.
+  const adminClient = await createAdminClient()
+  const filePath = `graydocket/${user.id}/${Date.now()}.${ext}`
+  const { error: uploadError } = await adminClient.storage
+    .from('avatars')
+    .upload(filePath, file, { contentType: file.type, upsert: false })
+  if (uploadError) return { error: 'We couldn’t upload that photo. Please try again.' }
 
-  if (uploadError) return { error: uploadError.message }
+  const { data: { publicUrl } } = adminClient.storage.from('avatars').getPublicUrl(filePath)
 
-  // 2. Get Public URL
-  const { data: { publicUrl } } = supabase.storage
-    .from('documents')
-    .getPublicUrl(filePath)
+  // A photo replaces any emoji or icon
+  const { error: metaError } = await supabase.auth.updateUser({ data: { avatar_url: publicUrl, avatar_choice: null } })
+  if (metaError) return { error: metaError.message }
 
-  // 3. Update Profile
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({ avatar_url: publicUrl })
-    .eq('id', user.id)
-
-  if (profileError) return { error: profileError.message }
-
-  revalidatePath('/admin/settings')
+  revalidatePath('/dashboard/settings')
   return { error: null, avatarUrl: publicUrl }
 }
 
@@ -2224,8 +1622,8 @@ export async function updateMyProfile(updates: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
 
-  const profileUpdates: { full_name?: string; avatar_url?: null } = {}
-  const metadataUpdates: { full_name?: string; avatar_choice?: AvatarChoice | null } = {}
+  const profileUpdates: { full_name?: string } = {}
+  const metadataUpdates: { full_name?: string; avatar_choice?: AvatarChoice | null; avatar_url?: null } = {}
 
   if (updates.full_name !== undefined) {
     const fullName = updates.full_name.trim()
@@ -2235,8 +1633,8 @@ export async function updateMyProfile(updates: {
     metadataUpdates.full_name = fullName
   }
 
-  // Only clearing the photo is allowed here; uploads go through updateAdminAvatar
-  if (updates.avatar_url === null) profileUpdates.avatar_url = null
+  // Only clearing the photo is allowed here; uploads go through uploadMyAvatar
+  if (updates.avatar_url === null) metadataUpdates.avatar_url = null
 
   if (updates.avatar_choice !== undefined) {
     if (updates.avatar_choice === null) {
@@ -2246,7 +1644,7 @@ export async function updateMyProfile(updates: {
       if (!choice) return { error: 'That avatar option is not available.' }
       metadataUpdates.avatar_choice = choice
       // An emoji or icon replaces any uploaded photo
-      profileUpdates.avatar_url = null
+      metadataUpdates.avatar_url = null
     }
   }
 
@@ -2284,7 +1682,7 @@ export async function forceFetchProfile(userId: string) {
   let { data: profile } = await adminClient
     .schema('graydocket')
     .from('profiles')
-    .select('role, full_name, avatar_url')
+    .select('role, full_name')
     .eq('id', userId)
     .maybeSingle()
 
@@ -2293,78 +1691,51 @@ export async function forceFetchProfile(userId: string) {
     const { data: publicProfile } = await adminClient
       .schema('public')
       .from('profiles')
-      .select('role, full_name, avatar_url')
+      .select('role, full_name')
       .eq('id', userId)
       .maybeSingle()
     
     if (publicProfile) profile = publicProfile
   }
 
-  // Final emergency fallback if they genuinely log in without a profile but shouldn't be locked out
-  // This allows them to see the admin dashboard to at least fix their own profile
-  if (!profile) profile = { role: 'registrar', full_name: 'Authorized Agent', avatar_url: null }
+  // No profile means no staff access; never assume a role
+  if (!profile) profile = { role: 'user', full_name: null }
 
   return profile
 }
 
-export async function assignApplication(applicationId: string, registrarId: string) {
-  const { createAdminClient } = await import('@/lib/supabase/server')
+/** Give an application an owner from the admin team */
+export async function assignApplication(applicationId: string, adminId: string) {
+  const sessionClient = await createClient()
+  const { data: { user } } = await sessionClient.auth.getUser()
+  if (!(await isAdminUser(user))) return { error: 'Unauthorized' }
+
   const adminClient = await createAdminClient()
+  const { data: owner } = await adminClient.from('profiles').select('id, full_name, role').eq('id', adminId).maybeSingle()
+  if (!owner || owner.role !== 'admin') return { error: 'Applications can only be assigned to admins.' }
 
-  // 1. Direct assignment in the 'graydocket' schema
-  const { error } = await adminClient
-    .from('applications') // Admin client is already locked to 'graydocket' in server.ts
-    .update({ assigned_to: registrarId })
+  const { data: app, error } = await adminClient
+    .from('applications')
+    .update({ assigned_to: adminId })
     .eq('id', applicationId)
+    .select('status')
+    .single()
+  if (error) return { error: error.message }
 
-  if (!error) {
-    notify({
-      channel: 'applications',
-      title: '👤 Application assigned',
-      application: { id: applicationId },
-      user: { id: registrarId },
-      userLabel: 'Assigned to',
-    })
-  }
+  await adminClient.from('application_status_history').insert({
+    application_id: applicationId,
+    status: app.status,
+    notes: `Assigned to ${owner.full_name || 'an admin'}`,
+    updated_by: user!.id,
+  })
 
-  if (error) {
-    console.error('Assignment error in graydocket schema:', error)
-    return { error: error.message }
-  }
-
-  // 2. Log History
-  await adminClient
-    .from('application_status_history')
-    .insert({
-      application_id: applicationId,
-      status: 'under_review',
-      notes: 'Application claimed by registrar.',
-      updated_by: registrarId
-    })
-
+  notify({ channel: 'applications', title: '👤 Application assigned', application: { id: applicationId }, user: { id: adminId }, userLabel: 'Assigned to' })
   revalidatePath('/admin/applications')
   revalidatePath(`/admin/applications/${applicationId}`)
   return { error: null }
 }
-
-export async function getRegistrarsForAssignment() {
-  const isAdmin = await checkIsAdmin(['admin']) // Only Super Admin does forced assignments
-  if (!isAdmin) return []
-
-  const { createAdminClient } = await import('@/lib/supabase/server')
-  const adminClient = await createAdminClient()
-
-  const { data } = await adminClient
-    .schema('graydocket')
-    .from('profiles')
-    .select('id, full_name')
-    .eq('role', 'registrar')
-
-  return data || []
-}
-
 export async function verifyDocument(applicationId: string, documentUrl: string, status: 'approved' | 'rejected', notes?: string) {
-  const isAuthorized = await checkIsAdmin(['admin', 'registrar'])
+  const isAuthorized = await checkIsAdmin()
   if (!isAuthorized) return { error: 'Unauthorized' }
 
   const { createAdminClient } = await import('@/lib/supabase/server')
@@ -2444,49 +1815,6 @@ export async function verifyDocument(applicationId: string, documentUrl: string,
   return { success: true }
 }
 
-export async function getPulseAnalytics() {
-  const isAuthorized = await checkIsAdmin(['admin'])
-  if (!isAuthorized) return null
-
-  const { createAdminClient } = await import('@/lib/supabase/server')
-  const adminClient = await createAdminClient()
-
-  // 1. Stale / Urgent Applications (Unassigned for > 6 hours)
-  const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
-  const { count: urgentCount } = await adminClient
-    .from('applications')
-    .select('*', { count: 'exact', head: true })
-    .is('assigned_to', null)
-    .gt('created_at', sixHoursAgo)
-
-  // 2. Total Revenue this month
-  const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-  const { data: revenueData } = await adminClient
-    .from('applications')
-    .select('total_amount')
-    .eq('payment_status', 'paid')
-    .gt('created_at', firstOfMonth)
-  
-  const monthlyRevenue = revenueData?.reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0) || 0
-
-  // 3. Registrar Performance (Cases this month)
-  const { data: performance } = await adminClient
-    .schema('graydocket')
-    .from('profiles')
-    .select('id, full_name, role, applications!assigned_to(id)')
-    .eq('role', 'registrar')
-
-  const registrarStats = (performance as ProfileApplicationsRow[] | null)?.map(r => ({
-    name: r.full_name,
-    activeCases: r.applications?.length || 0
-  }))
-
-  return {
-    urgentCount: urgentCount || 0,
-    monthlyRevenue,
-    registrarStats: registrarStats || []
-  }
-}
 export async function getTrackingStatus(trackingId: string) {
   const { createAdminClient } = await import('@/lib/supabase/server')
   const client = await createAdminClient()
@@ -2520,8 +1848,8 @@ export async function getTrackingStatus(trackingId: string) {
 }
 
 export async function requestFieldCorrection(applicationId: string, fieldKey: string, reason: string) {
-  const isAuthorized = await checkIsAdmin(['admin', 'registrar'])
-  if (!isAuthorized) return { error: 'Unauthorized: Access restricted to registrars.' }
+  const isAuthorized = await checkIsAdmin()
+  if (!isAuthorized) return { error: 'Unauthorized' }
 
   const { createAdminClient } = await import('@/lib/supabase/server')
   const adminClient = await createAdminClient()
@@ -2541,12 +1869,12 @@ export async function requestFieldCorrection(applicationId: string, fieldKey: st
   corrections[fieldKey] = reason
   formData.corrections = corrections
 
-  // 3. Update application status to 'rejected'
+  // 3. Waiting on the customer to fix it
   const { error: updateErr } = await adminClient
     .from('applications')
     .update({ 
       form_data: formData,
-      status: 'rejected',
+      status: 'on_hold',
       updated_at: new Date().toISOString()
     })
     .eq('id', applicationId)
@@ -2568,7 +1896,7 @@ export async function requestFieldCorrection(applicationId: string, fieldKey: st
     .from('application_status_history')
     .insert({
       application_id: applicationId,
-      status: 'rejected',
+      status: 'on_hold',
       notes: `CORRECTION REQUIRED on field: ${fieldKey}. Reason: ${reason}`,
       updated_by: adminUser?.id
     })
@@ -2625,7 +1953,7 @@ export async function resubmitApplication(applicationId: string, formData: Recor
   // 1. Fetch current application to verify ownership
   const { data: app } = await supabase
     .from('applications')
-    .select('user_id, status, form_data')
+    .select('user_id, status, form_data, payment_status')
     .eq('id', applicationId)
     .single()
 
@@ -2641,6 +1969,17 @@ export async function resubmitApplication(applicationId: string, formData: Recor
 
   // 3. Update application
   const businessName = (newFormData.formData as any)?.businessName || (newFormData as any).businessName || 'Untitled Business'
+
+  // Unpaid applications are saved but only submitted through checkout, which takes payment first
+  if (app.payment_status !== 'paid') {
+    const { error: saveErr } = await supabase
+      .from('applications')
+      .update({ business_name: businessName, form_data: { ...(app.form_data as Record<string, unknown>), ...newFormData, ready_for_payment: true }, updated_at: new Date().toISOString() })
+      .eq('id', applicationId)
+    if (saveErr) return { error: saveErr.message }
+    revalidatePath(`/dashboard/applications/${applicationId}`)
+    return { success: true, needsPayment: true }
+  }
   const { error: updateErr } = await supabase
     .from('applications')
     .update({
@@ -2724,62 +2063,6 @@ export async function checkBusinessNameAvailability(name: string) {
   return searchOrcName(name)
 }
 
-export async function adminCreateApplication(data: {
-  userId: string
-  businessTypeId: string
-  businessName: string
-  status: string
-  totalAmount: number
-  paymentStatus: string
-}) {
-  const isAdmin = await checkIsAdmin()
-  if (!isAdmin) return { error: 'Unauthorized' }
-
-  const { createAdminClient } = await import('@/lib/supabase/server')
-  const adminClient = await createAdminClient()
-
-  const trackingId = generateTrackingId()
-
-  const payload: ApplicationPayload = {
-    user_id: data.userId,
-    business_type_id: data.businessTypeId,
-    tracking_id: trackingId,
-    business_name: data.businessName,
-    status: data.status,
-    form_data: { 
-      total_amount: data.totalAmount,
-      admin_created: true
-    },
-    total_amount: data.totalAmount,
-    payment_status: data.paymentStatus,
-    referred_by_id: null,
-    updated_at: new Date().toISOString()
-  }
-
-  const { data: inserted, error } = await adminClient
-    .schema('graydocket')
-    .from('applications')
-    .insert(payload)
-    .select()
-    .single()
-
-  if (error) {
-    console.error('Admin Application insert error:', error)
-    return { error: error.message }
-  }
-
-  await adminClient.schema('graydocket').from('application_status_history').insert({
-    application_id: inserted.id,
-    status: data.status,
-    notes: `Application manually created by admin.`,
-    updated_by: null // we don't strictly have the admin ID easily here, but could pull from session
-  })
-
-  revalidatePath('/admin/applications')
-
-  return { success: true, trackingId, applicationId: inserted.id }
-}
-
 export async function adminUpdateApplicationData(
   applicationId: string, 
   payload: { businessTypeId: string, businessName: string, formData: any }
@@ -2847,4 +2130,110 @@ export async function adminDeleteApplication(applicationId: string) {
   revalidatePath('/admin/applications')
 
   return { success: true }
+}
+
+/**
+ * Start an application on a customer's behalf (e.g. they called or walked in). Priced on the server
+ * with the same helpers as checkout. Either the customer pays online from their dashboard, or the team
+ * records a payment taken another way, which submits it straight to the New queue.
+ */
+export async function adminCreateApplication(input: {
+  userId: string
+  typeId: string
+  businessName: string
+  addOnIds?: string[]
+  delivery?: 'digital' | 'courier'
+  payment: { kind: 'online'; textCustomer?: boolean } | { kind: 'offline'; method: string; reference?: string }
+  note?: string
+}) {
+  const adminId = await currentAdminId()
+  if (!adminId) return { error: 'Unauthorized' }
+
+  const businessName = input.businessName?.trim()
+  if (!businessName) return { error: 'Enter the business name.' }
+  const type = businessTypes.find((t) => t.id === input.typeId)
+  if (!type) return { error: 'Choose a business type.' }
+
+  const admin = await createAdminClient()
+  const [{ data: customer }, { data: dbTypes }, { data: services }] = await Promise.all([
+    admin.from('profiles').select('id, full_name, email, phone').eq('id', input.userId).maybeSingle(),
+    admin.from('business_types').select('*').eq('is_active', true),
+    admin.from('services').select('name, price, is_active'),
+  ])
+  if (!customer) return { error: 'Customer not found.' }
+
+  const addOnIds = (input.addOnIds || []).filter((a) => typeof a === 'string')
+  const delivery = input.delivery === 'courier' ? 'courier' : 'digital'
+  const quote = quoteApplication({ typeId: type.id, addOnIds, delivery }, (dbTypes || []) as DbBusinessType[], services || [])
+  if (!quote.dbTypeId || quote.total <= 0) return { error: `There’s no active price for ${type.name}. Set one on the Pricing page.` }
+
+  const offline = input.payment.kind === 'offline' ? input.payment : null
+  if (offline && !offline.method?.trim()) return { error: 'Choose how the customer paid.' }
+
+  const { data: created, error } = await admin
+    .from('applications')
+    .insert({
+      user_id: customer.id,
+      business_type_id: quote.dbTypeId,
+      business_name: businessName,
+      status: 'draft',
+      payment_status: 'pending',
+      total_amount: quote.total,
+      tracking_id: `DRAFT-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+      notes: input.note?.trim() || null,
+      form_data: {
+        businessName,
+        businessType: type.id,
+        mobilePhone: customer.phone || '',
+        email: customer.email || '',
+        selectedAddOns: addOnIds,
+        delivery_method: delivery,
+        delivery_address: null,
+        total_amount: quote.total,
+        price_lines: quote.lines,
+        // Priced and ready: the customer's dashboard offers "Complete payment"
+        ready_for_payment: true,
+        created_by_admin: adminId,
+      },
+      updated_at: new Date().toISOString(),
+    })
+    .select('id')
+    .single()
+  if (error || !created) return { error: error?.message || 'Couldn’t create the application.' }
+
+  await admin.from('application_status_history').insert({
+    application_id: created.id,
+    status: 'draft',
+    notes: 'Started by the GrayDocket team on the customer’s behalf',
+    updated_by: adminId,
+  })
+
+  if (offline) {
+    const reference = (offline.reference?.trim() || `${offline.method}-${created.id.slice(0, 8)}`).toUpperCase().replace(/\s+/g, '-')
+    const res = await finalizePaidApplication(created.id, reference, quote.total, 'GHS', 'admin', { by: adminId, method: offline.method.replace(/_/g, ' ') })
+    if (!res.ok) return { error: res.error, id: created.id }
+  } else {
+    notify({
+      channel: 'applications',
+      title: `📝 Application started for a customer · ${businessName}`,
+      summary: 'Created by the team. Waiting for the customer to pay online.',
+      application: { id: created.id, businessName },
+      user: { id: customer.id },
+      fields: [
+        ['Type', type.name],
+        ['Total', money(quote.total)],
+      ],
+    })
+    if (input.payment.kind === 'online' && input.payment.textCustomer && customer.phone) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://graydocket.com'
+      await sendSms(
+        customer.phone,
+        `GrayDocket has started your ${type.name} registration for "${businessName}". Review it and pay ${money(quote.total)} here: ${appUrl}/dashboard/applications/${created.id}`
+      )
+    }
+  }
+
+  revalidatePath('/admin/applications')
+  revalidatePath('/dashboard')
+  return { error: null, id: created.id as string }
 }

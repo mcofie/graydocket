@@ -70,10 +70,15 @@ export default function AffiliateDashboard() {
         .select('*')
         .eq('id', user.id)
         .single()
-      setProfile((prof as AffiliateProfile | null) ?? null)
+      setProfile(prof ? ({
+        ...prof,
+        payout_method: user.user_metadata?.payout_method ?? null,
+        payout_address: user.user_metadata?.payout_address ?? null,
+      } as AffiliateProfile) : null)
       if (prof) {
-        setPayoutMethod(prof.payout_method || 'momo')
-        setPayoutAddress(prof.payout_address || '')
+        // Payout details are kept on the account, not the profile row
+        setPayoutMethod(user.user_metadata?.payout_method || 'momo')
+        setPayoutAddress(user.user_metadata?.payout_address || '')
       }
     }
 

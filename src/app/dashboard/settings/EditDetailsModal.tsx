@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { X, MoreHorizontal, Smile, Star, Image as ImageIcon, Trash2, ArrowLeft } from 'lucide-react'
-import { updateMyProfile, updateAdminAvatar } from '@/lib/actions'
+import { updateMyProfile, uploadMyAvatar } from '@/lib/actions'
 import { AVATAR_EMOJIS, AVATAR_ICON_NAMES, type AvatarChoice } from '@/lib/avatar'
 import UserAvatar, { AVATAR_ICONS } from '@/components/ui/UserAvatar'
 import styles from './EditDetailsModal.module.css'
@@ -117,7 +117,7 @@ export default function EditDetailsModal({ name, avatarUrl, choice, onClose, onS
     if (pending.kind === 'file') {
       const formData = new FormData()
       formData.append('file', pending.file)
-      const res = await updateAdminAvatar(formData)
+      const res = await uploadMyAvatar(formData)
       if (res.error) return fail(res.error)
       nextAvatarUrl = res.avatarUrl || ''
       nextChoice = null
@@ -125,7 +125,6 @@ export default function EditDetailsModal({ name, avatarUrl, choice, onClose, onS
 
     const updates: Parameters<typeof updateMyProfile>[0] = {}
     if (nameChanged) updates.full_name = draftName
-    if (pending.kind === 'file' && choice) updates.avatar_choice = null
     if (pending.kind === 'choice') {
       updates.avatar_choice = pending.choice
       nextAvatarUrl = ''

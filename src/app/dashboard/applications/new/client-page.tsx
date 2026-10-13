@@ -5,8 +5,9 @@ import Link from 'next/link'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { Check, ArrowLeft, ArrowRight, Plus, Trash2, Clock, AlertTriangle, CheckCircle2, User, Building2, HeartHandshake, type LucideIcon } from 'lucide-react'
 import { usePaystackPayment } from 'react-paystack'
+import { startCheckout, confirmPayment } from '@/lib/checkout'
 import { 
-  submitApplication, getBusinessTypes, getSystemFee, 
+  getBusinessTypes, 
   saveApplicationDraft, getLatestDraft, getServices, getMyProfile, discardDraft
 } from '@/lib/actions'
 import styles from './new.module.css'
@@ -17,7 +18,7 @@ import {
 import PersonForm from './PersonForm'
 import NameCheck from './NameCheck'
 import { useNameCheck, warmNameCheck } from './useNameCheck'
-import { priceForType, addOnsWithPrices } from './pricing'
+import { priceForType, addOnsWithPrices, courierFeeFrom, quoteApplication, type DbBusinessType } from './pricing'
 import { regionFromDigitalAddress, todayISO, splitFullName, personDisplayName, missingPersonFields, missingLine } from './helpers'
 import { results as typeRequirements } from '../../choose/quiz'
 
@@ -200,9 +201,10 @@ function NewRegistrationContent() {
       setAffiliateCode(decodeURIComponent(persistedReferral))
     }
   }, [searchParams])
-  const [dbBusinessTypes, setDbBusinessTypes] = useState<Array<{id: string; name: string; description: string; base_price: number; service_fee: number}>>([]) 
-  const [dbServices, setDbServices] = useState<any[]>([])
-  const [deliveryFee, setDeliveryFee] = useState(50)
+  // Prices come from the database through the shared pricing helpers (./pricing), the same ones
+  // the server uses to charge, so the total shown here is exactly what checkout asks for
+  const [dbBusinessTypes, setDbBusinessTypes] = useState<DbBusinessType[]>([])
+  const [dbServices, setDbServices] = useState<Array<{ name: string; price: number; is_active?: boolean | null }>>([])
 
   useEffect(() => {
     getBusinessTypes().then((types) => {
@@ -211,8 +213,8 @@ function NewRegistrationContent() {
     getServices().then((res) => {
       if (res.services) setDbServices(res.services)
     })
-    getSystemFee('Courier Delivery').then((fee) => setDeliveryFee(fee))
   }, [])
+  const deliveryFee = courierFeeFrom(dbServices)
 
   // Dynamic overrides
   const dynamicBusinessTypes = businessTypes.map(t => {
@@ -431,32 +433,14 @@ function NewRegistrationContent() {
   const selectedBusiness = businessTypes.find((t) => t.id === selectedType)
   const isCompany = selectedType === 'limited_by_shares' || selectedType === 'limited_by_guarantee'
 
-  // Map frontend type ID to DB business_type_id
-  const getDbBusinessTypeId = (): string | null => {
-    if (!selectedBusiness || dbBusinessTypes.length === 0) return null
-    const nameMap: Record<string, string> = {
-      'sole_proprietorship': 'Sole Proprietorship',
-      'limited_by_shares': 'Company Limited by Shares',
-      'limited_by_guarantee': 'Company Limited by Guarantee',
-    }
-    const dbName = nameMap[selectedType || '']
-    const found = dbBusinessTypes.find(bt => bt.name === dbName)
-    return found?.id || null
-  }
-
-  const nameMap: Record<string, string> = {
-    'sole_proprietorship': 'Sole Proprietorship',
-    'limited_by_shares': 'Company Limited by Shares',
-    'limited_by_guarantee': 'Company Limited by Guarantee',
-  }
-  const dbMatch = dbBusinessTypes.find(bt => bt.name === nameMap[selectedType || ''])
-  
-  const basePrice = dbMatch ? dbMatch.base_price : (selectedBusiness?.price || 0)
-  const serviceFee = dbMatch?.service_fee || 0
-
-  const totalPrice = basePrice + serviceFee +
-    dynamicAddOns.filter((a) => selectedAddOns.includes(a.id)).reduce((sum, a) => sum + a.price, 0) +
-    (deliveryMethod === 'courier' ? deliveryFee : 0)
+  // One quote drives the totals on screen and the business type row the application points at
+  const quote = quoteApplication(
+    { typeId: selectedType || '', addOnIds: selectedAddOns, delivery: deliveryMethod },
+    dbBusinessTypes,
+    dbServices
+  )
+  const totalPrice = quote.total
+  const getDbBusinessTypeId = (): string | null => (selectedType ? quote.dbTypeId : null)
 
   const progressSteps = isCompany
     ? [
@@ -629,84 +613,74 @@ function NewRegistrationContent() {
       ].filter(Boolean) as string[])
     : []
 
-  const handleSubmit = async (paymentRef?: string) => {
-    setSubmitting(true)
-    setSubmitError('')
+  // --- Checkout ---
+  // The server saves the application, sets the amount and payment reference, and only submits it
+  // once Paystack confirms payment (src/lib/checkout.ts). The amount is never taken from this page.
+  const initializePayment = usePaystackPayment({
+    publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+    currency: 'GHS',
+  })
 
-    const dbTypeId = getDbBusinessTypeId()
-    if (!dbTypeId) {
-      setSubmitError('Could not match business type. Please refresh and try again.')
-      setSubmitting(false)
+  const handlePayAndSubmit = async () => {
+    if (!process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY) {
+      setSubmitError('Payments aren’t set up yet. Please contact support.')
       return
     }
+    if (!selectedType) return
+    setSubmitting(true)
+    setSubmitError('')
 
     const fullFormData = {
       ...formData,
       businessType: selectedType,
-      paystackReference: paymentRef,
       ...(isCompany
-        ? {
-            directors,
-            secretary,
-            shareholders,
-            companyDetails: { ...companyDetails, auditorLater, capitalAuto },
-          }
-        : {
-            proprietor,
-          }),
+        ? { directors, secretary, shareholders, companyDetails: { ...companyDetails, auditorLater, capitalAuto } }
+        : { proprietor }),
     }
 
-    const result = await submitApplication({
-      businessTypeId: dbTypeId,
-      businessTypeName: selectedBusiness?.name || '',
+    const checkout = await startCheckout({
+      typeId: selectedType,
       businessName: formData.businessName,
       formData: fullFormData,
       selectedAddOns,
       deliveryMethod,
       deliveryAddress: deliveryMethod === 'courier' ? deliveryAddress : null,
-      totalAmount: totalPrice,
-      affiliateCode: affiliateCode,
-      paystackReference: paymentRef,
+      affiliateCode,
     })
-
-    if (result.error) {
-      setSubmitError(result.error)
+    if (checkout.error !== null) {
+      setSubmitError(checkout.error)
       setSubmitting(false)
       return
     }
+    draftIdRef.current = checkout.applicationId
 
-    setResultTrackingId(result.trackingId || '')
-    setSubmitted(true)
-    setSubmitting(false)
-  }
-
-  // --- Paystack Setup ---
-  const paystackConfig = {
-    reference: `GD-${new Date().getTime()}`,
-    email: formData.email || 'customer@graydocket.com',
-    amount: totalPrice * 100, // Paystack requires amount in pesewas/kobo
-    publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-    currency: 'GHS',
-  }
-
-  // @ts-ignore
-  const initializePayment = usePaystackPayment(paystackConfig)
-
-  const handlePayAndSubmit = () => {
-    if (!process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY) {
-      setSubmitError('Payment gateway not configured (missing Paystack Key).')
-      return;
-    }
-    
-    setSubmitting(true)
     initializePayment({
-      onSuccess: (reference: any) => {
-        handleSubmit(reference.reference)
+      config: {
+        email: checkout.email,
+        amount: Math.round(checkout.amount * 100), // pesewas
+        reference: checkout.reference,
+        currency: 'GHS',
+        metadata: {
+          application_id: checkout.applicationId,
+          custom_fields: [{ display_name: 'Business', variable_name: 'business_name', value: formData.businessName }],
+        },
+      },
+      onSuccess: async (response?: { reference?: string }) => {
+        const confirmed = await confirmPayment(checkout.applicationId, response?.reference || checkout.reference)
+        if (confirmed.error) {
+          setSubmitError(confirmed.error)
+          setSubmitting(false)
+          return
+        }
+        localStorage.removeItem('graydocket_draft')
+        setResultTrackingId(confirmed.trackingId || '')
+        setSubmitted(true)
+        setSubmitting(false)
       },
       onClose: () => {
         setSubmitting(false)
-        setSubmitError('Payment was cancelled.')
-      }
+        setSubmitError('Payment wasn’t completed. Your application is saved, so you can pay whenever you’re ready.')
+      },
     })
   }
 
@@ -1493,16 +1467,13 @@ function NewRegistrationContent() {
               <span className={styles.reviewLabel}>ORC Form</span>
               <span className={styles.reviewValue}>{selectedBusiness?.formRef}</span>
             </div>
-            <div className={styles.reviewRow}>
-              <span className={styles.reviewLabel}>Base Fee (ORC)</span>
-              <span className={styles.reviewValue}>GH₵ {basePrice.toLocaleString()}</span>
-            </div>
-            {serviceFee > 0 && (
-              <div className={styles.reviewRow}>
-                <span className={styles.reviewLabel}>GrayDocket Service Fee</span>
-                <span className={styles.reviewValue}>GH₵ {serviceFee.toLocaleString()}</span>
+            {/* Same breakdown as the pricing page and checkout */}
+            {priceForType(selectedType || '', dbBusinessTypes).lines.map((line) => (
+              <div key={line.label} className={styles.reviewRow}>
+                <span className={styles.reviewLabel}>{line.label}</span>
+                <span className={styles.reviewValue}>GH₵ {line.amount.toLocaleString()}</span>
               </div>
-            )}
+            ))}
           </div>
 
           {/* Business Info */}

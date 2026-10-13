@@ -10,11 +10,10 @@ import { parseAvatarChoice } from '@/lib/avatar'
 import styles from './shell.module.css'
 
 type ShellUser = {
-  profile?: { full_name?: string; role?: string; avatar_url?: string } | null
-  user?: { user_metadata?: { avatar_choice?: unknown } } | null
+  profile?: { full_name?: string; role?: string } | null
+  user?: { user_metadata?: { avatar_choice?: unknown; avatar_url?: string; full_name?: string } } | null
 }
 
-const STAFF_ROLES = ['admin', 'registrar', 'bank_manager', 'service_manager']
 
 function getPageTitle(pathname: string) {
   if (pathname === '/dashboard/applications/new') return 'New Registration'
@@ -44,7 +43,7 @@ export default function DashboardLayout({
       if (!session) return
       const [{ data: { user } }, { data: profile }] = await Promise.all([
         supabase.auth.getUser(),
-        supabase.from('profiles').select('full_name, role, avatar_url').eq('id', session.user.id).single(),
+        supabase.from('profiles').select('full_name, role').eq('id', session.user.id).maybeSingle(),
       ])
       setUserData({ profile, user })
     }
@@ -54,13 +53,13 @@ export default function DashboardLayout({
     return () => window.removeEventListener('profile-updated', load)
   }, [])
 
-  const isStaff = STAFF_ROLES.includes(userData?.profile?.role ?? '')
+  const isAdmin = userData?.profile?.role === 'admin'
 
   const navItems = [
     { label: 'Your Businesses', href: '/dashboard', icon: Briefcase, match: (p: string) => p === '/dashboard' || p.startsWith('/dashboard/applications') || p.startsWith('/dashboard/choose') },
     { label: 'Documents', href: '/dashboard/documents', icon: FolderOpen, match: (p: string) => p.startsWith('/dashboard/documents') },
     { label: 'Resources', href: '/dashboard/resources', icon: BookOpen, match: (p: string) => p.startsWith('/dashboard/resources') },
-    ...(isStaff ? [{ label: 'Partner Portal', href: '/admin', icon: ShieldCheck, match: () => false }] : []),
+    ...(isAdmin ? [{ label: 'Admin', href: '/admin', icon: ShieldCheck, match: () => false }] : []),
   ]
 
 
@@ -91,8 +90,8 @@ export default function DashboardLayout({
           >
             <UserAvatar
               size={30}
-              name={userData?.profile?.full_name}
-              avatarUrl={userData?.profile?.avatar_url}
+              name={userData?.profile?.full_name || userData?.user?.user_metadata?.full_name}
+              avatarUrl={userData?.user?.user_metadata?.avatar_url}
               choice={parseAvatarChoice(userData?.user?.user_metadata?.avatar_choice)}
             />
           </Link>

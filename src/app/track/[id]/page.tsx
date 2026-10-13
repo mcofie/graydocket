@@ -5,6 +5,7 @@ import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { getTrackingStatus } from '@/lib/actions'
 import styles from '../track.module.css'
+import { STAGES } from '@/lib/application-flow'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -18,18 +19,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 type Tone = 'neutral' | 'blue' | 'amber' | 'green' | 'red'
 
-const statusMap: Record<string, { tone: Tone; label: string }> = {
-  draft: { tone: 'neutral', label: 'Draft' },
-  submitted: { tone: 'blue', label: 'Submitted' },
-  name_search: { tone: 'amber', label: 'Name search' },
-  under_review: { tone: 'amber', label: 'Under review' },
-  on_hold: { tone: 'amber', label: 'On hold' },
-  approved: { tone: 'green', label: 'Approved' },
-  completed: { tone: 'green', label: 'Registered' },
-  delivered: { tone: 'green', label: 'Delivered' },
-  rejected: { tone: 'red', label: 'Action required' },
-  cancelled: { tone: 'neutral', label: 'Cancelled' },
-}
+// Customer wording for each stage comes from the shared workflow (src/lib/application-flow.ts)
+const statusMap = Object.fromEntries(
+  Object.entries(STAGES).map(([status, stage]) => [status, { tone: stage.tone, label: stage.customer }])
+) as Record<string, { tone: Tone; label: string }>
 
 const statusLabel = (status: string) =>
   statusMap[status]?.label ?? status.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
