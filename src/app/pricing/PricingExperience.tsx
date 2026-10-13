@@ -2,7 +2,10 @@
 
 import { useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowRight, Check, ChevronDown, Clock, Info, RotateCcw, Sparkles, Minus, X } from 'lucide-react'
+import {
+  ArrowRight, Check, ChevronDown, Clock, Info, RotateCcw, Sparkles, Minus, X,
+  FileDown, Truck, Globe, Mail, MonitorSmartphone, CalendarCheck, RefreshCw, Hash, Landmark, Users, type LucideIcon,
+} from 'lucide-react'
 import Tabs from '@/components/ui/Tabs'
 import { PRICE_LINE_NOTES, type PriceLine } from '@/app/dashboard/applications/new/pricing'
 import { questions, firstQuestion, results, type QuizResult } from '@/app/dashboard/choose/quiz'
@@ -36,6 +39,56 @@ type Props = {
 }
 
 const money = (n: number) => `GH₵ ${n.toLocaleString()}`
+
+// Each business type gets one of the landing page's accent tints, the same way "How it works" does
+const PLAN_ACCENT: Record<Plan['id'], string> = {
+  sole_proprietorship: 'var(--accent-blue)',
+  limited_by_shares: 'var(--accent-green)',
+  limited_by_guarantee: 'var(--accent-gold)',
+}
+const PLAN_EYEBROW: Record<Plan['id'], string> = {
+  sole_proprietorship: 'Going it alone',
+  limited_by_shares: 'Teams and investors',
+  limited_by_guarantee: 'Non-profits',
+}
+
+const EXTRA_ICON: Record<string, LucideIcon> = { domain: Globe, email: Mail, website: MonitorSmartphone }
+const COMPLIANCE_ICON: Record<string, LucideIcon> = {
+  'annual-returns': CalendarCheck,
+  renewal: RefreshCw,
+  tin: Hash,
+  gra: Landmark,
+  ssnit: Users,
+}
+
+/** Eyebrow + title + lead, styled like the landing page's section headers */
+function SectionHeader({ eyebrow, title, lead, accent = 'var(--accent-green)' }: { eyebrow: string; title: string; lead?: string; accent?: string }) {
+  return (
+    <header className={styles.sectionHeader} style={{ '--accent': accent } as React.CSSProperties}>
+      <p className={styles.eyebrow}>{eyebrow}</p>
+      <h2 className={styles.sectionTitle}>{title}</h2>
+      {lead && <p className={styles.sectionLead}>{lead}</p>}
+    </header>
+  )
+}
+
+/** One extra or service as a tile: icon, name and note, price on the right */
+function Tile({ icon: Icon, name, desc, price, href, accent }: { icon: LucideIcon; name: string; desc: string; price: React.ReactNode; href?: string; accent: string }) {
+  return (
+    <div className={styles.tile} style={{ '--accent': accent } as React.CSSProperties}>
+      <span className={styles.tileIcon}><Icon size={18} strokeWidth={2} /></span>
+      <span className={styles.tileText}>
+        {href ? (
+          <Link href={href} className={styles.serviceLink}><strong>{name}</strong></Link>
+        ) : (
+          <strong>{name}</strong>
+        )}
+        <small>{desc}</small>
+      </span>
+      <span className={styles.tilePrice}>{price}</span>
+    </div>
+  )
+}
 const startHref = (typeId: string) =>
   `/auth/register?redirect=${encodeURIComponent(`/dashboard/applications/new?type=${typeId}`)}`
 
@@ -199,8 +252,10 @@ export default function PricingExperience({ plans, extras, courierFee, complianc
                     cardRefs.current[plan.id] = el
                   }}
                   className={`${styles.plan} ${isRecommended ? styles.planRecommended : ''}`}
+                  style={{ '--accent': PLAN_ACCENT[plan.id] } as React.CSSProperties}
                 >
                   {isRecommended && <span className={styles.recBadge}>Recommended for you</span>}
+                  <p className={styles.planEyebrow}>{PLAN_EYEBROW[plan.id]}</p>
                   <h2 className={styles.planName}>{plan.name}</h2>
                   <p className={styles.audience}>{plan.audience}</p>
 
@@ -262,8 +317,7 @@ export default function PricingExperience({ plans, extras, courierFee, complianc
           </section>
 
           <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>Compare business types</h2>
-            <p className={styles.sectionLead}>What each one needs, and what it gives you.</p>
+            <SectionHeader eyebrow="Compare" title="Which one fits you?" lead="What each one needs, and what it gives you." />
             <div className={styles.compareSwitch} role="group" aria-label="Plan to compare">
               {plans.map((p) => (
                 <button
@@ -301,7 +355,7 @@ export default function PricingExperience({ plans, extras, courierFee, complianc
                   <tr>
                     <th scope="row">Usual timeline</th>
                     {plans.map((p) => (
-                      <td key={p.id} className={colClass(p.id)}>{p.timeline || '—'}</td>
+                      <td key={p.id} className={colClass(p.id)}>{p.timeline ? formatTimeline(p.timeline) : '—'}</td>
                     ))}
                   </tr>
                   {COMPARISON.map((row) => (
@@ -334,56 +388,46 @@ export default function PricingExperience({ plans, extras, courierFee, complianc
           </section>
 
           <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>Optional extras</h2>
-            <p className={styles.sectionLead}>Add these during registration if you need them.</p>
-            <div className={styles.table}>
-              <div className={styles.tableRow}>
-                <span>
-                  <strong>Digital delivery</strong>
-                  <small>PDF certificates by email and in your Documents</small>
-                </span>
-                <span>Free</span>
-              </div>
-              <div className={styles.tableRow}>
-                <span>
-                  <strong>Courier delivery</strong>
-                  <small>Printed documents delivered to your door</small>
-                </span>
-                <span>{money(courierFee)}</span>
-              </div>
+            <SectionHeader
+              eyebrow="Extras"
+              accent="var(--accent-blue)"
+              title="Add what you need"
+              lead="Pick these during registration. Nothing is added unless you choose it."
+            />
+            <div className={styles.tiles}>
+              <Tile icon={FileDown} accent="var(--accent-green)" name="Digital delivery" desc="PDF certificates by email and in your Documents" price="Free" />
+              <Tile icon={Truck} accent="var(--accent-orange)" name="Courier delivery" desc="Printed documents delivered to your door" price={money(courierFee)} />
               {extras.map((a) => (
-                <div key={a.id} className={styles.tableRow}>
-                  <span>
-                    <strong>{a.name}</strong>
-                    <small>{a.desc}</small>
-                  </span>
-                  <span>{a.price === 0 ? 'Free' : money(a.price)}</span>
-                </div>
+                <Tile
+                  key={a.id}
+                  icon={EXTRA_ICON[a.id] || Sparkles}
+                  accent="var(--accent-blue)"
+                  name={a.name}
+                  desc={a.desc}
+                  price={a.price === 0 ? 'Free' : money(a.price)}
+                />
               ))}
             </div>
           </section>
         </>
       ) : (
         <section className={styles.section} aria-label="Compliance services">
-          <h2 className={styles.sectionTitle}>We&apos;ll keep you compliant</h2>
-          <p className={styles.sectionLead}>
-            Already registered? Hand us your yearly filings and get back to running your business.
-          </p>
-          <div className={styles.table}>
+          <SectionHeader
+            eyebrow="Compliance, handled"
+            title="We’ll keep you compliant"
+            lead="Already registered? Hand us your yearly filings and get back to running your business."
+          />
+          <div className={styles.tiles}>
             {compliance.map((c) => (
-              <div key={c.id} className={styles.tableRow}>
-                <span>
-                  <Link href={c.href} className={styles.serviceLink}>
-                    <strong>{c.name}</strong>
-                  </Link>
-                  <small>{c.desc}</small>
-                </span>
-                {c.price !== null ? (
-                  <span>{money(c.price)}</span>
-                ) : (
-                  <Link href="/support" className={styles.quoteBtn}>Get a quote</Link>
-                )}
-              </div>
+              <Tile
+                key={c.id}
+                icon={COMPLIANCE_ICON[c.id] || CalendarCheck}
+                accent="var(--accent-green)"
+                name={c.name}
+                desc={c.desc}
+                href={c.href}
+                price={c.price !== null ? money(c.price) : <Link href="/support" className={styles.quoteBtn}>Get a quote</Link>}
+              />
             ))}
           </div>
           <p className={styles.contact}>

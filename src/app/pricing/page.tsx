@@ -1,7 +1,9 @@
 import { pageMetadata } from '@/lib/metadata'
 import Link from 'next/link'
+import { Check, Plus } from 'lucide-react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
+import { HeroArtRow } from '@/components/doodles/HeroDoodles'
 import { getBusinessTypes, getServices, getSystemFee } from '@/lib/actions'
 import { businessTypes } from '@/app/dashboard/applications/new/constants'
 import { priceForType, addOnsWithPrices, type DbBusinessType } from '@/app/dashboard/applications/new/pricing'
@@ -101,10 +103,22 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
       <Header />
       <main className={styles.main}>
         <section className={styles.hero}>
-          <h1 className={styles.title}>Simple, transparent pricing</h1>
+          <HeroArtRow className={styles.heroArt} />
+          <h1 className={styles.title}>
+            One price.<br />Paperwork included.
+          </h1>
           <p className={styles.lead}>
-            One price to get your business registered. We handle the paperwork, and you&apos;ll see the full breakdown before you pay.
+            Government fees, the filing and your first year&apos;s renewal are all in the price. You&apos;ll see the full
+            breakdown before you pay.
           </p>
+          <ul className={styles.promises}>
+            {['Government fees included', 'No hidden charges', 'Pay after you review'].map((p) => (
+              <li key={p}>
+                <Check size={18} strokeWidth={2.5} />
+                {p}
+              </li>
+            ))}
+          </ul>
         </section>
 
         <PricingExperience
@@ -116,18 +130,22 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
         />
 
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>Questions</h2>
+          <h2 className={styles.sectionTitle}>Frequently Asked Questions</h2>
           <div className={styles.faqList}>
             {FAQS.map((f) => (
               <details key={f.q} className={styles.faq}>
-                <summary>{f.q}</summary>
+                <summary>
+                  <span>{f.q}</span>
+                  <Plus size={18} className={styles.faqIcon} />
+                </summary>
                 <p>{f.a}</p>
               </details>
             ))}
           </div>
-          <p className={styles.contact}>
-            Registering several businesses or need something custom? <Link href="/support">Talk to us</Link>
-          </p>
+          <div className={styles.contact}>
+            <p>Registering several businesses or need something custom?</p>
+            <Link href="/support" className={styles.secondaryBtn}>Talk to us</Link>
+          </div>
         </section>
       </main>
       <Footer />
