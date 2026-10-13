@@ -10,6 +10,7 @@ import { canMove, isAppStatus, stageOf } from '@/lib/application-flow'
 import { issuedDocuments, providedDocuments } from '@/lib/documents'
 import { currentAdminId, isAdminRequest } from '@/lib/admin-auth'
 import { signDocumentLinks, DOCUMENTS_BUCKET } from '@/lib/document-links'
+import { FILING_SETTING_NAME, filedNote, filingKind, filingStatus, formatDeadline } from '@/lib/annual-filing'
 import { finalizePaidApplication, sendSms } from '@/lib/checkout-core'
 import { quoteApplication, type DbBusinessType } from '@/app/dashboard/applications/new/pricing'
 import { businessTypes } from '@/app/dashboard/applications/new/constants'
@@ -1349,7 +1350,8 @@ export async function getApplicationDetails(id: string) {
       { data: reg },
       { data: bType },
       { data: history },
-      { data: dbDocs }
+      { data: dbDocs },
+      savedDeadline,
     ] = await Promise.all([
       adminClient.schema('graydocket').from('profiles').select('full_name, email, phone').eq('id', appData.user_id).maybeSingle(),
       appData.assigned_to 
@@ -1357,13 +1359,21 @@ export async function getApplicationDetails(id: string) {
         : Promise.resolve({ data: null }),
       adminClient.schema('graydocket').from('business_types').select('*').eq('id', appData.business_type_id).maybeSingle(),
       adminClient.schema('graydocket').from('application_status_history').select('*').eq('application_id', appData.id).order('created_at', { ascending: false }),
-      adminClient.schema('graydocket').from('documents').select('*').eq('application_id', appData.id)
+      adminClient.schema('graydocket').from('documents').select('*').eq('application_id', appData.id),
+      getSavedFilingDeadline(),
     ])
 
     appData.profiles = creator
     appData.assigned_admin = reg
     appData.document_rows = dbDocs || []
     appData.business_types = bType
+    // Annual return / renewal due for registered businesses (null until it's registered)
+    appData.filing = filingStatus({
+      app: { status: appData.status, updated_at: appData.updated_at, created_at: appData.created_at },
+      history: history || [],
+      typeName: bType?.name,
+      savedDeadline,
+    })
 
     // Timeline Updaters (Secondary Parallel Phase)
     if (history && history.length > 0) {
@@ -2236,4 +2246,72 @@ export async function adminCreateApplication(input: {
   revalidatePath('/admin/applications')
   revalidatePath('/dashboard')
   return { error: null, id: created.id as string }
+}
+
+/* ---------- Annual filings (annual returns and business name renewals) ---------- */
+
+/** This year's ORC filing deadline as saved by the team (YYYY-MM-DD), or null for the 30 April default */
+export async function getSavedFilingDeadline() {
+  const admin = await createAdminClient()
+  const { data } = await admin.from('services').select('description').eq('name', FILING_SETTING_NAME).maybeSingle()
+  const value = (data?.description || '').trim()
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null
+}
+
+/**
+ * Save this year's ORC deadline (the ORC announces it, and often extends it). Kept as a hidden
+ * system row in services, like the courier fee, since there is no settings table.
+ */
+export async function setFilingDeadline(date: string) {
+  if (!(await checkIsAdmin())) return { error: 'Unauthorized' }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) return { error: 'Choose a valid date.' }
+
+  const admin = await createAdminClient()
+  const { data: existing } = await admin.from('services').select('id').eq('name', FILING_SETTING_NAME).maybeSingle()
+  const { error } = existing
+    ? await admin.from('services').update({ description: date }).eq('id', existing.id)
+    : await admin.from('services').insert({ name: FILING_SETTING_NAME, category: 'system', price: 0, is_active: false, description: date })
+  if (error) return { error: error.message }
+
+  notify({
+    channel: 'team',
+    title: `📅 ORC filing deadline set · ${formatDeadline(date)}`,
+    summary: 'Annual return and renewal reminders now count down to this date.',
+    link: '/admin',
+  })
+  revalidatePath('/admin')
+  return { error: null }
+}
+
+/** Record that this year's annual return or renewal has been filed, which stops the reminders */
+export async function markAnnualFilingDone(applicationId: string, year: number) {
+  const adminId = await currentAdminId()
+  if (!adminId) return { error: 'Unauthorized' }
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) return { error: 'Invalid year.' }
+
+  const admin = await createAdminClient()
+  const { data: app } = await admin
+    .from('applications')
+    .select('id, status, business_name, business_types:business_type_id(name)')
+    .eq('id', applicationId)
+    .maybeSingle()
+  if (!app) return { error: 'Application not found.' }
+  const kind = filingKind((app.business_types as { name?: string } | null)?.name)
+
+  const { error } = await admin.from('application_status_history').insert({
+    application_id: app.id,
+    status: app.status,
+    notes: filedNote(kind, year),
+    updated_by: adminId,
+  })
+  if (error) return { error: error.message }
+
+  notify({
+    channel: 'applications',
+    title: `🗂️ ${kind === 'renewal' ? 'Business name renewed' : 'Annual return filed'} for ${year} · ${app.business_name}`,
+    application: { id: app.id, businessName: app.business_name },
+  })
+  revalidatePath(`/admin/applications/${app.id}`)
+  revalidatePath(`/dashboard/applications/${app.id}`)
+  return { error: null }
 }

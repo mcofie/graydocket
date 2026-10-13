@@ -10,6 +10,7 @@ import { isAdminRequest } from '@/lib/admin-auth'
 import { ADMIN_QUEUES } from '@/lib/application-flow'
 import { signDocumentLinks } from '@/lib/document-links'
 import { parseAvatarChoice, type AvatarChoice } from '@/lib/avatar'
+import { FILING_SETTING_NAME, deadlineFor, filingStatus } from '@/lib/annual-filing'
 
 export type PriceLine = { label: string; amount: number; paidTo?: 'government' | 'graydocket' }
 
@@ -209,6 +210,19 @@ async function overviewStats(client: AdminClient) {
   }
 }
 
+/* ---------- Annual filing deadline ---------- */
+
+/** The deadline reminders count down to this year, and whether the team set it or it's the default */
+export async function getAdminFilingDeadline() {
+  return adminRead({ year: new Date().getUTCFullYear(), deadline: '', saved: null as string | null }, async (admin) => {
+    const { data } = await admin.from('services').select('description').eq('name', FILING_SETTING_NAME).maybeSingle()
+    const saved = /^\d{4}-\d{2}-\d{2}$/.test(data?.description || '') ? (data!.description as string) : null
+    const year = new Date().getUTCFullYear()
+    const deadline = deadlineFor(year, saved)
+    return { year, deadline, saved: saved === deadline ? saved : null }
+  })
+}
+
 /* ---------- Users ---------- */
 
 // The Supabase project is shared with other apps. Users belong to GrayDocket when their account is
@@ -338,12 +352,13 @@ async function applicationView(admin: AdminClient, key: string) {
     id = data.id as string
   }
 
-  const [appRes, historyRes, docsRes, typesRes, teamRes] = await Promise.all([
+  const [appRes, historyRes, docsRes, typesRes, teamRes, deadlineRes] = await Promise.all([
     admin.from('applications').select('*').eq('id', id).maybeSingle(),
     admin.from('application_status_history').select('*').eq('application_id', id).order('created_at', { ascending: false }),
     admin.from('documents').select('*').eq('application_id', id),
     admin.from('business_types').select('*').order('name'),
     admin.from('profiles').select('id, full_name, email').eq('role', 'admin').order('full_name'),
+    admin.from('services').select('description').eq('name', FILING_SETTING_NAME).maybeSingle(),
   ])
   const raw = appRes.data as Record<string, unknown> | null
   if (!raw) return { application: null, businessTypes: [], team: [], error: appRes.error?.message || 'Application not found.' }
@@ -378,6 +393,13 @@ async function applicationView(admin: AdminClient, key: string) {
       return { ...h, updater: who ? { id: who.id, full_name: who.full_name } : null }
     }),
     document_rows: signed.rows,
+    // Annual return / renewal for registered businesses (null until registered)
+    filing: filingStatus({
+      app: { status: raw.status as string, updated_at: raw.updated_at as string | null, created_at: raw.created_at as string },
+      history: history as Array<{ status?: string | null; notes?: string | null; created_at: string }>,
+      typeName: (businessTypes.find((t: { id: string }) => t.id === raw.business_type_id) as { name?: string } | undefined)?.name,
+      savedDeadline: (deadlineRes.data?.description as string | undefined) || null,
+    }),
   }
 
   return { application, businessTypes, team, error: null as string | null }

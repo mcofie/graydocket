@@ -258,7 +258,8 @@ export default function AdminPricingPage() {
     const res = await getAdminPricingData()
     if (res.error) setError(res.error)
     setRows(res.businessTypes as Row[])
-    setServices((res.services as Service[]).filter((s) => s.category !== 'banking'))
+    // Banking and hidden system settings (like the ORC deadline) aren't checkout extras
+    setServices((res.services as Service[]).filter((s) => s.category !== 'banking' && (s.category !== 'system' || s.name.trim().toLowerCase() === 'courier delivery')))
   }, [])
 
   useEffect(() => {

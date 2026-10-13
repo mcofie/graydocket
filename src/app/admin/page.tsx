@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { getAdminStats } from '@/lib/admin-data'
+import FilingDeadline from './FilingDeadline'
 import { PageHeader, StageChip, cedis, timeAgo, ui, StatsSkeleton, TableSkeleton } from './ui'
 
 type Stats = NonNullable<Awaited<ReturnType<typeof getAdminStats>>>
@@ -82,6 +83,8 @@ export default function AdminOverview() {
           <span className={ui.statHint}>With an account</span>
         </Link>
       </section>
+
+      <FilingDeadline />
 
       <section className={ui.card}>
         <div className={ui.cardHead}>

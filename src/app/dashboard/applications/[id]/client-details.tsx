@@ -8,6 +8,7 @@ import Tabs from '@/components/ui/Tabs'
 import styles from './detail.module.css'
 import EmptyState from '@/components/ui/EmptyState'
 import { STAGES, isReminderNote } from '@/lib/application-flow'
+import { formatDeadline } from '@/lib/annual-filing'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- application rows and form_data are untyped JSON */
 
@@ -151,6 +152,28 @@ export default function ApplicationDetailContent({ app, appId }: { app: any; app
             </Link>
           </section>
         )
+      )}
+
+      {/* Annual return / business name renewal, once the business is registered */}
+      {app.filing && (
+        <section className={`${styles.callout} ${app.filing.overdue && !app.filing.filed ? styles.calloutRed : styles.calloutBlue}`}>
+          <h2>
+            {app.filing.filed
+              ? `${app.filing.year} ${app.filing.label} filed`
+              : app.filing.overdue
+                ? `Your ${app.filing.year} ${app.filing.label} is overdue`
+                : `${app.filing.year} ${app.filing.label} due by ${formatDeadline(app.filing.deadline)}`}
+          </h2>
+          <p>
+            {app.filing.filed
+              ? 'You’re up to date with the ORC for this year. We’ll remind you before the next one is due.'
+              : app.filing.firstFiling
+                ? 'It’s included in what you paid, so we’ll file it for you. Make sure your business details are up to date.'
+                : app.filing.overdue
+                  ? 'The ORC charges penalties for late filing. Get in touch and we’ll file it for you.'
+                  : 'The ORC needs this every year to keep your business on the register. We can file it for you.'}
+          </p>
+        </section>
       )}
 
       {/* Tabs */}

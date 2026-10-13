@@ -1,6 +1,6 @@
-import { timingSafeEqual } from 'node:crypto'
 import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { cronAuthorised } from '@/lib/cron-auth'
 import { sendSms } from '@/lib/checkout-core'
 import { REMINDER_NOTE, isReminderNote } from '@/lib/application-flow'
 import { notify, money } from '@/lib/discord'
@@ -29,20 +29,11 @@ const MAX_PER_RUN = 100
 /** A history entry this close after updated_at was probably what bumped it, not the customer */
 const SAME_MOMENT = 5 * 60 * 1000
 
-function authorised(request: NextRequest) {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return null
-  const header = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
-  const given = header || request.nextUrl.searchParams.get('key') || ''
-  const a = Buffer.from(given)
-  const b = Buffer.from(secret)
-  return a.length === b.length && timingSafeEqual(a, b)
-}
 
 const firstName = (full: string | null | undefined) => (full || '').trim().split(/\s+/)[0] || ''
 
 export async function GET(request: NextRequest) {
-  const ok = authorised(request)
+  const ok = cronAuthorised(request)
   if (ok === null) return NextResponse.json({ ok: false, error: 'CRON_SECRET is not set on the server.' }, { status: 500 })
   if (!ok) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
 

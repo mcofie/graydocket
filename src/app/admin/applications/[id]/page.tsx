@@ -18,6 +18,7 @@ import { canonicalRow, priceForType, type DbBusinessType } from '@/app/dashboard
 import { businessTypes as typeCatalog } from '@/app/dashboard/applications/new/constants'
 import Modal from '../../components/Modal'
 import WorkflowPanel from './WorkflowPanel'
+import FilingCard, { type Filing } from './FilingCard'
 import { CardSkeleton, PaymentChip, Skeleton, StageChip, shortDate, ui } from '../../ui'
 import styles from './detail-admin.module.css'
 
@@ -39,6 +40,7 @@ type App = Json & {
   business_types?: { name?: string | null } | null
   profiles?: { full_name?: string | null; email?: string | null; phone?: string | null } | null
   application_status_history?: History[]
+  filing?: Filing | null
   document_rows?: Array<{ id: string; name: string; file_url: string; document_type?: string | null; uploaded_at?: string | null }>
 }
 
@@ -570,6 +572,8 @@ export default function ApplicationPage({ params }: { params: Promise<{ id: stri
             onRequestChanges={() => setFlagging({ path: 'general', label: 'the application' })}
             onChanged={load}
           />
+
+          {app.filing && <FilingCard applicationId={app.id} filing={app.filing} onChanged={load} />}
 
           <section className={ui.card}>
             <div className={ui.cardHead}><h2 className={ui.cardTitle}>Customer</h2></div>
