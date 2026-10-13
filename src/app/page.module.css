@@ -708,18 +708,13 @@
   letter-spacing: -0.005em;
 }
 
-/* Doodle vignettes (components/doodles/BentoDoodles) */
+/* Product cards (components/landing/ProductCards), static */
 .visualEasy {
   flex: 1;
   min-height: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 16px 4px 12px;
-}
-
-.visualEasy > svg {
-  max-height: 320px;
+  padding: 24px 0 16px;
 }
 
 .visualDoodle {

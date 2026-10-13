@@ -13,9 +13,9 @@ import {
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import Reveal from '@/components/ui/Reveal'
-import { NameDoodle, ComplianceDoodle, VaultDoodle } from '@/components/doodles/Doodles'
+import { ComplianceDoodle } from '@/components/doodles/Doodles'
 import { HeroArtLeft, HeroArtRight, HeroArtRow, CloudBuddy, BeanBuddy, TriangleBuddy } from '@/components/doodles/HeroDoodles'
-import { EasyDoodle, FastDoodle, HandledDoodle, ReliableDoodle, SupportedDoodle } from '@/components/doodles/BentoDoodles'
+import { HandledListCard, TimelineCard, FiledCard, DeadlineCard, ChatCard, NameCheckVisual, DocumentsVisual } from '@/components/landing/ProductCards'
 import styles from './page.module.css'
 
 const featureSections = [
@@ -24,8 +24,8 @@ const featureSections = [
     eyebrow: 'Name Search',
     title: 'Pick your name with confidence.',
     desc: 'Type a name and we check the ORC register for you, flagging exact matches and look-alikes before you file. No guesswork, no rejected applications.',
-    Doodle: NameDoodle,
-    alt: 'A friendly character checking a business name with a magnifying glass',
+    Visual: NameCheckVisual,
+    alt: 'A name check showing “Ama’s Kitchen” looks available, with no conflicts in the ORC register',
     checks: ['Live ORC Search', 'Look-Alike Detection', 'Instant Results', 'No Account Needed', 'Straight To Filing'],
   },
   {
@@ -33,7 +33,7 @@ const featureSections = [
     eyebrow: 'Compliance, handled',
     title: 'Compliance runs itself. You run the business.',
     desc: 'Annual returns, renewals and tax registrations are tracked for you. We remind you well before anything is due and file it once you approve, so paperwork never pulls you away from your business.',
-    Doodle: ComplianceDoodle,
+    Visual: ComplianceDoodle,
     alt: 'A calm character meditating while a calendar, shield and clock look after themselves',
     checks: ['Every Deadline Tracked', 'Early Reminders', 'Filed For You', 'Plain-Language Status'],
   },
@@ -42,8 +42,8 @@ const featureSections = [
     eyebrow: 'Document Vault',
     title: 'Your paperwork, sorted for you.',
     desc: 'Certificates, constitutions and filings are stored and organised automatically, ready the moment a bank, client or accountant asks. Nothing to file away yourself.',
-    Doodle: VaultDoodle,
-    alt: 'A character hugging a folder of documents, with a padlock and a sealed certificate',
+    Visual: DocumentsVisual,
+    alt: 'An encrypted documents list with a certificate of registration, constitution, TIN certificate and annual return',
     checks: ['Encrypted Storage', 'Auto-Organised', 'Secure Sharing', 'Download Anytime'],
   },
 ]
@@ -120,7 +120,7 @@ export default function Home() {
               {/* Easy: everything we take off your plate */}
               <div className={`${styles.card} ${styles.cardEasy}`}>
                 <div className={styles.visualEasy}>
-                  <EasyDoodle />
+                  <HandledListCard />
                 </div>
                 <div className={styles.cardFooter}>
                   <h3 className={styles.cardTitle}>Easy</h3>
@@ -131,7 +131,7 @@ export default function Home() {
               {/* Fast */}
               <div className={styles.card}>
                 <div className={styles.visualDoodle}>
-                  <FastDoodle />
+                  <TimelineCard />
                 </div>
                 <div className={styles.cardFooter}>
                   <h3 className={styles.cardTitle}>Fast</h3>
@@ -142,7 +142,7 @@ export default function Home() {
               {/* Handled: the filing happens without you */}
               <div className={styles.card}>
                 <div className={styles.visualDoodle}>
-                  <HandledDoodle />
+                  <FiledCard />
                 </div>
                 <div className={styles.cardFooter}>
                   <h3 className={styles.cardTitle}>Handled</h3>
@@ -153,7 +153,7 @@ export default function Home() {
               {/* Reliable */}
               <div className={styles.card}>
                 <div className={styles.visualDoodle}>
-                  <ReliableDoodle />
+                  <DeadlineCard />
                 </div>
                 <div className={styles.cardFooter}>
                   <h3 className={styles.cardTitle}>Reliable</h3>
@@ -164,7 +164,7 @@ export default function Home() {
               {/* Supported */}
               <div className={styles.card}>
                 <div className={styles.visualDoodle}>
-                  <SupportedDoodle />
+                  <ChatCard />
                 </div>
                 <div className={styles.cardFooter}>
                   <h3 className={styles.cardTitle}>Supported</h3>
@@ -263,7 +263,7 @@ export default function Home() {
               style={{ '--accent': s.accent } as React.CSSProperties}
             >
               <div className={styles.splitVisual}>
-                <s.Doodle label={s.alt} className={styles.splitDoodle} />
+                <s.Visual label={s.alt} className={styles.splitDoodle} />
               </div>
               <div className={styles.splitText}>
                 <p className={styles.splitEyebrow}>{s.eyebrow}</p>

@@ -277,30 +277,21 @@ type ArtProps = { className?: string }
 // Shared shapes keep guide illustrations in the same family as the homepage.
 export { CloudBuddy, BeanBuddy, FlowerBuddy, TriangleBuddy, Shop, Magnifier, Document, Calendar, Heart, Shield, CheckBadge, Sparkle, ChatBubble, Coin, Padlock, Star, PaperPlane, Gear }
 
+// Kept deliberately sparse: a few hero objects per side, so the headline and characters breathe
 export function HeroArtLeft({ className }: ArtProps) {
   return (
     <svg viewBox="0 0 420 500" className={`${styles.art} ${className ?? ''}`} aria-hidden="true">
-      <circle cx={300} cy={160} r={70} fill={BEIGE} />
+      <circle cx={300} cy={170} r={70} fill={BEIGE} />
       <circle cx={70} cy={420} r={62} fill={BEIGE} />
-      <circle cx={300} cy={340} r={56} fill={BEIGE} />
       <Item delay={0}><Document x={20} y={280} /></Item>
       <Item delay={120} slow><CloudBuddy x={180} y={250} s={0.92} /></Item>
       <Item delay={220}><Coin x={176} y={64} r={32} /></Item>
-      <Item delay={300} slow><Shield x={340} y={110} fill={C.goldLight} /></Item>
-      <Item delay={360}><Heart x={350} y={250} s={1.25} /></Item>
-      <Item delay={420}><PaperPlane x={392} y={170} /></Item>
-      <Item delay={480} slow><Coin x={330} y={330} r={28} /></Item>
-      <Item delay={520}><Gear x={290} y={430} r={26} /></Item>
-      <Item delay={560}><Star x={286} y={210} r={16} /></Item>
-      <Item delay={600}><Sparkle x={300} y={60} s={10} /></Item>
-      <Item delay={620}><Sparkle x={120} y={130} s={8} fill={C.blue} /></Item>
-      <Item delay={640}><Sparkle x={150} y={112} s={7} fill={C.blue} /></Item>
-      <Item delay={660}><Sparkle x={200} y={440} s={9} /></Item>
-      <circle cx={64} cy={92} r={18} fill={C.green} />
-      <circle cx={18} cy={330} r={11} fill={C.red} />
-      <circle cx={196} cy={470} r={22} fill={C.orange} />
-      <circle cx={256} cy={420} r={10} fill={C.blue} />
-      <Item delay={700}><Shield x={380} y={420} s={0.7} fill={C.blue} /></Item>
+      <Item delay={320}><Heart x={340} y={270} s={1.2} /></Item>
+      <Item delay={420}><PaperPlane x={372} y={150} /></Item>
+      <Item delay={520}><Sparkle x={300} y={70} s={10} /></Item>
+      <Item delay={560}><Sparkle x={120} y={130} s={8} fill={C.blue} /></Item>
+      <circle cx={64} cy={92} r={16} fill={C.green} />
+      <circle cx={210} cy={460} r={18} fill={C.orange} />
     </svg>
   )
 }
@@ -308,27 +299,17 @@ export function HeroArtLeft({ className }: ArtProps) {
 export function HeroArtRight({ className }: ArtProps) {
   return (
     <svg viewBox="0 0 460 500" className={`${styles.art} ${className ?? ''}`} aria-hidden="true">
-      <circle cx={130} cy={330} r={76} fill={BEIGE} />
-      <circle cx={360} cy={330} r={62} fill={BEIGE} />
-      <circle cx={250} cy={110} r={50} fill={BEIGE} />
+      <circle cx={140} cy={330} r={76} fill={BEIGE} />
+      <circle cx={330} cy={120} r={50} fill={BEIGE} />
       <Item delay={60}><Shop x={150} y={80} /></Item>
-      <Item delay={140}><CheckBadge x={330} y={60} /></Item>
-      <Item delay={200}><ChatBubble x={440} y={110} /></Item>
-      <Item delay={260} slow><BeanBuddy x={110} y={200} /></Item>
-      <Item delay={320}><Padlock x={240} y={170} /></Item>
-      <Item delay={380} slow><FlowerBuddy x={350} y={190} /></Item>
-      <Item delay={440}><Magnifier x={190} y={300} /></Item>
-      <Item delay={500}><Coin x={330} y={300} r={30} /></Item>
-      <Item delay={560} slow><TriangleBuddy x={270} y={380} /></Item>
-      <Item delay={620}><Calendar x={110} y={430} /></Item>
-      <Item delay={660}><Star x={260} y={260} r={13} /></Item>
-      <Item delay={680}><Sparkle x={40} y={110} s={9} fill={BEIGE_DARK} /></Item>
-      <Item delay={700}><Sparkle x={420} y={240} s={10} /></Item>
-      <Item delay={720}><Sparkle x={380} y={460} s={9} /></Item>
-      <circle cx={60} cy={300} r={14} fill={C.blue} />
-      <circle cx={200} cy={400} r={10} fill={C.green} />
-      <circle cx={430} cy={380} r={12} fill={C.gold} />
-      <circle cx={300} cy={20} r={9} fill={BEIGE_DARK} />
+      <Item delay={140}><CheckBadge x={330} y={110} /></Item>
+      <Item delay={260} slow><BeanBuddy x={120} y={220} /></Item>
+      <Item delay={320}><Padlock x={250} y={190} /></Item>
+      <Item delay={380} slow><FlowerBuddy x={350} y={290} /></Item>
+      <Item delay={440}><Magnifier x={190} y={380} /></Item>
+      <Item delay={560}><Sparkle x={420} y={200} s={10} /></Item>
+      <circle cx={60} cy={330} r={13} fill={C.blue} />
+      <circle cx={400} cy={430} r={12} fill={C.gold} />
     </svg>
   )
 }
