@@ -275,7 +275,7 @@ function Gear({ x, y, r = 30 }: { x: number; y: number; r?: number }) {
 type ArtProps = { className?: string }
 
 // Shared shapes keep guide illustrations in the same family as the homepage.
-export { CloudBuddy, BeanBuddy, FlowerBuddy, TriangleBuddy, Shop, Magnifier, Document, Calendar, Heart, Shield, CheckBadge, Sparkle, ChatBubble }
+export { CloudBuddy, BeanBuddy, FlowerBuddy, TriangleBuddy, Shop, Magnifier, Document, Calendar, Heart, Shield, CheckBadge, Sparkle, ChatBubble, Coin, Padlock, Star, PaperPlane, Gear }
 
 export function HeroArtLeft({ className }: ArtProps) {
   return (

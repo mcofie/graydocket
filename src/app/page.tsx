@@ -3,12 +3,6 @@ import { pageMetadata, siteDescription, siteTitle } from '@/lib/metadata'
 
 export const metadata = pageMetadata(siteTitle, siteDescription, '/')
 import {
-  Building2,
-  Search,
-  ShieldCheck,
-  FolderLock,
-  CheckCircle2,
-  CalendarClock,
   ArrowRight,
   Plus,
   Check,
@@ -21,15 +15,8 @@ import Footer from '@/components/Footer'
 import Reveal from '@/components/ui/Reveal'
 import { NameDoodle, ComplianceDoodle, VaultDoodle } from '@/components/doodles/Doodles'
 import { HeroArtLeft, HeroArtRight, HeroArtRow, CloudBuddy, BeanBuddy, TriangleBuddy } from '@/components/doodles/HeroDoodles'
+import { EasyDoodle, FastDoodle, HandledDoodle, ReliableDoodle, SupportedDoodle } from '@/components/doodles/BentoDoodles'
 import styles from './page.module.css'
-
-// What GrayDocket takes off a founder's plate, one family accent each
-const HANDLED = [
-  { icon: Building2, title: 'Registration', desc: 'We file with the ORC for you.', accent: 'var(--accent-blue)', badge: null },
-  { icon: Search, title: 'Name search', desc: 'We check your name is free first.', accent: 'var(--accent-green)', badge: null },
-  { icon: ShieldCheck, title: 'Compliance', desc: 'Annual returns and renewals, filed.', accent: 'var(--accent-gold)', badge: null },
-  { icon: FolderLock, title: 'Documents', desc: 'Every certificate, kept safe.', accent: 'var(--accent-orange)', badge: 'Encrypted' },
-]
 
 const featureSections = [
   {
@@ -133,24 +120,7 @@ export default function Home() {
               {/* Easy: everything we take off your plate */}
               <div className={`${styles.card} ${styles.cardEasy}`}>
                 <div className={styles.visualEasy}>
-                  <div className={styles.darkMenu}>
-                    <p className={styles.menuLabel}>We handle</p>
-                    {HANDLED.map(({ icon: Icon, title, desc, accent, badge }) => (
-                      <div key={title} className={styles.menuItem}>
-                        <div className={styles.menuIcon} style={{ backgroundColor: accent }}>
-                          <Icon size={15} color="#ffffff" strokeWidth={2.25} />
-                        </div>
-                        <div className={styles.menuText}>
-                          <div className={styles.menuTitleRow}>
-                            <span className={styles.menuTitle}>{title}</span>
-                            {badge && <span className={styles.idBadge}>{badge}</span>}
-                          </div>
-                          <div className={styles.menuDesc}>{desc}</div>
-                        </div>
-                        <Check size={14} strokeWidth={3} className={styles.menuDone} />
-                      </div>
-                    ))}
-                  </div>
+                  <EasyDoodle />
                 </div>
                 <div className={styles.cardFooter}>
                   <h3 className={styles.cardTitle}>Easy</h3>
@@ -160,25 +130,8 @@ export default function Home() {
 
               {/* Fast */}
               <div className={styles.card}>
-                <div className={styles.visualFast}>
-                  <div className={styles.timelineBox}>
-                    {[
-                      { title: 'Name cleared', date: 'Mon' },
-                      { title: 'Filed with ORC', date: 'Tue' },
-                      { title: 'Certificate issued', date: 'Thu' },
-                    ].map((step, i, arr) => (
-                      <div key={step.title} className={styles.timelineItem}>
-                        <div className={styles.timelineNode}>
-                          <CheckCircle2 size={16} className={styles.timelineCheck} />
-                          {i < arr.length - 1 && <div className={styles.timelineLine} />}
-                        </div>
-                        <div className={styles.timelineContent}>
-                          <span className={styles.timelineTitle}>{step.title}</span>
-                          <span className={styles.timelineDate}>{step.date}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                <div className={styles.visualDoodle}>
+                  <FastDoodle />
                 </div>
                 <div className={styles.cardFooter}>
                   <h3 className={styles.cardTitle}>Fast</h3>
@@ -188,17 +141,8 @@ export default function Home() {
 
               {/* Handled: the filing happens without you */}
               <div className={styles.card}>
-                <div className={styles.visualCenter}>
-                  <div className={styles.statusPill}>
-                    <span className={styles.statusFiling}>
-                      <span className={styles.spinner} aria-hidden="true" />
-                      Filing for you
-                    </span>
-                    <span className={styles.statusDone}>
-                      <CheckCircle2 size={18} strokeWidth={2.5} />
-                      Compliant
-                    </span>
-                  </div>
+                <div className={styles.visualDoodle}>
+                  <HandledDoodle />
                 </div>
                 <div className={styles.cardFooter}>
                   <h3 className={styles.cardTitle}>Handled</h3>
@@ -208,18 +152,8 @@ export default function Home() {
 
               {/* Reliable */}
               <div className={styles.card}>
-                <div className={styles.visualCenter}>
-                  <div className={styles.deadlineCard}>
-                    <CalendarClock size={18} className={styles.deadlineIcon} />
-                    <div className={styles.deadlineCenter}>
-                      <div className={styles.deadlineTitle}>Annual return</div>
-                      <div className={styles.deadlineSub}>Due in 14 days</div>
-                    </div>
-                    <span className={styles.deadlineBadge}>
-                      <Bell size={11} strokeWidth={2.5} className={styles.bell} />
-                      We&apos;re on it
-                    </span>
-                  </div>
+                <div className={styles.visualDoodle}>
+                  <ReliableDoodle />
                 </div>
                 <div className={styles.cardFooter}>
                   <h3 className={styles.cardTitle}>Reliable</h3>
@@ -229,12 +163,8 @@ export default function Home() {
 
               {/* Supported */}
               <div className={styles.card}>
-                <div className={styles.visualCenter}>
-                  <div className={styles.chat}>
-                    <span className={`${styles.bubble} ${styles.bubbleMe}`}>Is my name approved?</span>
-                    <span className={styles.typing} aria-hidden="true"><i /><i /><i /></span>
-                    <span className={`${styles.bubble} ${styles.bubbleUs}`}>Yes! We&apos;re filing today.</span>
-                  </div>
+                <div className={styles.visualDoodle}>
+                  <SupportedDoodle />
                 </div>
                 <div className={styles.cardFooter}>
                   <h3 className={styles.cardTitle}>Supported</h3>

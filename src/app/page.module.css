@@ -708,313 +708,25 @@
   letter-spacing: -0.005em;
 }
 
-/* Easy: dark "we handle" list */
+/* Doodle vignettes (components/doodles/BentoDoodles) */
 .visualEasy {
-  margin-bottom: auto;
-  padding-top: 24px;
-  display: flex;
-  justify-content: center;
-}
-
-.darkMenu {
-  background: #0f1115;
-  border-radius: 18px;
-  padding: 18px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 100%;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
-  margin-bottom: 24px;
-}
-
-.menuLabel {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #6b7280;
-  margin-bottom: -4px;
-}
-
-.menuItem {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.menuIcon {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.menuText {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
   flex: 1;
-  min-width: 0;
-}
-
-.menuTitleRow {
+  min-height: 0;
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  padding: 16px 4px 12px;
 }
 
-.menuTitle {
-  font-family: var(--font-sans);
-  font-size: 13.5px;
-  font-weight: 600;
-  color: #ffffff;
+.visualEasy > svg {
+  max-height: 320px;
 }
 
-.idBadge {
-  background: #1f232b;
-  color: #94a3b8;
-  font-size: 9.5px;
-  font-weight: 600;
-  padding: 1px 5px;
-  border-radius: 4px;
-  letter-spacing: 0.02em;
-}
-
-.menuDesc {
-  font-family: var(--font-sans);
-  font-size: 11.5px;
-  color: #8b949e;
-  line-height: 1.35;
-}
-
-.menuDone {
-  flex-shrink: 0;
-  color: var(--accent-green);
-}
-
-.visualCenter {
+.visualDoodle {
   height: 120px;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-/* Handled: "Filing for you" turns into "Compliant" */
-.statusPill {
-  display: inline-grid;
-  background-color: var(--brand);
-  /* Dark text: white on the light brand green is too faint to read */
-  color: #052e1c;
-  padding: 9px 20px;
-  border-radius: 9999px;
-  font-family: var(--font-sans);
-  font-size: 15px;
-  font-weight: 600;
-  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent-green) 35%, transparent);
-}
-
-/* Both labels share one grid cell, so the pill keeps the wider label's width */
-.statusFiling,
-.statusDone {
-  grid-area: 1 / 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  white-space: nowrap;
-}
-
-.statusFiling {
-  opacity: 0;
-}
-
-.spinner {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 2px solid currentColor;
-  border-right-color: transparent;
-  animation: bentoSpin 0.8s linear infinite;
-}
-
-/* Fast: stepper timeline */
-.visualFast {
-  height: 120px;
-  display: flex;
-  align-items: center;
-}
-
-.timelineBox {
-  background: #ffffff;
-  border-radius: 14px;
-  padding: 12px 14px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.timelineItem {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.timelineNode {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 16px;
-}
-
-.timelineCheck {
-  color: var(--accent-blue);
-  background: #ffffff;
-}
-
-.timelineLine {
-  width: 2px;
-  height: 14px;
-  background-color: var(--accent-blue);
-  margin: 1px 0;
-  transform-origin: top;
-}
-
-.timelineContent {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.timelineTitle {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 600;
-  color: #111827;
-}
-
-.timelineDate {
-  font-family: var(--font-sans);
-  font-size: 10px;
-  color: #94a3b8;
-}
-
-/* Reliable: deadline widget */
-.deadlineCard {
-  background: #ffffff;
-  border-radius: 14px;
-  padding: 12px 14px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.deadlineIcon {
-  color: var(--accent-orange);
-  flex-shrink: 0;
-}
-
-.deadlineCenter {
-  display: flex;
-  flex-direction: column;
-}
-
-.deadlineTitle {
-  font-family: var(--font-sans);
-  font-size: 14px;
-  font-weight: 600;
-  color: #0f172a;
-  line-height: 1.2;
-}
-
-.deadlineSub {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  color: #64748b;
-}
-
-.deadlineBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: color-mix(in srgb, var(--accent-gold) 22%, #ffffff);
-  color: #111827;
-  font-family: var(--font-sans);
-  font-size: 10.5px;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 9999px;
-  white-space: nowrap;
-}
-
-.bell {
-  transform-origin: 50% 0;
-}
-
-/* Supported: a quick WhatsApp-style exchange */
-.chat {
-  width: 100%;
-  max-width: 230px;
-  display: grid;
-  gap: 6px;
-  font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.bubble {
-  max-width: 85%;
-  padding: 7px 11px;
-  border-radius: 14px;
-  line-height: 1.3;
-}
-
-.bubbleMe {
-  justify-self: end;
-  background: #111827;
-  color: #ffffff;
-  border-bottom-right-radius: 4px;
-}
-
-.bubbleUs {
-  grid-area: 2 / 1;
-  justify-self: start;
-  background: #ffffff;
-  color: #111827;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-bottom-left-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
-}
-
-/* Typing dots share the reply's cell and are hidden once it arrives */
-.typing {
-  grid-area: 2 / 1;
-  justify-self: start;
-  align-self: center;
-  display: inline-flex;
-  gap: 3px;
-  padding: 9px 11px;
-  border-radius: 14px;
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  opacity: 0;
-}
-
-.typing i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #9ca3af;
 }
 
 /* ---------- Entrance animations ---------- */
@@ -1030,141 +742,17 @@
   .grid[data-reveal='in'] .card:nth-child(3) { animation-delay: 0.16s; }
   .grid[data-reveal='in'] .card:nth-child(4) { animation-delay: 0.24s; }
   .grid[data-reveal='in'] .card:nth-child(5) { animation-delay: 0.32s; }
-
-  /* Easy: rows slide in, then each gets ticked off */
-  .grid[data-reveal='in'] .menuItem {
-    animation: bentoSlide 0.5s var(--ease-out) both;
-  }
-  .grid[data-reveal='in'] .menuDone {
-    animation: bentoPop 0.45s var(--ease-spring) both;
-  }
-  /* nth-of-type counts the row divs only; the "We handle" label is a <p> */
-  .grid[data-reveal='in'] .menuItem:nth-of-type(1) { animation-delay: 0.3s; }
-  .grid[data-reveal='in'] .menuItem:nth-of-type(1) .menuDone { animation-delay: 0.9s; }
-  .grid[data-reveal='in'] .menuItem:nth-of-type(2) { animation-delay: 0.4s; }
-  .grid[data-reveal='in'] .menuItem:nth-of-type(2) .menuDone { animation-delay: 1.15s; }
-  .grid[data-reveal='in'] .menuItem:nth-of-type(3) { animation-delay: 0.5s; }
-  .grid[data-reveal='in'] .menuItem:nth-of-type(3) .menuDone { animation-delay: 1.4s; }
-  .grid[data-reveal='in'] .menuItem:nth-of-type(4) { animation-delay: 0.6s; }
-  .grid[data-reveal='in'] .menuItem:nth-of-type(4) .menuDone { animation-delay: 1.65s; }
-
-  /* Fast: each step checks off in turn */
-  .grid[data-reveal='in'] .timelineCheck {
-    animation: bentoPop 0.45s var(--ease-spring) both;
-  }
-  .grid[data-reveal='in'] .timelineLine {
-    animation: bentoGrow 0.35s var(--ease-out) both;
-  }
-  .grid[data-reveal='in'] .timelineTitle {
-    animation: bentoInk 0.4s ease both;
-  }
-  .grid[data-reveal='in'] .timelineItem:nth-child(1) :is(.timelineCheck, .timelineTitle) { animation-delay: 0.5s; }
-  .grid[data-reveal='in'] .timelineItem:nth-child(1) .timelineLine { animation-delay: 0.8s; }
-  .grid[data-reveal='in'] .timelineItem:nth-child(2) :is(.timelineCheck, .timelineTitle) { animation-delay: 1.05s; }
-  .grid[data-reveal='in'] .timelineItem:nth-child(2) .timelineLine { animation-delay: 1.35s; }
-  .grid[data-reveal='in'] .timelineItem:nth-child(3) :is(.timelineCheck, .timelineTitle) { animation-delay: 1.6s; }
-
-  /* Handled: grey "Filing for you", then a green "Compliant" pop */
-  .grid[data-reveal='in'] .statusPill {
-    animation: bentoPillTurn 2.4s var(--ease-out) 0.2s both;
-  }
-  .grid[data-reveal='in'] .statusFiling {
-    animation: bentoFilingOut 2.4s ease 0.2s both;
-  }
-  .grid[data-reveal='in'] .statusDone {
-    animation: bentoDoneIn 2.4s var(--ease-spring) 0.2s both;
-  }
-
-  /* Reliable: the bell rings once */
-  .grid[data-reveal='in'] .bell {
-    animation: bentoRing 0.9s ease 1.2s both;
-  }
-
-  /* Supported: question, typing dots, then the reply */
-  .grid[data-reveal='in'] .bubbleMe {
-    animation: bentoBubble 0.45s var(--ease-spring) 0.7s both;
-  }
-  .grid[data-reveal='in'] .typing {
-    animation: bentoTyping 1.3s ease 1.2s both;
-  }
-  .grid[data-reveal='in'] .typing i {
-    animation: bentoDot 0.9s ease-in-out infinite;
-  }
-  .grid[data-reveal='in'] .typing i:nth-child(2) { animation-delay: 0.15s; }
-  .grid[data-reveal='in'] .typing i:nth-child(3) { animation-delay: 0.3s; }
-  .grid[data-reveal='in'] .bubbleUs {
-    animation: bentoBubble 0.45s var(--ease-spring) 2.5s both;
-  }
 }
 
+/* Shared with the "How it works" section */
 @keyframes bentoRise {
   from { opacity: 0; transform: translateY(24px) scale(0.98); }
-  to { opacity: 1; transform: none; }
-}
-
-@keyframes bentoSlide {
-  from { opacity: 0; transform: translateX(-10px); }
   to { opacity: 1; transform: none; }
 }
 
 @keyframes bentoPop {
   from { opacity: 0; transform: scale(0.4); }
   to { opacity: 1; transform: scale(1); }
-}
-
-@keyframes bentoGrow {
-  from { transform: scaleY(0); }
-  to { transform: scaleY(1); }
-}
-
-@keyframes bentoInk {
-  from { color: #9ca3af; }
-  to { color: #111827; }
-}
-
-@keyframes bentoPillTurn {
-  0%, 55% { background-color: #e5e7eb; color: #4b5563; box-shadow: none; transform: scale(1); }
-  68% { transform: scale(1.06); }
-  100% { background-color: var(--brand); color: #052e1c; transform: scale(1); }
-}
-
-@keyframes bentoFilingOut {
-  0%, 55% { opacity: 1; transform: none; }
-  65%, 100% { opacity: 0; transform: translateY(-6px); }
-}
-
-@keyframes bentoDoneIn {
-  0%, 58% { opacity: 0; transform: translateY(8px); }
-  75%, 100% { opacity: 1; transform: none; }
-}
-
-@keyframes bentoRing {
-  0%, 100% { transform: rotate(0); }
-  15% { transform: rotate(18deg); }
-  30% { transform: rotate(-14deg); }
-  45% { transform: rotate(10deg); }
-  60% { transform: rotate(-6deg); }
-  75% { transform: rotate(3deg); }
-}
-
-@keyframes bentoBubble {
-  from { opacity: 0; transform: translateY(8px) scale(0.9); }
-  to { opacity: 1; transform: none; }
-}
-
-@keyframes bentoTyping {
-  0% { opacity: 0; }
-  15%, 85% { opacity: 1; }
-  100% { opacity: 0; }
-}
-
-@keyframes bentoDot {
-  0%, 60%, 100% { transform: none; opacity: 0.5; }
-  30% { transform: translateY(-3px); opacity: 1; }
-}
-
-@keyframes bentoSpin {
-  to { transform: rotate(360deg); }
 }
 
 /* =====================================================
@@ -1322,8 +910,7 @@
     padding: 24px;
   }
 
-  .visualCenter,
-  .visualFast {
+  .visualDoodle {
     height: 110px;
   }
 

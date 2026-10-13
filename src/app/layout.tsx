@@ -42,7 +42,6 @@ export const metadata: Metadata = {
     "sole proprietorship Ghana",
     "limited company Ghana",
     "ORC registration Ghana",
-    "business bank account Ghana",
     "annual returns Ghana",
     "Ghana Revenue Authority tax clearance",
     "GrayDocket",
@@ -56,6 +55,8 @@ export const metadata: Metadata = {
     telephone: false,
   },
   manifest: "/manifest.webmanifest",
+  // Short name under the icon when someone adds GrayDocket to their iPhone home screen
+  appleWebApp: { title: "GrayDocket", statusBarStyle: "default" },
   openGraph: {
     title: siteTitle,
     description:

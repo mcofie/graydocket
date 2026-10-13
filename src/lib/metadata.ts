@@ -5,7 +5,7 @@ export const siteUrl = ['localhost', '127.0.0.1', '[::1]'].includes(configuredUr
   ? 'https://graydocket.com'
   : configuredUrl.origin
 export const siteTitle = 'Business Registration in Ghana | GrayDocket'
-export const siteDescription = 'Register your business in Ghana with GrayDocket. We handle ORC registration, business name searches, annual returns, and compliance paperwork.'
+export const siteDescription = 'Start your business in Ghana with GrayDocket. We handle ORC registration, business name searches and annual returns, so you can focus on running your business.'
 
 export function pageMetadata(title: string, description: string, path: string): Metadata {
   const socialTitle = path === '/' ? siteTitle : `${title} | GrayDocket`
