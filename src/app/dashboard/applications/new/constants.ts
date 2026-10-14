@@ -43,6 +43,10 @@ export interface PersonEntry {
   email: string
   ghanaCardPhotoUrl?: string
   idPhotos?: string[]
+  /** Set while this person has been sent a link to fill in their own details */
+  inviteId?: string
+  /** Their answers from the link have been applied; later edits here are kept */
+  inviteMerged?: boolean
 }
 
 export const emptyPerson: PersonEntry = {

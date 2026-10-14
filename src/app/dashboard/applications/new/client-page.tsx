@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef, Suspense } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
-import { Check, ArrowLeft, ArrowRight, Plus, Trash2, Clock, AlertTriangle, CheckCircle2, User, Building2, HeartHandshake, type LucideIcon } from 'lucide-react'
+import { Check, ArrowLeft, ArrowRight, Plus, Trash2, Clock, AlertTriangle, CheckCircle2, User, Building2, HeartHandshake, Info, type LucideIcon } from 'lucide-react'
 import { usePaystackPayment } from 'react-paystack'
 import { startCheckout, confirmPayment } from '@/lib/checkout'
 import { 
@@ -19,7 +19,13 @@ import PersonForm from './PersonForm'
 import NameCheck from './NameCheck'
 import { useNameCheck, warmNameCheck } from './useNameCheck'
 import { priceForType, addOnsWithPrices, courierFeeFrom, quoteApplication, type DbBusinessType } from './pricing'
-import { regionFromDigitalAddress, todayISO, splitFullName, personDisplayName, missingPersonFields, missingLine } from './helpers'
+import { regionFromDigitalAddress, todayISO, splitFullName, personDisplayName, isValidPhone, type Issue } from './helpers'
+import { businessIssues, proprietorIssues, directorIssues, secretaryIssues, ownershipIssues } from './validation'
+import { useStepErrors, IssueList } from './StepErrors'
+import OwnershipSection, { CopyChips } from './OwnershipSection'
+import { districtsFor } from './districts'
+import { useDirectorInvites, awaitingInvite } from './useDirectorInvites'
+import DirectorInvite, { DirectorInviteTip } from './DirectorInvite'
 import { results as typeRequirements } from '../../choose/quiz'
 
 
@@ -104,7 +110,9 @@ function StepNav({
   nextLabel = 'Continue',
   nextDisabled,
   nextId,
-  missing,
+  issues = [],
+  showIssues,
+  onJump,
 }: {
   onBack?: () => void
   onSave: () => void
@@ -114,21 +122,15 @@ function StepNav({
   nextLabel?: string
   nextDisabled?: boolean
   nextId?: string
-  /** Human-readable list of what still blocks Continue */
-  missing?: string[]
+  /** What still needs fixing on this step (Continue stays clickable and points to these) */
+  issues?: Issue[]
+  /** Continue was pressed with problems: show the list */
+  showIssues?: boolean
+  onJump?: (issue: Issue) => void
 }) {
-  const blocked = nextDisabled || (missing?.length ?? 0) > 0
   return (
     <>
-    {missing && missing.length > 0 && (
-      <div className={styles.missing} role="status">
-        <span className={styles.missingTitle}>To continue, add:</span>
-        <ul>
-          {missing.slice(0, 6).map((m) => <li key={m}>{m}</li>)}
-          {missing.length > 6 && <li>and {missing.length - 6} more</li>}
-        </ul>
-      </div>
-    )}
+    <IssueList issues={issues} show={Boolean(showIssues)} onJump={(i) => onJump?.(i)} />
     <div className={styles.stepNav}>
       {onBack ? (
         <button type="button" className="btn btn-ghost" onClick={onBack}>
@@ -138,30 +140,15 @@ function StepNav({
         <span />
       )}
       <div className={styles.navRight}>
-        <button type="button" className="btn btn-secondary" onClick={onSave} disabled={saving || saveDisabled}>
+        <button type="button" className="btn btn-secondary" onClick={() => onSave()} disabled={saving || saveDisabled}>
           {saving ? 'Saving…' : 'Save draft'}
         </button>
-        <button type="button" className="btn btn-primary" onClick={onNext} disabled={blocked} id={nextId}>
+        <button type="button" className="btn btn-primary" onClick={onNext} disabled={nextDisabled} id={nextId}>
           {nextLabel} <ArrowRight size={16} />
         </button>
       </div>
     </div>
     </>
-  )
-}
-
-/** "Fill from" shortcuts that copy someone already entered */
-function CopyChips({ label, options }: { label: string; options: Array<{ key: string; text: string; onClick: () => void }> }) {
-  if (options.length === 0) return null
-  return (
-    <div className={styles.copyChips}>
-      <span className={styles.copyLabel}>{label}</span>
-      {options.map((o) => (
-        <button key={o.key} type="button" className={styles.chip} onClick={o.onClick}>
-          {o.text}
-        </button>
-      ))}
-    </div>
   )
 }
 
@@ -259,6 +246,8 @@ function NewRegistrationContent() {
   const [isDraftLoaded, setIsDraftLoaded] = useState(false)
   // The saved (database) draft this form is editing, so "Start over" can discard it
   const draftIdRef = useRef<string | null>(null)
+  // The same id as state, for things that render from it (invite links)
+  const [draftId, setDraftId] = useState<string | null>(null)
   const router = useRouter()
   const pathname = usePathname()
   const [confirmingReset, setConfirmingReset] = useState(false)
@@ -306,6 +295,7 @@ function NewRegistrationContent() {
       const { draft } = await getLatestDraft()
       if (draft && draft.form_data) {
         draftIdRef.current = draft.id
+        setDraftId(draft.id)
         const data = draft.form_data as any
         if (data.currentStep !== undefined) setStep(data.currentStep)
         if (data.businessType) setSelectedType(data.businessType)
@@ -361,16 +351,17 @@ function NewRegistrationContent() {
     localStorage.setItem('graydocket_draft', JSON.stringify(appState))
   }, [step, selectedType, selectedAddOns, formData, proprietor, directors, secretary, shareholders, companyDetails, auditorLater, capitalAuto, deliveryMethod, deliveryAddress, affiliateCode, isDraftLoaded])
 
-  const handleSaveDraft = async () => {
-    if (!selectedType) return
+  /** Save to the database. Returns the application id (invites need one). */
+  const handleSaveDraft = async (override?: { directors?: PersonEntry[] }): Promise<string | null> => {
+    if (!selectedType) return null
     const dbTypeId = getDbBusinessTypeId()
-    if (!dbTypeId) return
+    if (!dbTypeId) return null
 
     setSavingDraft(true)
     const fullState = {
       formData,
       proprietor,
-      directors,
+      directors: override?.directors ?? directors,
       secretary,
       shareholders,
       companyDetails: { ...companyDetails, auditorLater, capitalAuto },
@@ -391,8 +382,12 @@ function NewRegistrationContent() {
     })
 
     if (res.error) console.error("Draft save failed:", res.error)
-    else if (res.applicationId) draftIdRef.current = res.applicationId
+    else if (res.applicationId) {
+      draftIdRef.current = res.applicationId
+      setDraftId(res.applicationId)
+    }
     setSavingDraft(false)
+    return res.error ? null : draftIdRef.current
   }
 
   // Start over: discard the saved draft (database and browser), reset every field in place,
@@ -403,6 +398,7 @@ function NewRegistrationContent() {
       const res = await discardDraft(draftIdRef.current)
       if (res.error) console.error('Draft discard failed:', res.error)
       draftIdRef.current = null
+      setDraftId(null)
     }
     localStorage.removeItem('graydocket_draft')
 
@@ -479,6 +475,8 @@ function NewRegistrationContent() {
         const region = regionFromDigitalAddress(value)
         if (region) next.region = region
       }
+      // A district belongs to one region: clear it when the region changes
+      if (next.region !== prev.region && prev.district && !districtsFor(next.region).includes(prev.district)) next.district = ''
       return next
     })
   }
@@ -508,41 +506,12 @@ function NewRegistrationContent() {
     setSecretary((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleShareholderChange = (index: number, field: string, value: string) => {
-    setShareholders((prev) => {
-      const updated = [...prev]
-      updated[index] = { ...updated[index], [field]: value }
-      return updated
-    })
-  }
-
-  const addShareholder = () => {
-    setShareholders((prev) => [...prev, { ...emptyShareholder }])
-  }
-
-  const removeShareholder = (index: number) => {
-    if (shareholders.length <= 1) return
-    setShareholders((prev) => prev.filter((_, i) => i !== index))
-  }
+  const setCompanyDetailsPatch = useCallback((patch: Record<string, string>) => setCompanyDetails((prev) => ({ ...prev, ...patch })), [])
 
   const handleCompanyDetailChange = (field: string, value: string) => {
     if (field === 'issuedShares' || field === 'statedCapital' || field === 'authorizedShares') setCapitalAuto(false)
     setCompanyDetails((prev) => ({ ...prev, [field]: value }))
   }
-
-  // Keep share totals in step with the shareholder table until the user overrides them
-  const toNumber = (v: string) => Number(String(v).replace(/[^0-9.]/g, '')) || 0
-  const totalShares = shareholders.reduce((sum, sh) => sum + toNumber(sh.numberOfShares), 0)
-  const totalCapital = shareholders.reduce((sum, sh) => sum + toNumber(sh.numberOfShares) * toNumber(sh.valuePerShare), 0)
-  useEffect(() => {
-    if (!capitalAuto || totalShares === 0) return
-    setCompanyDetails((prev) => ({
-      ...prev,
-      issuedShares: String(totalShares),
-      authorizedShares: prev.authorizedShares && toNumber(prev.authorizedShares) >= totalShares ? prev.authorizedShares : String(totalShares),
-      statedCapital: totalCapital ? String(Math.round(totalCapital * 100) / 100) : prev.statedCapital,
-    }))
-  }, [capitalAuto, totalShares, totalCapital])
 
   // ---- Reuse people already entered ----
   const namedDirectors = directors
@@ -552,66 +521,73 @@ function NewRegistrationContent() {
   const copySecretaryFrom = (person: PersonEntry) =>
     setSecretary({ ...person, idPhotos: [...(person.idPhotos || [])] })
 
-  const addPersonAsShareholder = (person: PersonEntry) => {
-    const entry: ShareholderEntry = {
-      ...emptyShareholder,
-      type: 'individual',
-      name: personDisplayName(person),
-      tinNumber: person.tinNumber,
-      nationality: person.nationality || 'Ghanaian',
-      address: [person.residentialAddress, person.city, person.region].filter(Boolean).join(', '),
-    }
-    setShareholders((prev) => {
-      // Fill the first blank row before adding a new one
-      const blank = prev.findIndex((sh) => !sh.name.trim())
-      if (blank === -1) return [...prev, entry]
-      const next = [...prev]
-      next[blank] = { ...entry, numberOfShares: prev[blank].numberOfShares, valuePerShare: prev[blank].valuePerShare }
-      return next
+  // ---- Delivery address from details already entered ----
+  const applicant = isCompany ? directors[0] : proprietor
+  const businessStreet = [formData.buildingName, formData.streetName].filter(Boolean).join(', ')
+  const deliveryFrom = (source: 'me' | 'business') => ({
+    recipientName: personDisplayName(applicant),
+    street: source === 'me' ? applicant?.residentialAddress || businessStreet : businessStreet,
+    city: (source === 'me' && applicant?.city) || formData.city,
+    region: (source === 'me' && applicant?.region) || formData.region,
+    digitalAddress: (source === 'me' && applicant?.digitalAddress) || formData.digitalAddress,
+    phone: applicant?.phone || formData.mobilePhone,
+  })
+  /** Fill only the empty delivery fields, so nothing typed is overwritten */
+  const fillDeliveryBlanks = (source: 'me' | 'business') =>
+    setDeliveryAddress((prev) => {
+      const from = deliveryFrom(source)
+      return Object.fromEntries(Object.entries(prev).map(([k, v]) => [k, v || from[k as keyof typeof from] || ''])) as typeof prev
     })
+  const replaceDeliveryWith = (source: 'me' | 'business') => setDeliveryAddress({ ...deliveryFrom(source) })
+  const chooseCourier = () => {
+    setDeliveryMethod('courier')
+    fillDeliveryBlanks('me')
   }
 
-  const fillBeneficialOwner = (person: PersonEntry) =>
-    setCompanyDetails((prev) => ({
-      ...prev,
-      beneficialOwnerName: personDisplayName(person),
-      beneficialOwnerNationality: person.nationality || prev.beneficialOwnerNationality,
-      beneficialOwnerDOB: person.dateOfBirth || prev.beneficialOwnerDOB,
-      beneficialOwnerAddress: [person.residentialAddress, person.city, person.region].filter(Boolean).join(', ') || prev.beneficialOwnerAddress,
-    }))
-
-  // ---- What's still missing on each step (same rules that gate Continue) ----
-  const step1Missing = [
-    !formData.businessName.trim() && 'Business name',
-    !formData.businessSector && 'Business sector',
-    !formData.natureOfBusiness.trim() && 'Description of activities',
-    !formData.city.trim() && 'City / town',
-    !formData.region && 'Region',
-  ].filter(Boolean) as string[]
-
-  const proprietorMissing = [
-    missingLine('Proprietor', missingPersonFields(proprietor, ['surname', 'firstName', 'ghanaCardNumber', 'tinNumber', 'phone', 'email'])),
-  ].filter(Boolean) as string[]
-
-  const directorsMissing = directors
-    .map((d, i) => missingLine(`Director ${i + 1}`, missingPersonFields(d, ['surname', 'firstName', 'ghanaCardNumber', 'tinNumber'])))
-    .filter(Boolean) as string[]
-
-  const step3Missing = [
-    missingLine('Secretary', missingPersonFields(secretary, ['surname', 'firstName'])),
-    ...shareholders.map((sh, i) =>
-      missingLine(`Shareholder ${i + 1}`, [!sh.name.trim() && 'Name', !sh.tinNumber.trim() && 'TIN'].filter(Boolean) as string[])
-    ),
-  ].filter(Boolean) as string[]
-
-  const deliveryMissing = deliveryMethod === 'courier'
-    ? ([
-        !deliveryAddress.recipientName && 'Recipient name',
-        !deliveryAddress.street && 'Street address',
-        !deliveryAddress.city && 'City',
-        !deliveryAddress.phone && 'Phone',
-      ].filter(Boolean) as string[])
+  // ---- What still needs fixing on each step: the shared rules in ./validation, also used by the edit
+  // form and by the server. Continue stays clickable and points at the problems (./StepErrors). ----
+  const isShares = selectedType === 'limited_by_shares'
+  const step1Issues = businessIssues(formData)
+  const proprietorIssueList = proprietorIssues(proprietor)
+  const directorsIssues = directorIssues(directors)
+  const step3Issues: Issue[] = [
+    ...secretaryIssues(secretary),
+    ...ownershipIssues({ shareholders, details: companyDetails, auditorLater, isShares }),
+  ]
+  const deliveryIssues: Issue[] = deliveryMethod === 'courier'
+    ? [
+        ...(!deliveryAddress.recipientName.trim() ? [{ id: 'del-recipient', label: 'Recipient name', message: 'Required' }] : []),
+        ...(!deliveryAddress.street.trim() ? [{ id: 'del-street', label: 'Street address', message: 'Required' }] : []),
+        ...(!deliveryAddress.city.trim() ? [{ id: 'del-city', label: 'City', message: 'Required' }] : []),
+        ...(!deliveryAddress.region ? [{ id: 'del-region', label: 'Region', message: 'Required' }] : []),
+        ...(!deliveryAddress.phone.trim() ? [{ id: 'del-phone', label: 'Phone', message: 'Required' }] : []),
+        ...(deliveryAddress.phone.trim() && !isValidPhone(deliveryAddress.phone)
+          ? [{ id: 'del-phone', label: 'Phone (check the number)', message: 'Enter a valid phone number' }]
+          : []),
+      ]
     : []
+
+  const errs = useStepErrors()
+  const { showErrors, focusRequest, jumpTo, fieldState, fieldMessage } = errs
+
+  const goTo = (n: number) => {
+    errs.setShowErrors(false)
+    setStep(n)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  /** Continue: move on, or show what's wrong and go to the first problem */
+  const tryNext = (issues: Issue[], next: number) => errs.tryNext(issues, () => goTo(next))
+
+  // ---- Director invite links (shared with the edit form) ----
+  const inv = useDirectorInvites({
+    directors,
+    setDirectors,
+    ensureApplicationId: () => handleSaveDraft(),
+    knownApplicationId: draftId,
+    afterChange: (next) => handleSaveDraft({ directors: next }),
+    businessName: formData.businessName,
+  })
 
   // --- Checkout ---
   // The server saves the application, sets the amount and payment reference, and only submits it
@@ -653,6 +629,7 @@ function NewRegistrationContent() {
       return
     }
     draftIdRef.current = checkout.applicationId
+    setDraftId(checkout.applicationId)
 
     initializePayment({
       config: {
@@ -887,7 +864,7 @@ function NewRegistrationContent() {
             onSave={handleSaveDraft}
             saving={savingDraft}
             saveDisabled={!selectedType}
-            onNext={() => setStep(1)}
+            onNext={() => goTo(1)}
             nextDisabled={!selectedType}
             nextId="next-step-0"
           />
@@ -919,7 +896,9 @@ function NewRegistrationContent() {
                 onChange={(e) => handleInputChange('businessName', e.target.value)}
                 onFocus={warmNameCheck}
                 required
+                {...fieldState(step1Issues, 'businessName')}
               />
+              {fieldMessage(step1Issues, 'businessName')}
               <span className="form-hint">
                 {isCompany
                   ? 'Name must end with "Limited" or "LTD" for private companies. We\'ll conduct a name search with ORC.'
@@ -949,26 +928,30 @@ function NewRegistrationContent() {
           <div className={styles.formGrid}>
             <div className={`form-group ${formData.businessSector === 'Other (specify below)' ? '' : styles.formFull}`}>
               <label className="form-label" htmlFor="businessSector">Business Sector *</label>
-              <select id="businessSector" className="form-input" value={formData.businessSector} onChange={(e) => handleInputChange('businessSector', e.target.value)} required>
+              <select id="businessSector" className="form-input" {...fieldState(step1Issues, 'businessSector')} value={formData.businessSector} onChange={(e) => handleInputChange('businessSector', e.target.value)} required>
                 <option value="">Select sector</option>
                 {businessSectors.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
+              {fieldMessage(step1Issues, 'businessSector')}
             </div>
             {formData.businessSector === 'Other (specify below)' && (
               <div className="form-group">
                 <label className="form-label" htmlFor="businessSectorOther">Specify Sector</label>
-                <input id="businessSectorOther" type="text" className="form-input" placeholder="Describe your sector" value={formData.businessSectorOther} onChange={(e) => handleInputChange('businessSectorOther', e.target.value)} />
+                <input id="businessSectorOther" type="text" className="form-input" {...fieldState(step1Issues, 'businessSectorOther')} placeholder="Describe your sector" value={formData.businessSectorOther} onChange={(e) => handleInputChange('businessSectorOther', e.target.value)} />
+                {fieldMessage(step1Issues, 'businessSectorOther')}
               </div>
             )}
             <div className={`form-group ${styles.formFull}`}>
               <label className="form-label" htmlFor="natureOfBusiness">
                 {isCompany ? 'Objects of the Company / Description of Activities *' : 'Description of Business Activities *'}
               </label>
-              <textarea id="natureOfBusiness" className="form-input" placeholder="Describe the specific activities and services..." rows={3} value={formData.natureOfBusiness} onChange={(e) => handleInputChange('natureOfBusiness', e.target.value)} required />
+              <textarea id="natureOfBusiness" className="form-input" {...fieldState(step1Issues, 'natureOfBusiness')} placeholder="Describe the specific activities and services..." rows={3} value={formData.natureOfBusiness} onChange={(e) => handleInputChange('natureOfBusiness', e.target.value)} required />
+              {fieldMessage(step1Issues, 'natureOfBusiness')}
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="dateOfCommencement">Date of Commencement *</label>
-              <input id="dateOfCommencement" type="date" className="form-input" value={formData.dateOfCommencement} onChange={(e) => handleInputChange('dateOfCommencement', e.target.value)} required />
+              <input id="dateOfCommencement" type="date" className="form-input" {...fieldState(step1Issues, 'dateOfCommencement')} value={formData.dateOfCommencement} onChange={(e) => handleInputChange('dateOfCommencement', e.target.value)} required />
+              {fieldMessage(step1Issues, 'dateOfCommencement')}
               <span className="form-hint">Date business started or will start operations</span>
             </div>
           </div>
@@ -977,21 +960,53 @@ function NewRegistrationContent() {
           {isCompany && (
             <>
               <div className={styles.formSectionTitle}>Company Constitution</div>
-              <div className={styles.formGrid}>
-                <div className={`form-group ${styles.formFull}`}>
-                  <label className="form-label">Constitution Type *</label>
-                  <div className={styles.radioGroup}>
-                    <label className={styles.radioLabel}>
-                      <input type="radio" name="constitution" value="standard" checked={companyDetails.constitutionType === 'standard'} onChange={(e) => handleCompanyDetailChange('constitutionType', e.target.value)} />
-                      <span>Standard Constitution (Schedule 2, Act 992)</span>
-                    </label>
-                    <label className={styles.radioLabel}>
-                      <input type="radio" name="constitution" value="custom" checked={companyDetails.constitutionType === 'custom'} onChange={(e) => handleCompanyDetailChange('constitutionType', e.target.value)} />
-                      <span>Custom / Registered Constitution</span>
-                    </label>
-                  </div>
-                  <span className="form-hint">Most companies adopt the standard constitution. A custom one requires separate drafting and submission.</span>
+              <details className={styles.explainer}>
+                <summary>
+                  <Info size={16} /> What’s a constitution?
+                </summary>
+                <div className={styles.explainerBody}>
+                  <p>
+                    A company’s constitution is its rulebook. It sets out how directors are appointed and removed,
+                    how decisions are made at meetings, how shares can be sold or passed on, and what the company is
+                    allowed to do.
+                  </p>
+                  <p>
+                    You don’t have to write one. If you choose the standard option, the model rules in the Companies
+                    Act, 2019 (Act 992) apply, and most new companies go this way.
+                  </p>
                 </div>
+              </details>
+              <div className={styles.choiceCards} role="radiogroup" aria-label="Constitution">
+                {[
+                  {
+                    value: 'standard',
+                    title: 'Standard constitution',
+                    badge: 'Most common',
+                    desc: 'Use the model rules set out in the Companies Act, 2019 (Act 992). Nothing to draft, and it suits most small companies.',
+                  },
+                  {
+                    value: 'custom',
+                    title: 'Your own constitution',
+                    desc: 'Rules written for your company, usually with a lawyer: for example different share classes, investor approval rights, or limits on selling shares. We’ll ask for the signed document before we file.',
+                  },
+                ].map((o) => (
+                  <label key={o.value} className={`${styles.choiceCard} ${companyDetails.constitutionType === o.value ? styles.choiceCardOn : ''}`}>
+                    <input
+                      type="radio"
+                      name="constitution"
+                      value={o.value}
+                      checked={companyDetails.constitutionType === o.value}
+                      onChange={(e) => handleCompanyDetailChange('constitutionType', e.target.value)}
+                    />
+                    <span>
+                      <span className={styles.choiceCardTitle}>
+                        {o.title}
+                        {o.badge && <span className={styles.choiceBadge}>{o.badge}</span>}
+                      </span>
+                      <span className={styles.choiceCardDesc}>{o.desc}</span>
+                    </span>
+                  </label>
+                ))}
               </div>
             </>
           )}
@@ -1003,31 +1018,51 @@ function NewRegistrationContent() {
           <div className={styles.formGrid}>
             <div className="form-group">
               <label className="form-label" htmlFor="buildingName">House / Building / Flat *</label>
-              <input id="buildingName" type="text" className="form-input" placeholder="e.g., Suite 5, Osu Ventures Building" value={formData.buildingName} onChange={(e) => handleInputChange('buildingName', e.target.value)} required />
+              <input id="buildingName" type="text" className="form-input" {...fieldState(step1Issues, 'buildingName')} placeholder="e.g., Suite 5, Osu Ventures Building" value={formData.buildingName} onChange={(e) => handleInputChange('buildingName', e.target.value)} required />
+              {fieldMessage(step1Issues, 'buildingName')}
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="streetName">Street Name *</label>
-              <input id="streetName" type="text" className="form-input" placeholder="e.g., Oxford Street" value={formData.streetName} onChange={(e) => handleInputChange('streetName', e.target.value)} required />
+              <input id="streetName" type="text" className="form-input" {...fieldState(step1Issues, 'streetName')} placeholder="e.g., Oxford Street" value={formData.streetName} onChange={(e) => handleInputChange('streetName', e.target.value)} required />
+              {fieldMessage(step1Issues, 'streetName')}
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="city">City / Town *</label>
-              <input id="city" type="text" className="form-input" placeholder="e.g., Accra" value={formData.city} onChange={(e) => handleInputChange('city', e.target.value)} required />
-            </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="district">District *</label>
-              <input id="district" type="text" className="form-input" placeholder="e.g., Accra Metropolitan" value={formData.district} onChange={(e) => handleInputChange('district', e.target.value)} required />
+              <input id="city" type="text" className="form-input" {...fieldState(step1Issues, 'city')} placeholder="e.g., Accra" value={formData.city} onChange={(e) => handleInputChange('city', e.target.value)} required />
+              {fieldMessage(step1Issues, 'city')}
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="region">Region *</label>
-              <select id="region" className="form-input" value={formData.region} onChange={(e) => handleInputChange('region', e.target.value)} required>
+              <select id="region" className="form-input" {...fieldState(step1Issues, 'region')} value={formData.region} onChange={(e) => handleInputChange('region', e.target.value)} required>
                 <option value="">Select region</option>
                 {ghanaRegions.map((r) => <option key={r} value={r}>{r}</option>)}
               </select>
+              {fieldMessage(step1Issues, 'region')}
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="district">District *</label>
+              {/* Districts follow the region; a value saved before the list existed stays selectable */}
+              <select
+                id="district"
+                className="form-input"
+                {...fieldState(step1Issues, 'district')}
+                value={formData.district}
+                onChange={(e) => handleInputChange('district', e.target.value)}
+                disabled={!formData.region}
+                required
+              >
+                <option value="">{formData.region ? 'Select district' : 'Choose a region first'}</option>
+                {formData.district && !districtsFor(formData.region).includes(formData.district) && (
+                  <option value={formData.district}>{formData.district}</option>
+                )}
+                {districtsFor(formData.region).map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+              {fieldMessage(step1Issues, 'district')}
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="digitalAddress">Digital Address *</label>
-              <input id="digitalAddress" type="text" className="form-input" placeholder="e.g., GA-XXX-XXXX" value={formData.digitalAddress} onChange={(e) => handleInputChange('digitalAddress', e.target.value)} required />
-              <span className="form-hint">Get yours from the Ghana Post GPS app. We&apos;ll fill in the region where we can.</span>
+              <input id="digitalAddress" type="text" className="form-input" {...fieldState(step1Issues, 'digitalAddress')} placeholder="e.g., GA-XXX-XXXX" value={formData.digitalAddress} onChange={(e) => handleInputChange('digitalAddress', e.target.value)} required />
+              {fieldMessage(step1Issues, 'digitalAddress') || <span className="form-hint">Get yours from the Ghana Post GPS app. We&apos;ll fill in the region where we can.</span>}
             </div>
             <div className={`form-group ${styles.formFull}`}>
               <label className="form-label" htmlFor="postalAddress">Postal Address (optional)</label>
@@ -1040,7 +1075,8 @@ function NewRegistrationContent() {
           <div className={styles.formGrid}>
             <div className="form-group">
               <label className="form-label" htmlFor="mobilePhone">Mobile Phone *</label>
-              <input id="mobilePhone" type="tel" className="form-input" placeholder="+233 XXX XXX XXX" value={formData.mobilePhone} onChange={(e) => handleInputChange('mobilePhone', e.target.value)} required />
+              <input id="mobilePhone" type="tel" className="form-input" {...fieldState(step1Issues, 'mobilePhone')} placeholder="+233 XXX XXX XXX" value={formData.mobilePhone} onChange={(e) => handleInputChange('mobilePhone', e.target.value)} required />
+              {fieldMessage(step1Issues, 'mobilePhone')}
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="alternatePhone">Alternate Phone (optional)</label>
@@ -1048,16 +1084,19 @@ function NewRegistrationContent() {
             </div>
             <div className={`form-group ${styles.formFull}`}>
               <label className="form-label" htmlFor="contactEmail">Email *</label>
-              <input id="contactEmail" type="email" className="form-input" placeholder="company@example.com" value={formData.email} onChange={(e) => handleInputChange('email', e.target.value)} required />
+              <input id="contactEmail" type="email" className="form-input" {...fieldState(step1Issues, 'contactEmail')} placeholder="company@example.com" value={formData.email} onChange={(e) => handleInputChange('email', e.target.value)} required />
+              {fieldMessage(step1Issues, 'contactEmail')}
             </div>
           </div>
 
           <StepNav
-            onBack={() => setStep(0)}
+            onBack={() => goTo(0)}
             onSave={handleSaveDraft}
             saving={savingDraft}
-            onNext={() => setStep(2)}
-            missing={step1Missing}
+            onNext={() => tryNext(step1Issues, 2)}
+            issues={step1Issues}
+            showIssues={showErrors}
+            onJump={jumpTo}
             nextId="next-step-1"
           />
         </div>
@@ -1069,13 +1108,15 @@ function NewRegistrationContent() {
         <div className={styles.stepCard}>
           <h2 className={styles.stepTitle}>Proprietor Details</h2>
           <p className={styles.stepDesc}>Personal information of the business owner as required on ORC Form A.</p>
-          <PersonForm person={proprietor} onChange={handleProprietorChange} prefix="prop" title="Proprietor" />
+          <PersonForm person={proprietor} onChange={handleProprietorChange} prefix="prop" title="Proprietor" showErrors={showErrors} focusRequest={focusRequest} />
           <StepNav
-            onBack={() => setStep(1)}
+            onBack={() => goTo(1)}
             onSave={handleSaveDraft}
             saving={savingDraft}
-            onNext={() => setStep(3)}
-            missing={proprietorMissing}
+            onNext={() => tryNext(proprietorIssueList, 3)}
+            issues={proprietorIssueList}
+            showIssues={showErrors}
+            onJump={jumpTo}
             nextId="next-step-2"
           />
         </div>
@@ -1089,16 +1130,31 @@ function NewRegistrationContent() {
             Minimum 2 directors required. At least one must be a Ghana resident. Each director needs a TIN.
           </p>
 
+          <DirectorInviteTip />
+
           {directors.map((director, index) => (
             <div key={index} className={styles.personBlock}>
-              {directors.length > 2 && (
-                <div className={styles.personBlockActions}>
-                  <button className={`btn btn-ghost btn-sm ${styles.removeBtn}`} onClick={() => removeDirector(index)} type="button">
-                    <Trash2 size={14} /> Remove director {index + 1}
-                  </button>
-                </div>
-              )}
-              <PersonForm person={director} onChange={(f,v) => handleDirectorChange(index, f, v)} prefix={`dir-${index}`} title={`Director ${index + 1}`} />
+              <DirectorInvite
+                index={index}
+                director={director}
+                inv={inv}
+                actions={
+                  directors.length > 2 && (
+                    <button className={`btn btn-ghost btn-sm ${styles.removeBtn}`} onClick={() => removeDirector(index)} type="button">
+                      <Trash2 size={14} /> Remove director {index + 1}
+                    </button>
+                  )
+                }
+              >
+                <PersonForm
+                  person={director}
+                  onChange={(f, v) => handleDirectorChange(index, f, v)}
+                  prefix={`dir-${index}`}
+                  title={`Director ${index + 1}`}
+                  showErrors={showErrors}
+                  focusRequest={focusRequest}
+                />
+              </DirectorInvite>
             </div>
           ))}
 
@@ -1107,11 +1163,13 @@ function NewRegistrationContent() {
           </button>
 
           <StepNav
-            onBack={() => setStep(1)}
+            onBack={() => goTo(1)}
             onSave={handleSaveDraft}
             saving={savingDraft}
-            onNext={() => setStep(3)}
-            missing={directorsMissing}
+            onNext={() => tryNext(directorsIssues, 3)}
+            issues={directorsIssues}
+            showIssues={showErrors}
+            onJump={jumpTo}
             nextId="next-step-2"
           />
         </div>
@@ -1131,157 +1189,33 @@ function NewRegistrationContent() {
               label="Same as"
               options={namedDirectors.map(({ d, i, name }) => ({ key: `sec-${i}`, text: name, onClick: () => copySecretaryFrom(d) }))}
             />
-            <PersonForm person={secretary} onChange={handleSecretaryChange} prefix="sec" title="Company secretary" />
+            <PersonForm person={secretary} onChange={handleSecretaryChange} prefix="sec" title="Company secretary" showErrors={showErrors} focusRequest={focusRequest} />
           </div>
 
-          {/* Shareholders */}
-          <div className={styles.formSectionTitle}>Shareholders</div>
-          <CopyChips
-            label="Add as shareholder"
-            options={namedDirectors
-              .filter(({ name }) => !shareholders.some((sh) => sh.name.trim().toLowerCase() === name.toLowerCase()))
-              .map(({ d, i, name }) => ({ key: `sh-${i}`, text: `+ ${name}`, onClick: () => addPersonAsShareholder(d) }))}
+          <OwnershipSection
+            shareholders={shareholders}
+            setShareholders={setShareholders}
+            details={companyDetails as unknown as Record<string, string>}
+            setDetail={handleCompanyDetailChange}
+            setDetails={setCompanyDetailsPatch}
+            auditorLater={auditorLater}
+            setAuditorLater={setAuditorLater}
+            capitalAuto={capitalAuto}
+            setCapitalAuto={setCapitalAuto}
+            isShares={isShares}
+            people={namedDirectors}
+            issues={step3Issues}
+            errors={errs}
           />
-          {shareholders.map((sh, index) => (
-            <div key={index} className={styles.shareholderBlock}>
-              <div className={styles.personBlockHeader}>
-                <h3 className={styles.personBlockTitle}>Shareholder {index + 1}</h3>
-                {shareholders.length > 1 && (
-                  <button className={`btn btn-ghost btn-sm ${styles.removeBtn}`} onClick={() => removeShareholder(index)} type="button">
-                    <Trash2 size={14} /> Remove
-                  </button>
-                )}
-              </div>
-              <div className={styles.formGrid}>
-                <div className="form-group">
-                  <label className="form-label" htmlFor={`sh-${index}-type`}>Type *</label>
-                  <select id={`sh-${index}-type`} className="form-input" value={sh.type} onChange={(e) => handleShareholderChange(index, 'type', e.target.value)}>
-                    <option value="individual">Individual</option>
-                    <option value="corporate">Corporate Entity</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor={`sh-${index}-name`}>
-                    {sh.type === 'individual' ? 'Full Name *' : 'Entity Name *'}
-                  </label>
-                  <input id={`sh-${index}-name`} type="text" className="form-input" placeholder={sh.type === 'individual' ? 'Full legal name' : 'Registered company name'} value={sh.name} onChange={(e) => handleShareholderChange(index, 'name', e.target.value)} required />
-                </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor={`sh-${index}-tin`}>TIN *</label>
-                  <input id={`sh-${index}-tin`} type="text" className="form-input" placeholder="e.g., CXXXXXXXX" value={sh.tinNumber} onChange={(e) => handleShareholderChange(index, 'tinNumber', e.target.value)} required />
-                </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor={`sh-${index}-nationality`}>
-                    {sh.type === 'individual' ? 'Nationality *' : 'Country of Registration *'}
-                  </label>
-                  <input id={`sh-${index}-nationality`} type="text" className="form-input" placeholder="e.g., Ghanaian" value={sh.nationality} onChange={(e) => handleShareholderChange(index, 'nationality', e.target.value)} required />
-                </div>
-                <div className={`form-group ${styles.formFull}`}>
-                  <label className="form-label" htmlFor={`sh-${index}-address`}>Address *</label>
-                  <input id={`sh-${index}-address`} type="text" className="form-input" placeholder="Full residential or registered address" value={sh.address} onChange={(e) => handleShareholderChange(index, 'address', e.target.value)} required />
-                </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor={`sh-${index}-shares`}>Number of Shares *</label>
-                  <input id={`sh-${index}-shares`} type="text" className="form-input" placeholder="e.g., 1000" value={sh.numberOfShares} onChange={(e) => handleShareholderChange(index, 'numberOfShares', e.target.value)} required />
-                </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor={`sh-${index}-value`}>Value per Share (GH₵) *</label>
-                  <input id={`sh-${index}-value`} type="text" className="form-input" placeholder="e.g., 1.00" value={sh.valuePerShare} onChange={(e) => handleShareholderChange(index, 'valuePerShare', e.target.value)} required />
-                </div>
-              </div>
-            </div>
-          ))}
-
-          <button className={`btn btn-secondary ${styles.addPersonBtn}`} onClick={addShareholder} type="button">
-            <Plus size={16} /> Add Another Shareholder
-          </button>
-
-          {/* Stated Capital */}
-          {selectedType === 'limited_by_shares' && (
-            <>
-              <div className={styles.formSectionTitle}>Stated Capital</div>
-              <div className={styles.formGrid}>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="authorizedShares">Total Authorized Shares *</label>
-                  <input id="authorizedShares" type="text" className="form-input" placeholder="e.g., 10,000" value={companyDetails.authorizedShares} onChange={(e) => handleCompanyDetailChange('authorizedShares', e.target.value)} required />
-                </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="issuedShares">Issued Shares *</label>
-                  <input id="issuedShares" type="text" className="form-input" placeholder="e.g., 1,000" value={companyDetails.issuedShares} onChange={(e) => handleCompanyDetailChange('issuedShares', e.target.value)} required />
-                </div>
-                <div className={`form-group ${styles.formFull}`}>
-                  <label className="form-label" htmlFor="statedCapital">Stated Capital (GH₵) *</label>
-                  <input id="statedCapital" type="text" className="form-input" placeholder="Total paid-up value of issued shares" value={companyDetails.statedCapital} onChange={(e) => handleCompanyDetailChange('statedCapital', e.target.value)} required />
-                  <span className="form-hint">
-                    {capitalAuto && totalShares > 0
-                      ? 'Calculated from your shareholders. Edit any figure if it’s different.'
-                      : 'Under Act 992, shares are no-par-value. The stated capital is the aggregate of considerations received for issued shares.'}
-                  </span>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* Auditor */}
-          <div className={styles.formSectionTitle}>Auditor</div>
-          <label className={styles.laterToggle}>
-            <input type="checkbox" checked={auditorLater} onChange={(e) => setAuditorLater(e.target.checked)} />
-            <span>I don&apos;t have an auditor yet. I&apos;ll add one later.</span>
-          </label>
-          {auditorLater ? (
-            <p className={styles.laterNote}>
-              No problem. You can submit now, and we&apos;ll ask for your auditor&apos;s details before we file. We can also
-              recommend a licensed auditor.
-            </p>
-          ) : (
-          <div className={styles.formGrid}>
-            <div className="form-group">
-              <label className="form-label" htmlFor="auditorName">Auditor Name *</label>
-              <input id="auditorName" type="text" className="form-input" placeholder="Full name of licensed auditor" value={companyDetails.auditorName} onChange={(e) => handleCompanyDetailChange('auditorName', e.target.value)} required />
-            </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="auditorFirm">Audit Firm (optional)</label>
-              <input id="auditorFirm" type="text" className="form-input" placeholder="Name of audit firm" value={companyDetails.auditorFirm} onChange={(e) => handleCompanyDetailChange('auditorFirm', e.target.value)} />
-            </div>
-            <div className={`form-group ${styles.formFull}`}>
-              <label className="form-label" htmlFor="auditorLicense">ICAG License Number *</label>
-              <input id="auditorLicense" type="text" className="form-input" placeholder="Auditor's ICAG license number" value={companyDetails.auditorLicense} onChange={(e) => handleCompanyDetailChange('auditorLicense', e.target.value)} required />
-              <span className="form-hint">A consent letter from the auditor will be required</span>
-            </div>
-          </div>
-          )}
-
-          {/* Beneficial Ownership */}
-          <div className={styles.formSectionTitle}>Beneficial Ownership</div>
-          <CopyChips
-            label="Same as"
-            options={namedDirectors.map(({ d, i, name }) => ({ key: `bo-${i}`, text: name, onClick: () => fillBeneficialOwner(d) }))}
-          />
-          <div className={styles.formGrid}>
-            <div className="form-group">
-              <label className="form-label" htmlFor="beneficialOwnerName">Beneficial Owner Name *</label>
-              <input id="beneficialOwnerName" type="text" className="form-input" placeholder="Full legal name" value={companyDetails.beneficialOwnerName} onChange={(e) => handleCompanyDetailChange('beneficialOwnerName', e.target.value)} required />
-            </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="beneficialOwnerNationality">Nationality *</label>
-              <input id="beneficialOwnerNationality" type="text" className="form-input" placeholder="e.g., Ghanaian" value={companyDetails.beneficialOwnerNationality} onChange={(e) => handleCompanyDetailChange('beneficialOwnerNationality', e.target.value)} required />
-            </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="beneficialOwnerDOB">Date of Birth *</label>
-              <input id="beneficialOwnerDOB" type="date" className="form-input" value={companyDetails.beneficialOwnerDOB} onChange={(e) => handleCompanyDetailChange('beneficialOwnerDOB', e.target.value)} required />
-            </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="beneficialOwnerAddress">Residential Address *</label>
-              <input id="beneficialOwnerAddress" type="text" className="form-input" placeholder="Full residential address" value={companyDetails.beneficialOwnerAddress} onChange={(e) => handleCompanyDetailChange('beneficialOwnerAddress', e.target.value)} required />
-            </div>
-          </div>
 
           <StepNav
-            onBack={() => setStep(2)}
+            onBack={() => goTo(2)}
             onSave={handleSaveDraft}
             saving={savingDraft}
-            onNext={() => setStep(4)}
-            missing={step3Missing}
+            onNext={() => tryNext(step3Issues, 4)}
+            issues={step3Issues}
+            showIssues={showErrors}
+            onJump={jumpTo}
             nextId="next-step-3"
           />
         </div>
@@ -1321,10 +1255,10 @@ function NewRegistrationContent() {
           </div>
 
           <StepNav
-            onBack={() => setStep(step - 1)}
+            onBack={() => goTo(step - 1)}
             onSave={handleSaveDraft}
             saving={savingDraft}
-            onNext={() => setStep(step + 1)}
+            onNext={() => goTo(step + 1)}
             nextLabel="Continue to delivery"
           />
         </div>
@@ -1353,7 +1287,7 @@ function NewRegistrationContent() {
             <button
               type="button"
               className={`${styles.typeCard} ${deliveryMethod === 'courier' ? styles.selected : ''}`}
-              onClick={() => setDeliveryMethod('courier')}
+              onClick={chooseCourier}
               aria-pressed={deliveryMethod === 'courier'}
             >
               <span className={styles.typeRadio} />
@@ -1368,44 +1302,63 @@ function NewRegistrationContent() {
           {deliveryMethod === 'courier' && (
             <div className={styles.deliveryForm}>
               <div className={styles.formSectionTitle}>Delivery Address</div>
+              <p className={styles.prefillNote}>We’ve filled this in from your details. Change anything that’s different.</p>
+              <CopyChips
+                label="Use"
+                options={[
+                  ...(applicant?.residentialAddress ? [{ key: 'me', text: 'My address', onClick: () => replaceDeliveryWith('me') }] : []),
+                  ...(businessStreet ? [{ key: 'biz', text: 'Business address', onClick: () => replaceDeliveryWith('business') }] : []),
+                ]}
+              />
               <div className={styles.formGrid}>
                 <div className={`form-group ${styles.formFull}`}>
                   <label className="form-label">Recipient Name *</label>
                   <input 
                     type="text" 
                     className="form-input" 
+                    id="del-recipient"
+                    {...fieldState(deliveryIssues, 'del-recipient')}
                     placeholder="Full name of person receiving docs"
                     value={deliveryAddress.recipientName}
                     onChange={(e) => setDeliveryAddress({...deliveryAddress, recipientName: e.target.value})}
                     required
                   />
+                  {fieldMessage(deliveryIssues, 'del-recipient')}
                 </div>
                 <div className={`form-group ${styles.formFull}`}>
                   <label className="form-label">Street / House Address *</label>
                   <input 
                     type="text" 
                     className="form-input" 
+                    id="del-street"
+                    {...fieldState(deliveryIssues, 'del-street')}
                     placeholder="House number, street name"
                     value={deliveryAddress.street}
                     onChange={(e) => setDeliveryAddress({...deliveryAddress, street: e.target.value})}
                     required
                   />
+                  {fieldMessage(deliveryIssues, 'del-street')}
                 </div>
                 <div className="form-group">
                   <label className="form-label">City *</label>
                   <input 
                     type="text" 
                     className="form-input" 
+                    id="del-city"
+                    {...fieldState(deliveryIssues, 'del-city')}
                     placeholder="e.g. Accra"
                     value={deliveryAddress.city}
                     onChange={(e) => setDeliveryAddress({...deliveryAddress, city: e.target.value})}
                     required
                   />
+                  {fieldMessage(deliveryIssues, 'del-city')}
                 </div>
                 <div className="form-group">
                   <label className="form-label">Region *</label>
-                  <select 
+                  <select
+                    id="del-region"
                     className="form-input"
+                    {...fieldState(deliveryIssues, 'del-region')}
                     value={deliveryAddress.region}
                     onChange={(e) => setDeliveryAddress({...deliveryAddress, region: e.target.value})}
                     required
@@ -1413,6 +1366,7 @@ function NewRegistrationContent() {
                     <option value="">Select Region</option>
                     {ghanaRegions.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
+                  {fieldMessage(deliveryIssues, 'del-region')}
                 </div>
                 <div className="form-group">
                   <label className="form-label">Digital Address (GPS)</label>
@@ -1429,23 +1383,28 @@ function NewRegistrationContent() {
                   <input 
                     type="tel" 
                     className="form-input" 
+                    id="del-phone"
+                    {...fieldState(deliveryIssues, 'del-phone')}
                     placeholder="+233 XXX XXX XXX"
                     value={deliveryAddress.phone}
                     onChange={(e) => setDeliveryAddress({...deliveryAddress, phone: e.target.value})}
                     required
                   />
+                  {fieldMessage(deliveryIssues, 'del-phone')}
                 </div>
               </div>
             </div>
           )}
 
           <StepNav
-            onBack={() => setStep(step - 1)}
+            onBack={() => goTo(step - 1)}
             onSave={handleSaveDraft}
             saving={savingDraft}
-            onNext={() => setStep(step + 1)}
+            onNext={() => tryNext(deliveryIssues, step + 1)}
             nextLabel="Continue to review"
-            missing={deliveryMissing}
+            issues={deliveryIssues}
+            showIssues={showErrors}
+            onJump={jumpTo}
           />
         </div>
       )}
@@ -1714,13 +1673,25 @@ function NewRegistrationContent() {
             </div>
           </div>
 
+          {isCompany && directors.some(awaitingInvite) && (
+            <div className={styles.issues} role="status">
+              <p className={styles.issuesTitle}>
+                <Clock size={18} /> Waiting for {directors.filter(awaitingInvite).map((d) => personDisplayName(d) || 'a director').join(' and ')} to add their details
+              </p>
+              <p className={styles.issuesText}>
+                You can pay as soon as they’ve filled in the link you sent. This page updates on its own.{' '}
+                <button type="button" className={styles.linkBtn} onClick={() => goTo(2)}>Go to directors</button>
+              </p>
+            </div>
+          )}
+
           {submitError && <div className={styles.submitError}>{submitError}</div>}
 
           <div className={styles.stepNav}>
-            <button type="button" className="btn btn-ghost" onClick={() => setStep(lastStep - 1)}>
+            <button type="button" className="btn btn-ghost" onClick={() => goTo(lastStep - 1)}>
               <ArrowLeft size={16} /> Back
             </button>
-            <button type="button" className="btn btn-primary btn-lg" onClick={handlePayAndSubmit} disabled={submitting} id="submit-application">
+            <button type="button" className="btn btn-primary btn-lg" onClick={handlePayAndSubmit} disabled={submitting || (isCompany && directors.some(awaitingInvite))} id="submit-application">
               {submitting ? 'Processing payment…' : `Pay GH₵ ${totalPrice.toLocaleString()} and submit`}
             </button>
           </div>

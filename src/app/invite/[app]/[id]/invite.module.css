@@ -1,0 +1,167 @@
+/* Public page where a director fills in their own details from a link */
+
+.page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #ffffff;
+  color: #111827;
+}
+
+.top {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px 20px 0;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #111827;
+}
+
+.logo svg {
+  color: var(--brand);
+}
+
+.main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 40px 20px 80px;
+}
+
+.intro {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.eyebrow {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--brand-ink);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--type-step-title);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.lead {
+  font-size: 16px;
+  line-height: 1.55;
+  color: #4b5563;
+  max-width: 60ch;
+}
+
+.form {
+  display: grid;
+  gap: 16px;
+}
+
+.submit {
+  justify-self: start;
+  min-width: 200px;
+}
+
+.fine {
+  font-size: 13px;
+  color: #8a8a90;
+}
+
+.error {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fef2f2;
+  font-size: 14px;
+  color: #b91c1c;
+}
+
+.issues {
+  padding: 14px 16px;
+  border: 1px solid #fecaca;
+  border-radius: 14px;
+  background: #fef2f2;
+  font-size: 14px;
+  color: #7f1d1d;
+}
+
+.issuesTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: #991b1b;
+}
+
+.issues ul {
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  padding-left: 26px;
+}
+
+.issues button {
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: #991b1b;
+  text-decoration: underline;
+  text-decoration-color: #fca5a5;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.state {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 48px 0;
+  text-align: center;
+}
+
+.state .lead {
+  margin: 0 auto;
+}
+
+.stateIcon {
+  width: 60px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.stateDone {
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+}
+
+@media (max-width: 600px) {
+  .main {
+    padding-top: 28px;
+  }
+
+  .submit {
+    width: 100%;
+  }
+}
+
+/* The form reuses the registration form's styles; line it up with the heading here */
+.main .form {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}

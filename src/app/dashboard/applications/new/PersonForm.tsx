@@ -1,8 +1,8 @@
-import { useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { ScanFace, ChevronDown, ChevronUp, CheckCircle2, UploadCloud, X, AlertCircle } from 'lucide-react'
 import { PersonEntry, ghanaRegions } from './constants'
 import styles from './new.module.css'
-import { PERSON_REQUIRED, regionFromDigitalAddress } from './helpers'
+import { PERSON_REQUIRED, adultCutoffISO, personProblems, regionFromDigitalAddress } from './helpers'
 
 // =====================================================
 // Helpers
@@ -31,16 +31,16 @@ const formatGhanaCard = (value: string): string => {
   return formatted
 }
 
-const isValidGhanaCard = (val: string): boolean => {
-  if (!val) return true
-  return /^GHA-\d{9}-\d$/.test(val)
-}
-
 interface PersonFormProps {
   person: PersonEntry
   onChange: (field: string, value: any) => void
+  /** Prefix for field ids (e.g. "dir-1" makes "dir-1-surname"), so errors can jump to a field */
   prefix: string
   title: string
+  /** After Continue was pressed with problems: show "Required" on empty fields too */
+  showErrors?: boolean
+  /** Open the section holding this field id (the form then focuses it) */
+  focusRequest?: { id: string; n: number } | null
 }
 
 // Required fields grouped by accordion section, for the completion indicators
@@ -49,13 +49,48 @@ const SECTION_FIELDS: Record<'personal' | 'id' | 'address', Array<keyof PersonEn
   id: ['ghanaCardNumber', 'tinNumber'],
   address: ['residentialAddress', 'city', 'region', 'phone', 'email'],
 }
+const sectionOf = (key: string): keyof typeof SECTION_FIELDS =>
+  key === 'title' || key === 'otherNames' ? 'personal'
+  : key === 'digitalAddress' ? 'address'
+  : key === 'idPhotos' ? 'id'
+  : ((Object.keys(SECTION_FIELDS) as Array<keyof typeof SECTION_FIELDS>).find((s) => SECTION_FIELDS[s].includes(key as keyof PersonEntry)) ?? 'personal')
 
-export default function PersonForm({ person, onChange, prefix, title }: PersonFormProps) {
+export default function PersonForm({ person, onChange, prefix, title, showErrors = false, focusRequest }: PersonFormProps) {
   const isFilled = (key: keyof PersonEntry) => Boolean(String(person[key] ?? '').trim())
+  const problems = personProblems(person)
+  // Wrong formats show as soon as they're typed; empty required fields only after Continue
+  const errorFor = (key: keyof PersonEntry) => {
+    const msg = problems[key]
+    if (!msg || (msg === 'Required' && !showErrors)) return null
+    return msg
+  }
   const remaining = PERSON_REQUIRED.filter(([key]) => !isFilled(key)).length
-  const sectionDone = (section: keyof typeof SECTION_FIELDS) => SECTION_FIELDS[section].every(isFilled)
+  const sectionDone = (section: keyof typeof SECTION_FIELDS) => SECTION_FIELDS[section].every((k) => isFilled(k) && !problems[k])
+  const sectionErrors = (section: keyof typeof SECTION_FIELDS) => SECTION_FIELDS[section].filter((k) => errorFor(k)).length
+
+  /** id, aria-invalid and aria-describedby for one field */
+  const field = (key: keyof PersonEntry) => {
+    const err = errorFor(key)
+    return {
+      id: `${prefix}-${key}`,
+      'aria-invalid': err ? true : undefined,
+      'aria-describedby': err ? `${prefix}-${key}-err` : undefined,
+    } as const
+  }
+  /** The message under a field, when it has one */
+  const errText = (k: keyof PersonEntry) => {
+    const err = errorFor(k)
+    return err ? <span id={`${prefix}-${k}-err`} className={styles.fieldError}><AlertCircle size={13} /> {err}</span> : null
+  }
 
   const [openSection, setOpenSection] = useState<'personal' | 'id' | 'address'>('personal')
+
+  // Asked to show a field (from the error list or Continue): open its section
+  useEffect(() => {
+    if (!focusRequest || !focusRequest.id.startsWith(`${prefix}-`)) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- opening the section the parent asked for
+    setOpenSection(sectionOf(focusRequest.id.slice(prefix.length + 1)))
+  }, [focusRequest, prefix])
   const [isScanning, setIsScanning] = useState(false)
   const [scanned, setScanned] = useState(false)
   const [scanError, setScanError] = useState('')
@@ -143,9 +178,13 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
       <div className={styles.personFormHeader}>
         <div className={styles.personFormTitleRow}>
           <h3 className={styles.personFormTitle}>{title}</h3>
-          <span className={`${styles.completion} ${remaining === 0 ? styles.completionDone : ''}`}>
-            {remaining === 0 ? <><CheckCircle2 size={13} /> Complete</> : `${remaining} detail${remaining > 1 ? 's' : ''} left`}
-          </span>
+          {/* Wrong details count as unfinished, not just empty ones */}
+          {(() => {
+            const wrong = Object.values(problems).filter((m) => m !== 'Required').length
+            if (remaining === 0 && wrong === 0) return <span className={`${styles.completion} ${styles.completionDone}`}><CheckCircle2 size={13} /> Complete</span>
+            if (wrong > 0) return <span className={`${styles.completion} ${styles.completionBad}`}>{wrong} to fix{remaining > 0 ? ` · ${remaining} left` : ''}</span>
+            return <span className={styles.completion}>{remaining} detail{remaining > 1 ? 's' : ''} left</span>
+          })()}
         </div>
         <input 
           type="file" 
@@ -175,46 +214,52 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
           onClick={() => setOpenSection(openSection === 'personal' ? 'personal' : 'personal')} 
           className={styles.accordionTrigger}
         >
-          <span className={styles.sectionLabel}>{sectionDone('personal') && <CheckCircle2 size={15} className={styles.sectionTick} />}1. Personal information</span> {openSection === 'personal' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          <span className={styles.sectionLabel}>{sectionDone('personal') && <CheckCircle2 size={15} className={styles.sectionTick} />}1. Personal information{sectionErrors('personal') > 0 && <span className={styles.sectionErrors}>{sectionErrors('personal')} to fix</span>}</span> {openSection === 'personal' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
         {openSection === 'personal' && (
           <div className={styles.accordionContent}>
             <div className={styles.formGrid}>
                <div className="form-group">
                 <label className="form-label">Title</label>
-                <select className="form-input" value={person.title} onChange={(e) => onChange('title', e.target.value)}>
+                <select className="form-input" {...field('title')} value={person.title} onChange={(e) => onChange('title', e.target.value)}>
                   <option value="">Select</option><option value="Mr">Mr</option><option value="Mrs">Mrs</option><option value="Ms">Ms</option><option value="Dr">Dr</option><option value="Prof">Prof</option>
                 </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Surname *</label>
-                <input type="text" className="form-input" value={person.surname} onChange={(e) => onChange('surname', e.target.value)} required />
+                <input type="text" className="form-input" {...field('surname')} value={person.surname} onChange={(e) => onChange('surname', e.target.value)} required />
+                {errText('surname')}
               </div>
               <div className="form-group">
                 <label className="form-label">First Name *</label>
-                <input type="text" className="form-input" value={person.firstName} onChange={(e) => onChange('firstName', e.target.value)} required />
+                <input type="text" className="form-input" {...field('firstName')} value={person.firstName} onChange={(e) => onChange('firstName', e.target.value)} required />
+                {errText('firstName')}
               </div>
                <div className="form-group">
                 <label className="form-label">Other Names (optional)</label>
-                <input type="text" className="form-input" value={person.otherNames} onChange={(e) => onChange('otherNames', e.target.value)} />
+                <input type="text" className="form-input" {...field('otherNames')} value={person.otherNames} onChange={(e) => onChange('otherNames', e.target.value)} />
               </div>
                <div className="form-group">
                 <label className="form-label">Date of Birth *</label>
-                <input type="date" className="form-input" value={person.dateOfBirth} onChange={(e) => onChange('dateOfBirth', e.target.value)} required />
+                <input type="date" className="form-input" {...field('dateOfBirth')} max={adultCutoffISO()} value={person.dateOfBirth} onChange={(e) => onChange('dateOfBirth', e.target.value)} required />
+                {errorFor('dateOfBirth') ? errText('dateOfBirth') : <span className="form-hint">Must be 18 or older</span>}
               </div>
                <div className="form-group">
                 <label className="form-label">Gender *</label>
-                <select className="form-input" value={person.gender} onChange={(e) => onChange('gender', e.target.value)} required>
+                <select className="form-input" {...field('gender')} value={person.gender} onChange={(e) => onChange('gender', e.target.value)} required>
                   <option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option>
                 </select>
+                {errText('gender')}
               </div>
                <div className="form-group">
                 <label className="form-label">Nationality *</label>
-                <input type="text" className="form-input" value={person.nationality} onChange={(e) => onChange('nationality', e.target.value)} required />
+                <input type="text" className="form-input" {...field('nationality')} value={person.nationality} onChange={(e) => onChange('nationality', e.target.value)} required />
+                {errText('nationality')}
               </div>
                <div className="form-group">
                 <label className="form-label">Occupation *</label>
-                <input type="text" className="form-input" value={person.occupation} onChange={(e) => onChange('occupation', e.target.value)} required />
+                <input type="text" className="form-input" {...field('occupation')} value={person.occupation} onChange={(e) => onChange('occupation', e.target.value)} required />
+                {errText('occupation')}
               </div>
             </div>
             <div className={styles.sectionNext}>
@@ -231,30 +276,28 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
           onClick={() => setOpenSection(openSection === 'id' ? 'personal' : 'id')} 
           className={styles.accordionTrigger}
         >
-          <span className={styles.sectionLabel}>{sectionDone('id') && <CheckCircle2 size={15} className={styles.sectionTick} />}2. Identification</span> {openSection === 'id' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          <span className={styles.sectionLabel}>{sectionDone('id') && <CheckCircle2 size={15} className={styles.sectionTick} />}2. Identification{sectionErrors('id') > 0 && <span className={styles.sectionErrors}>{sectionErrors('id')} to fix</span>}</span> {openSection === 'id' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
         {openSection === 'id' && (
           <div className={styles.accordionContent}>
             <div className={styles.formGrid}>
                <div className="form-group">
                 <label className="form-label">Ghana Card Number *</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="GHA-XXXXXXXXX-X" 
-                  value={person.ghanaCardNumber} 
-                  onChange={(e) => handleGhanaCardChange(e.target.value)} 
-                  required 
+                <input
+                  type="text"
+                  className="form-input"
+                  {...field('ghanaCardNumber')}
+                  placeholder="GHA-XXXXXXXXX-X"
+                  value={person.ghanaCardNumber}
+                  onChange={(e) => handleGhanaCardChange(e.target.value)}
+                  required
                 />
-                {!isValidGhanaCard(person.ghanaCardNumber) && (
-                  <span className={styles.fieldError}>
-                    Invalid format. Expected: GHA-XXXXXXXXX-X
-                  </span>
-                )}
+                {errText('ghanaCardNumber')}
               </div>
               <div className="form-group">
                 <label className="form-label">TIN *</label>
-                <input type="text" className="form-input" placeholder="e.g., CXXXXXXXX" value={person.tinNumber} onChange={(e) => onChange('tinNumber', e.target.value)} required />
+                <input type="text" className="form-input" {...field('tinNumber')} placeholder="e.g., CXXXXXXXX" value={person.tinNumber} onChange={(e) => onChange('tinNumber', e.target.value)} required />
+                {errText('tinNumber')}
               </div>
               <div className={`form-group ${styles.formFull}`}>
                 <label className="form-label">Upload ID Photos (Front, Back, etc.)</label>
@@ -322,31 +365,35 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
           onClick={() => setOpenSection(openSection === 'address' ? 'id' : 'address')} 
           className={styles.accordionTrigger}
         >
-          <span className={styles.sectionLabel}>{sectionDone('address') && <CheckCircle2 size={15} className={styles.sectionTick} />}3. Address and contact</span> {openSection === 'address' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          <span className={styles.sectionLabel}>{sectionDone('address') && <CheckCircle2 size={15} className={styles.sectionTick} />}3. Address and contact{sectionErrors('address') > 0 && <span className={styles.sectionErrors}>{sectionErrors('address')} to fix</span>}</span> {openSection === 'address' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
         {openSection === 'address' && (
           <div className={styles.accordionContent}>
             <div className={styles.formGrid}>
               <div className={`form-group ${styles.formFull}`}>
                 <label className="form-label">Street / House Address *</label>
-                <input type="text" className="form-input" value={person.residentialAddress} onChange={(e) => onChange('residentialAddress', e.target.value)} required />
+                <input type="text" className="form-input" {...field('residentialAddress')} value={person.residentialAddress} onChange={(e) => onChange('residentialAddress', e.target.value)} required />
+                {errText('residentialAddress')}
               </div>
               <div className="form-group">
                 <label className="form-label">City / Town *</label>
-                <input type="text" className="form-input" value={person.city} onChange={(e) => onChange('city', e.target.value)} required />
+                <input type="text" className="form-input" {...field('city')} value={person.city} onChange={(e) => onChange('city', e.target.value)} required />
+                {errText('city')}
               </div>
               <div className="form-group">
                 <label className="form-label">Region *</label>
-                <select className="form-input" value={person.region} onChange={(e) => onChange('region', e.target.value)} required>
+                <select className="form-input" {...field('region')} value={person.region} onChange={(e) => onChange('region', e.target.value)} required>
                   <option value="">Select region</option>
                   {ghanaRegions.map((r) => <option key={r} value={r}>{r}</option>)}
                 </select>
+                {errText('region')}
               </div>
               <div className="form-group">
                 <label className="form-label">Digital Address (optional)</label>
                 <input
                   type="text"
                   className="form-input"
+                  id={`${prefix}-digitalAddress`}
                   placeholder="e.g. GA-123-4567"
                   value={person.digitalAddress}
                   onChange={(e) => {
@@ -358,11 +405,13 @@ export default function PersonForm({ person, onChange, prefix, title }: PersonFo
               </div>
               <div className="form-group">
                 <label className="form-label">Phone *</label>
-                <input type="tel" className="form-input" value={person.phone} onChange={(e) => onChange('phone', e.target.value)} required />
+                <input type="tel" className="form-input" {...field('phone')} value={person.phone} onChange={(e) => onChange('phone', e.target.value)} required />
+                {errText('phone')}
               </div>
               <div className="form-group">
                 <label className="form-label">Email *</label>
-                <input type="email" className="form-input" value={person.email} onChange={(e) => onChange('email', e.target.value)} required />
+                <input type="email" className="form-input" {...field('email')} value={person.email} onChange={(e) => onChange('email', e.target.value)} required />
+                {errText('email')}
               </div>
             </div>
           </div>

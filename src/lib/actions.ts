@@ -9,6 +9,8 @@ import { parseAvatarChoice, type AvatarChoice } from '@/lib/avatar'
 import { canMove, isAppStatus, stageOf } from '@/lib/application-flow'
 import { issuedDocuments, providedDocuments } from '@/lib/documents'
 import { currentAdminId, isAdminRequest } from '@/lib/admin-auth'
+import { applyInviteAnswers } from '@/lib/director-invites'
+import { applicationIssues, describeIssues } from '@/app/dashboard/applications/new/validation'
 import { signDocumentLinks, DOCUMENTS_BUCKET } from '@/lib/document-links'
 import { FILING_SETTING_NAME, filedNote, filingKind, filingStatus, formatDeadline } from '@/lib/annual-filing'
 import { finalizePaidApplication, sendSms } from '@/lib/checkout-core'
@@ -190,6 +192,9 @@ export async function saveApplicationDraft(data: {
     .eq('status', 'draft')
     .single()
 
+  // Directors sent a link: fold in the details they've sent back
+  const { directors: withAnswers } = await applyInviteAnswers(existingDraft?.id, data.formData.directors)
+
   const payload: DraftPayload = {
     user_id: user.id,
     business_type_id: data.businessTypeId,
@@ -197,6 +202,7 @@ export async function saveApplicationDraft(data: {
     status: 'draft',
     form_data: { 
       ...data.formData, 
+      ...(Array.isArray(data.formData.directors) ? { directors: withAnswers } : {}),
       currentStep: data.step,
       delivery_method: data.deliveryMethod,
       delivery_address: data.deliveryAddress
@@ -1977,6 +1983,18 @@ export async function resubmitApplication(applicationId: string, formData: Recor
       delete newFormData.corrections
   }
 
+  // Directors sent a link: use their answers, and wait for anyone who hasn't replied
+  if (Array.isArray(newFormData.directors)) {
+    const { directors, pending } = await applyInviteAnswers(applicationId, newFormData.directors)
+    if (pending.length > 0) return { error: `Waiting for ${pending.join(' and ')} to add their details from the link you sent.` }
+    newFormData.directors = directors
+  }
+
+  // The same checks as the forms (required details, formats, everyone 18 or older)
+  const typeId = String(newFormData.businessType || (app.form_data as Record<string, unknown> | null)?.businessType || '')
+  const issues = applicationIssues(newFormData, typeId)
+  if (issues.length > 0) return { error: describeIssues(issues) }
+
   // 3. Update application
   const businessName = (newFormData.formData as any)?.businessName || (newFormData as any).businessName || 'Untitled Business'
 
@@ -2045,6 +2063,11 @@ export async function updateApplicationDraft(applicationId: string, formData: Re
   const newFormData = { ...formData }
   if (newFormData.corrections) {
       delete newFormData.corrections
+  }
+
+  // Directors sent a link: fold in the details they've sent back
+  if (Array.isArray(newFormData.directors)) {
+    newFormData.directors = (await applyInviteAnswers(applicationId, newFormData.directors)).directors
   }
 
   // 3. Update application

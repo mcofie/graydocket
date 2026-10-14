@@ -47,7 +47,7 @@ type App = Json & {
 // Fields handled elsewhere on the page (or internal bookkeeping)
 const HIDDEN = new Set([
   'documents', 'corrections', 'idPhotos', 'ghanaCardPhotoUrl', 'price_lines', 'paystack_reference', 'paystackReference',
-  'selectedAddOns', 'ready_for_payment', 'total_amount', 'businessType', 'delivery_method', 'delivery_address',
+  'selectedAddOns', 'ready_for_payment', 'total_amount', 'businessType', 'delivery_method', 'delivery_address', 'inviteId', 'inviteMerged',
   'proprietor', 'directors', 'secretary', 'shareholders', 'members', 'companyDetails', 'formData', 'affiliateCode',
 ])
 

@@ -411,6 +411,17 @@ ul, ol {
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
 }
 
+/* A field that needs fixing (set by forms after Continue, or as soon as a format is wrong) */
+.form-input[aria-invalid='true'] {
+  border-color: #dc2626;
+  background: #fffafa;
+}
+
+.form-input[aria-invalid='true']:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
+}
+
 .form-error {
   font-size: var(--text-xs);
   color: var(--color-error);

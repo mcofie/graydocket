@@ -12,6 +12,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { quoteApplication, type DbBusinessType } from '@/app/dashboard/applications/new/pricing'
+import { applicationIssues, describeIssues } from '@/app/dashboard/applications/new/validation'
+import { applyInviteAnswers } from '@/lib/director-invites'
 import { businessTypes } from '@/app/dashboard/applications/new/constants'
 import { finalizePaidApplication, verifyPaystackTransaction } from '@/lib/checkout-core'
 
@@ -77,6 +79,16 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutStart
     .limit(1)
     .maybeSingle()
 
+  // Directors sent a link: use their answers, and wait for anyone who hasn't replied
+  const { directors, pending } = await applyInviteAnswers(existing?.id, input.formData.directors)
+  if (pending.length > 0) {
+    return { error: `Waiting for ${pending.join(' and ')} to add their details. You can pay once they have.` }
+  }
+
+  // The same checks as the forms (required details, formats, everyone 18 or older)
+  const issues = applicationIssues({ ...input.formData, directors }, input.typeId)
+  if (issues.length > 0) return { error: describeIssues(issues) }
+
   const record = {
     user_id: user.id,
     business_type_id: quote.dbTypeId,
@@ -87,6 +99,7 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutStart
     referred_by_id: referredById,
     form_data: {
       ...input.formData,
+      ...(Array.isArray(input.formData.directors) ? { directors } : {}),
       // Delivery lives in form_data: the applications table has no delivery columns
       businessType: input.typeId,
       selectedAddOns: addOnIds,

@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Check, ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react'
+import { Check, ArrowLeft, ArrowRight, AlertCircle, Clock } from 'lucide-react'
 import { 
   getApplicationDetails, resubmitApplication, updateApplicationDraft
 } from '@/lib/actions'
@@ -15,6 +15,13 @@ import {
 import PersonForm from '../../new/PersonForm'
 import NameCheck from '../../new/NameCheck'
 import { useNameCheck, warmNameCheck } from '../../new/useNameCheck'
+import { useDirectorInvites, awaitingInvite } from '../../new/useDirectorInvites'
+import DirectorInvite, { DirectorInviteTip } from '../../new/DirectorInvite'
+import { personDisplayName, type Issue } from '../../new/helpers'
+import { districtsFor } from '../../new/districts'
+import { businessIssues, proprietorIssues, directorIssues, secretaryIssues, ownershipIssues } from '../../new/validation'
+import { useStepErrors, IssueList } from '../../new/StepErrors'
+import OwnershipSection from '../../new/OwnershipSection'
 
 interface Props {
   applicationId: string
@@ -74,9 +81,28 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     beneficialOwnerDOB: '',
   })
 
+  // Founders without an auditor yet can add one later; capital follows the shareholders until edited
+  const [auditorLater, setAuditorLater] = useState(false)
+  const [capitalAuto, setCapitalAuto] = useState(false)
+  const setCompanyDetailsPatch = useCallback((patch: Record<string, string>) => setCompanyDetails((prev) => ({ ...prev, ...patch })), [])
+
+  // Same rules and error display as the registration form (../../new/validation, ../../new/StepErrors)
+  const errs = useStepErrors()
+
   // Live ORC checks for the main and backup names
   const nameCheck = useNameCheck(formData.businessName)
   const altNameCheck = useNameCheck(formData.businessNameAlt)
+
+  // Director invite links (shared with the registration form). The application already exists, and
+  // the server records each link on the director, so nothing extra needs saving here.
+  const inv = useDirectorInvites({
+    directors,
+    setDirectors,
+    ensureApplicationId: async () => applicationId,
+    knownApplicationId: applicationId,
+    businessName: formData.businessName,
+  })
+  const waitingOn = isCompany ? directors.filter(awaitingInvite) : []
 
   useEffect(() => {
     if (!initialLoaded || appStatus !== 'draft') return
@@ -89,7 +115,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
             directors,
             secretary,
             shareholders,
-            companyDetails,
+            companyDetails: { ...companyDetails, auditorLater, capitalAuto },
           }
         : {
             proprietor,
@@ -115,7 +141,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     return () => {
       clearTimeout(timer)
     }
-  }, [formData, proprietor, directors, secretary, shareholders, companyDetails, initialLoaded, appStatus])
+  }, [formData, proprietor, directors, secretary, shareholders, companyDetails, auditorLater, capitalAuto, initialLoaded, appStatus])
 
   useEffect(() => {
     async function loadApp() {
@@ -195,6 +221,11 @@ export default function EditSubmissionContent({ applicationId }: Props) {
             beneficialOwnerAddress: '', beneficialOwnerDOB: '',
         })
         
+        const savedCompany = data.companyDetails || data.formData?.companyDetails
+        if (savedCompany) {
+          setAuditorLater(Boolean(savedCompany.auditorLater))
+          setCapitalAuto(Boolean(savedCompany.capitalAuto))
+        }
         if (data.corrections) setCorrections(data.corrections)
         setStep(1)
         setTimeout(() => setInitialLoaded(true), 1500)
@@ -215,7 +246,12 @@ export default function EditSubmissionContent({ applicationId }: Props) {
   const lastStep = stepLabels.length
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
+    setFormData((prev) => {
+      const next = { ...prev, [field]: value }
+      // A district belongs to one region: clear it when the region changes
+      if (next.region !== prev.region && prev.district && !districtsFor(next.region).includes(prev.district)) next.district = ''
+      return next
+    })
   }
 
   const handleProprietorChange = (field: string, value: string) => {
@@ -234,13 +270,6 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     setSecretary((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleShareholderChange = (index: number, field: string, value: string) => {
-    setShareholders((prev) => {
-      const updated = [...prev]
-      updated[index] = { ...updated[index], [field]: value }
-      return updated
-    })
-  }
 
   const handleCompanyDetailChange = (field: string, value: string) => {
     setCompanyDetails((prev) => ({ ...prev, [field]: value }))
@@ -259,7 +288,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
             directors,
             secretary,
             shareholders,
-            companyDetails,
+            companyDetails: { ...companyDetails, auditorLater, capitalAuto },
           }
         : {
             proprietor,
@@ -289,7 +318,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
             directors,
             secretary,
             shareholders,
-            companyDetails,
+            companyDetails: { ...companyDetails, auditorLater, capitalAuto },
           }
         : {
             proprietor,
@@ -312,6 +341,37 @@ export default function EditSubmissionContent({ applicationId }: Props) {
 
   const isDraft = appStatus === 'draft'
   const typeName = businessTypes.find((t) => t.id === selectedType)?.name
+
+  // ---- What needs fixing on each step (shared rules) ----
+  const isShares = selectedType === 'limited_by_shares'
+  const step1Issues = businessIssues(formData)
+  const step2Issues = isCompany ? directorIssues(directors) : proprietorIssues(proprietor)
+  const step3Issues: Issue[] = isCompany
+    ? [...secretaryIssues(secretary), ...ownershipIssues({ shareholders, details: companyDetails, auditorLater, isShares })]
+    : []
+  const issuesFor: Record<number, Issue[]> = { 1: step1Issues, 2: step2Issues, 3: step3Issues }
+
+  const go = (n: number) => {
+    errs.setShowErrors(false)
+    setStep(n)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  /** Continue: move on, or show what's wrong on this step and go to the first problem */
+  const next = (from: number, to: number) => errs.tryNext(issuesFor[from] || [], () => go(to))
+  const issueList = (n: number) => <IssueList issues={issuesFor[n] || []} show={errs.showErrors} onJump={errs.jumpTo} />
+  // Submit checks every step: go to the first one with a problem and highlight it
+  const allIssues = [1, 2, 3].flatMap((n) => (issuesFor[n] || []).map((issue) => ({ ...issue, step: n })))
+  const jumpAcross = (issue: Issue & { step: number }) => {
+    go(issue.step)
+    errs.setShowErrors(true)
+    errs.jumpTo(issue)
+  }
+  const trySubmit = () => {
+    if (allIssues.length > 0) return jumpAcross(allIssues[0])
+    handleSubmit()
+  }
+  const F = (id: string) => errs.fieldState(step1Issues, id)
+  const M = (id: string) => errs.fieldMessage(step1Issues, id)
 
   // A correction note shown under the field the registrar flagged
   const renderCorrection = (path: string) => {
@@ -443,13 +503,14 @@ export default function EditSubmissionContent({ applicationId }: Props) {
               <input
                 id="businessName"
                 type="text"
-                className="form-input"
+                className="form-input" {...F('businessName')}
                 placeholder={isCompany ? 'e.g., Asante Tech Solutions Limited' : 'e.g., Asante Tech Solutions'}
                 value={formData.businessName}
                 onChange={(e) => handleInputChange('businessName', e.target.value)}
                 onFocus={warmNameCheck}
                 required
               />
+              {M('businessName')}
               {renderCorrection('businessName')}
               <NameCheck
                 checking={nameCheck.checking}
@@ -473,29 +534,33 @@ export default function EditSubmissionContent({ applicationId }: Props) {
           <div className={styles.formGrid}>
             <div className={`form-group ${formData.businessSector === 'Other (specify below)' ? '' : styles.formFull}`}>
               <label className="form-label" htmlFor="businessSector">Business Sector *</label>
-              <select id="businessSector" className="form-input" value={formData.businessSector} onChange={(e) => handleInputChange('businessSector', e.target.value)} required>
+              <select id="businessSector" className="form-input" {...F('businessSector')} value={formData.businessSector} onChange={(e) => handleInputChange('businessSector', e.target.value)} required>
                 <option value="">Select sector</option>
                 {businessSectors.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
+              {M('businessSector')}
               {renderCorrection('businessSector')}
             </div>
             {formData.businessSector === 'Other (specify below)' && (
               <div className="form-group">
                 <label className="form-label" htmlFor="businessSectorOther">Specify Sector</label>
-                <input id="businessSectorOther" type="text" className="form-input" placeholder="Describe your sector" value={formData.businessSectorOther} onChange={(e) => handleInputChange('businessSectorOther', e.target.value)} />
-                {renderCorrection('businessSectorOther')}
+                <input id="businessSectorOther" type="text" className="form-input" {...F('businessSectorOther')} placeholder="Describe your sector" value={formData.businessSectorOther} onChange={(e) => handleInputChange('businessSectorOther', e.target.value)} />
+                {M('businessSectorOther')}
+              {renderCorrection('businessSectorOther')}
               </div>
             )}
             <div className={`form-group ${styles.formFull}`}>
               <label className="form-label" htmlFor="natureOfBusiness">
                 {isCompany ? 'Objects of the Company / Description of Activities *' : 'Description of Business Activities *'}
               </label>
-              <textarea id="natureOfBusiness" className="form-input" placeholder="Describe the specific activities and services..." rows={3} value={formData.natureOfBusiness} onChange={(e) => handleInputChange('natureOfBusiness', e.target.value)} required />
+              <textarea id="natureOfBusiness" className="form-input" {...F('natureOfBusiness')} placeholder="Describe the specific activities and services..." rows={3} value={formData.natureOfBusiness} onChange={(e) => handleInputChange('natureOfBusiness', e.target.value)} required />
+              {M('natureOfBusiness')}
               {renderCorrection('natureOfBusiness')}
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="dateOfCommencement">Date of Commencement *</label>
-              <input id="dateOfCommencement" type="date" className="form-input" value={formData.dateOfCommencement} onChange={(e) => handleInputChange('dateOfCommencement', e.target.value)} required />
+              <input id="dateOfCommencement" type="date" className="form-input" {...F('dateOfCommencement')} value={formData.dateOfCommencement} onChange={(e) => handleInputChange('dateOfCommencement', e.target.value)} required />
+              {M('dateOfCommencement')}
               {renderCorrection('dateOfCommencement')}
             </div>
           </div>
@@ -522,35 +587,47 @@ export default function EditSubmissionContent({ applicationId }: Props) {
           <div className={styles.formGrid}>
             <div className="form-group">
               <label className="form-label" htmlFor="buildingName">House / Building / Flat *</label>
-              <input id="buildingName" type="text" className="form-input" placeholder="e.g., Suite 5, Osu Ventures Building" value={formData.buildingName} onChange={(e) => handleInputChange('buildingName', e.target.value)} required />
+              <input id="buildingName" type="text" className="form-input" {...F('buildingName')} placeholder="e.g., Suite 5, Osu Ventures Building" value={formData.buildingName} onChange={(e) => handleInputChange('buildingName', e.target.value)} required />
+              {M('buildingName')}
               {renderCorrection('buildingName')}
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="streetName">Street Name *</label>
-              <input id="streetName" type="text" className="form-input" placeholder="e.g., Oxford Street" value={formData.streetName} onChange={(e) => handleInputChange('streetName', e.target.value)} required />
+              <input id="streetName" type="text" className="form-input" {...F('streetName')} placeholder="e.g., Oxford Street" value={formData.streetName} onChange={(e) => handleInputChange('streetName', e.target.value)} required />
+              {M('streetName')}
               {renderCorrection('streetName')}
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="city">City / Town *</label>
-              <input id="city" type="text" className="form-input" placeholder="e.g., Accra" value={formData.city} onChange={(e) => handleInputChange('city', e.target.value)} required />
+              <input id="city" type="text" className="form-input" {...F('city')} placeholder="e.g., Accra" value={formData.city} onChange={(e) => handleInputChange('city', e.target.value)} required />
+              {M('city')}
               {renderCorrection('city')}
             </div>
             <div className="form-group">
-              <label className="form-label" htmlFor="district">District *</label>
-              <input id="district" type="text" className="form-input" placeholder="e.g., Accra Metropolitan" value={formData.district} onChange={(e) => handleInputChange('district', e.target.value)} required />
-              {renderCorrection('district')}
-            </div>
-            <div className="form-group">
               <label className="form-label" htmlFor="region">Region *</label>
-              <select id="region" className="form-input" value={formData.region} onChange={(e) => handleInputChange('region', e.target.value)} required>
+              <select id="region" className="form-input" {...F('region')} value={formData.region} onChange={(e) => handleInputChange('region', e.target.value)} required>
                 <option value="">Select region</option>
                 {ghanaRegions.map((r) => <option key={r} value={r}>{r}</option>)}
               </select>
+              {M('region')}
               {renderCorrection('region')}
             </div>
             <div className="form-group">
+              <label className="form-label" htmlFor="district">District *</label>
+              <select id="district" className="form-input" {...F('district')} value={formData.district} onChange={(e) => handleInputChange('district', e.target.value)} disabled={!formData.region} required>
+                <option value="">{formData.region ? 'Select district' : 'Choose a region first'}</option>
+                {formData.district && !districtsFor(formData.region).includes(formData.district) && (
+                  <option value={formData.district}>{formData.district}</option>
+                )}
+                {districtsFor(formData.region).map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+              {M('district')}
+              {renderCorrection('district')}
+            </div>
+            <div className="form-group">
               <label className="form-label" htmlFor="digitalAddress">Digital Address *</label>
-              <input id="digitalAddress" type="text" className="form-input" placeholder="e.g., GA-XXX-XXXX" value={formData.digitalAddress} onChange={(e) => handleInputChange('digitalAddress', e.target.value)} required />
+              <input id="digitalAddress" type="text" className="form-input" {...F('digitalAddress')} placeholder="e.g., GA-XXX-XXXX" value={formData.digitalAddress} onChange={(e) => handleInputChange('digitalAddress', e.target.value)} required />
+              {M('digitalAddress')}
               {renderCorrection('digitalAddress')}
             </div>
             <div className={`form-group ${styles.formFull}`}>
@@ -564,7 +641,8 @@ export default function EditSubmissionContent({ applicationId }: Props) {
           <div className={styles.formGrid}>
             <div className="form-group">
               <label className="form-label" htmlFor="mobilePhone">Mobile Phone *</label>
-              <input id="mobilePhone" type="tel" className="form-input" placeholder="+233 XXX XXX XXX" value={formData.mobilePhone} onChange={(e) => handleInputChange('mobilePhone', e.target.value)} required />
+              <input id="mobilePhone" type="tel" className="form-input" {...F('mobilePhone')} placeholder="+233 XXX XXX XXX" value={formData.mobilePhone} onChange={(e) => handleInputChange('mobilePhone', e.target.value)} required />
+              {M('mobilePhone')}
               {renderCorrection('mobilePhone')}
             </div>
             <div className="form-group">
@@ -574,13 +652,15 @@ export default function EditSubmissionContent({ applicationId }: Props) {
             </div>
             <div className={`form-group ${styles.formFull}`}>
               <label className="form-label" htmlFor="contactEmail">Email *</label>
-              <input id="contactEmail" type="email" className="form-input" placeholder="company@example.com" value={formData.email} onChange={(e) => handleInputChange('email', e.target.value)} required />
+              <input id="contactEmail" type="email" className="form-input" {...F('contactEmail')} placeholder="company@example.com" value={formData.email} onChange={(e) => handleInputChange('email', e.target.value)} required />
+              {M('contactEmail')}
               {renderCorrection('email')}
             </div>
           </div>
 
+          {issueList(1)}
           {nav(null, (
-            <button type="button" className="btn btn-primary" onClick={() => setStep(2)}>
+            <button type="button" className="btn btn-primary" onClick={() => next(1, 2)}>
               Continue <ArrowRight size={16} />
             </button>
           ))}
@@ -593,9 +673,10 @@ export default function EditSubmissionContent({ applicationId }: Props) {
           <p className={styles.stepDesc}>The business owner&apos;s details, as on ORC Form A.</p>
           {sectionNotice(2, 'Some proprietor details need changes.')}
           {renderCorrection('proprietor.ghanaCardNumber')}
-          <PersonForm person={proprietor} onChange={handleProprietorChange} prefix="prop" title="Proprietor" />
-          {nav(() => setStep(1), (
-            <button type="button" className="btn btn-primary" onClick={() => setStep(lastStep)}>
+          <PersonForm person={proprietor} onChange={handleProprietorChange} prefix="prop" title="Proprietor" showErrors={errs.showErrors} focusRequest={errs.focusRequest} />
+          {issueList(2)}
+          {nav(() => go(1), (
+            <button type="button" className="btn btn-primary" onClick={() => next(2, lastStep)}>
               {reviewButtonLabel} <ArrowRight size={16} />
             </button>
           ))}
@@ -607,19 +688,25 @@ export default function EditSubmissionContent({ applicationId }: Props) {
           <h2 className={styles.stepHeading}>Directors</h2>
           <p className={styles.stepDesc}>At least two directors, one of whom lives in Ghana.</p>
           {sectionNotice(2, 'One or more directors need changes.')}
+          <DirectorInviteTip />
           {directors.map((director, i) => (
             <div key={i} className={styles.personBlock}>
               {renderCorrection(`directors.${i}.ghanaCardNumber`)}
-              <PersonForm
-                person={director}
-                onChange={(f, v) => handleDirectorChange(i, f, v)}
-                prefix={`dir-${i}`}
-                title={`Director ${i + 1}`}
-              />
+              <DirectorInvite index={i} director={director} inv={inv}>
+                <PersonForm
+                  person={director}
+                  onChange={(f, v) => handleDirectorChange(i, f, v)}
+                  prefix={`dir-${i}`}
+                  title={`Director ${i + 1}`}
+                  showErrors={errs.showErrors}
+                  focusRequest={errs.focusRequest}
+                />
+              </DirectorInvite>
             </div>
           ))}
-          {nav(() => setStep(1), (
-            <button type="button" className="btn btn-primary" onClick={() => setStep(3)}>
+          {issueList(2)}
+          {nav(() => go(1), (
+            <button type="button" className="btn btn-primary" onClick={() => next(2, 3)}>
               Continue <ArrowRight size={16} />
             </button>
           ))}
@@ -634,29 +721,29 @@ export default function EditSubmissionContent({ applicationId }: Props) {
 
           <div className={styles.personBlock}>
             {renderCorrection('secretary.ghanaCardNumber')}
-            <PersonForm person={secretary} onChange={handleSecretaryChange} prefix="sec" title="Company Secretary" />
+            <PersonForm person={secretary} onChange={handleSecretaryChange} prefix="sec" title="Company Secretary" showErrors={errs.showErrors} focusRequest={errs.focusRequest} />
           </div>
 
-          <div className={styles.formSectionTitle}>Shareholders</div>
-          {shareholders.map((sh, i) => (
-            <div key={i} className={styles.shareholderBlock}>
-              <div className={styles.formGrid}>
-                <div className="form-group">
-                  <label className="form-label" htmlFor={`sh-${i}-name`}>Shareholder {i + 1} name</label>
-                  <input id={`sh-${i}-name`} className="form-input" value={sh.name} onChange={(e) => handleShareholderChange(i, 'name', e.target.value)} />
-                  {renderCorrection(`shareholders.${i}.name`)}
-                </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor={`sh-${i}-shares`}>Number of shares</label>
-                  <input id={`sh-${i}-shares`} className="form-input" type="number" value={sh.numberOfShares} onChange={(e) => handleShareholderChange(i, 'numberOfShares', e.target.value)} />
-                  {renderCorrection(`shareholders.${i}.numberOfShares`)}
-                </div>
-              </div>
-            </div>
-          ))}
+          <OwnershipSection
+            shareholders={shareholders}
+            setShareholders={setShareholders}
+            details={companyDetails as unknown as Record<string, string>}
+            setDetail={handleCompanyDetailChange}
+            setDetails={setCompanyDetailsPatch}
+            auditorLater={auditorLater}
+            setAuditorLater={setAuditorLater}
+            capitalAuto={capitalAuto}
+            setCapitalAuto={setCapitalAuto}
+            isShares={isShares}
+            people={directors.map((d, i) => ({ d, i, name: personDisplayName(d) })).filter((x) => x.name)}
+            issues={step3Issues}
+            errors={errs}
+            note={renderCorrection}
+          />
 
-          {nav(() => setStep(2), (
-            <button type="button" className="btn btn-primary" onClick={() => setStep(lastStep)}>
+          {issueList(3)}
+          {nav(() => go(2), (
+            <button type="button" className="btn btn-primary" onClick={() => next(3, lastStep)}>
               {reviewButtonLabel} <ArrowRight size={16} />
             </button>
           ))}
@@ -729,8 +816,27 @@ export default function EditSubmissionContent({ applicationId }: Props) {
             )}
           </div>
 
-          {nav(() => setStep(step - 1), (
-            <button type="button" className="btn btn-primary btn-lg" onClick={handleSubmit} disabled={submitting}>
+          <IssueList
+            issues={allIssues}
+            show={allIssues.length > 0}
+            onJump={(issue) => jumpAcross(issue as Issue & { step: number })}
+            verb={isDraft ? 'submit' : 'resubmit'}
+          />
+
+          {waitingOn.length > 0 && (
+            <div className={styles.issues} role="status">
+              <p className={styles.issuesTitle}>
+                <Clock size={18} /> Waiting for {waitingOn.map((d) => personDisplayName(d) || 'a director').join(' and ')} to add their details
+              </p>
+              <p className={styles.issuesText}>
+                You can {isDraft ? 'submit' : 'resubmit'} as soon as they’ve filled in the link you sent. This page updates on its own.{' '}
+                <button type="button" className={styles.linkBtn} onClick={() => setStep(2)}>Go to directors</button>
+              </p>
+            </div>
+          )}
+
+          {nav(() => go(step - 1), (
+            <button type="button" className="btn btn-primary btn-lg" onClick={trySubmit} disabled={submitting || waitingOn.length > 0}>
               {submitting
                 ? (isDraft ? 'Submitting…' : 'Resubmitting…')
                 : (isDraft ? 'Submit application' : 'Resubmit application')}
