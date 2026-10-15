@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, ArrowRight, Check, BookOpen, RotateCcw, Clock, Search } from 'lucide-react'
 import NameCheck from '../applications/new/NameCheck'
+import NameIdeasInline, { kindForType } from '@/app/name-ideas/NameIdeasInline'
 import { useNameCheck, warmNameCheck } from '../applications/new/useNameCheck'
 import { businessTypes } from '../applications/new/constants'
 import type { PriceLine } from '../applications/new/pricing'
@@ -240,6 +241,8 @@ export default function Chooser({ prices, mode = 'dashboard' }: Props) {
               result={nameResult}
               onRetry={retryNameCheck}
             />
+
+            <NameIdeasInline kind={kindForType(stage.typeId)} current={proposedName} onPick={updateName} />
 
             {conflict && (
               <p className={styles.small}>

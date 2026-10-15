@@ -1,8 +1,12 @@
 import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
+import { JsonLd, breadcrumbLd, serviceLd } from '@/lib/structured-data'
 import Link from 'next/link'
 
-export const metadata = pageMetadata('External Company & Branch Office', 'Register a foreign branch or external corporate entity in Ghana with the ORC. Local process agent, statutory documents, and full setup.', '/services/subsidiary')
+const metadataTitle = 'External Company & Branch Office'
+const metadataDescription = 'Register a foreign branch or external corporate entity in Ghana with the ORC. Local process agent, statutory documents, and full setup.'
+
+export const metadata = pageMetadata(metadataTitle, metadataDescription, '/services/subsidiary')
 
 export default function ExternalCompanyPage() {
   return (
@@ -10,6 +14,7 @@ export default function ExternalCompanyPage() {
       title="External Company (Branch Office)" 
       subtitle="For foreign entities looking to operate in Ghana."
     >
+      <JsonLd data={[serviceLd({ name: metadataTitle, description: metadataDescription, path: '/services/subsidiary' }), breadcrumbLd([{ name: metadataTitle, path: '/services/subsidiary' }])]} />
       <section>
         <h2>Overview</h2>
         <p>

@@ -1,8 +1,12 @@
 import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
+import { JsonLd, breadcrumbLd, serviceLd } from '@/lib/structured-data'
 import Link from 'next/link'
 
-export const metadata = pageMetadata('Sole Proprietorship Registration', 'Fast, official business name registration in Ghana with the ORC. Get your Business Name Certificate, TIN, and bank account setup.', '/services/sole-proprietorship')
+const metadataTitle = 'Sole Proprietorship Registration'
+const metadataDescription = 'Fast, official business name registration in Ghana with the ORC. Get your Business Name Certificate, TIN, and bank account setup.'
+
+export const metadata = pageMetadata(metadataTitle, metadataDescription, '/services/sole-proprietorship')
 
 export default function SolePropPage() {
   return (
@@ -10,6 +14,7 @@ export default function SolePropPage() {
       title="Sole Proprietorship" 
       subtitle="Fast, simple registration for individual entrepreneurs."
     >
+      <JsonLd data={[serviceLd({ name: metadataTitle, description: metadataDescription, path: '/services/sole-proprietorship' }), breadcrumbLd([{ name: metadataTitle, path: '/services/sole-proprietorship' }])]} />
       <section>
         <h2>Overview</h2>
         <p>

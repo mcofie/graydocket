@@ -11,6 +11,7 @@ import {
   FileText,
 } from 'lucide-react'
 import Header from '@/components/Header'
+import { JsonLd, organizationLd, websiteLd } from '@/lib/structured-data'
 import Footer from '@/components/Footer'
 import Reveal from '@/components/ui/Reveal'
 import { ComplianceDoodle } from '@/components/doodles/Doodles'
@@ -75,6 +76,7 @@ export default function Home() {
   return (
     <div className={styles.pageWrapper}>
       <Header />
+      <JsonLd data={[organizationLd(), websiteLd()]} />
       <main className={styles.main}>
         {/* Hero */}
         <section className={styles.hero}>

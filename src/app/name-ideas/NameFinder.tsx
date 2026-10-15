@@ -14,6 +14,7 @@ import {
   writeLocalShortlist,
 } from '@/lib/name-shortlist'
 import Turnstile from './Turnstile'
+import { postIdeas, turnstileKey } from './ideas-client'
 import styles from './name-ideas.module.css'
 
 // Name finder, laid out like a small studio: choices on the left, names on the right that update as
@@ -22,7 +23,6 @@ import styles from './name-ideas.module.css'
 
 type OrcState = { state: 'free' } | { state: 'similar'; matches: string[] } | { state: 'unknown' }
 type DomainState = { checking: true } | { checking: false; free: string[]; taken: string[] }
-type IdeasReply = { names?: NameIdea[]; error?: string; renew?: boolean; challenge?: boolean }
 type FetchOpts = { like?: NameIdea | null; fresh?: boolean; turnstile?: string }
 
 const KINDS: Array<{ id: NameKind; label: string; typeId: string }> = [
@@ -69,34 +69,6 @@ async function checkOrc(name: string): Promise<OrcState> {
   } catch {
     return { state: 'unknown' }
   }
-}
-
-// The page picks up a short-lived signed pass before asking for names (see /api/name-ideas)
-let pass: string | null = null
-let turnstileSiteKey: string | null = null
-async function getPass(renew = false) {
-  if (!pass || renew) {
-    const res = await fetch('/api/name-ideas', { cache: 'no-store' })
-    const body = (await res.json()) as { pass: string; turnstileSiteKey: string | null }
-    pass = body.pass
-    turnstileSiteKey = body.turnstileSiteKey
-  }
-  return pass
-}
-
-async function postIdeas(payload: Record<string, unknown>, signal?: AbortSignal): Promise<IdeasReply> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await fetch('/api/name-ideas', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-name-pass': await getPass(attempt > 0) },
-      body: JSON.stringify(payload),
-      signal,
-    })
-    const body = (await res.json()) as IdeasReply
-    if (body.renew && attempt === 0) continue
-    return body
-  }
-  return { error: 'Couldn’t get ideas just now. Please try again.' }
 }
 
 /** Names from a shared link: /name-ideas?list=Name%20One|Name%20Two */
@@ -163,6 +135,12 @@ export default function NameFinder() {
     setShortlist(local)
     setShared(sharedFromUrl())
     setRestored(true)
+    // Arriving from the quiz (or a link) with the business type and trade already known
+    const params = new URLSearchParams(window.location.search)
+    const linkedKind = params.get('kind')
+    if (linkedKind === 'sole' || linkedKind === 'company' || linkedKind === 'nonprofit') setKind(linkedKind)
+    const linkedIndustry = INDUSTRIES.find((i) => i.id === params.get('industry'))
+    if (linkedIndustry) setIndustry(linkedIndustry.id)
     void readAccountShortlist().then((account) => {
       if (!account) return
       setOnAccount(true)
@@ -234,7 +212,7 @@ export default function NameFinder() {
     try {
       const body = await postIdeas(payload(opts, shownRef.current), request.signal)
       if (request.signal.aborted) return
-      if (body.challenge && turnstileSiteKey) {
+      if (body.challenge && turnstileKey()) {
         setChallenge({ ...opts, turnstile: undefined })
         return
       }
@@ -446,6 +424,7 @@ export default function NameFinder() {
                 </button>
               ))}
             </div>
+            <Link href="/find-your-business-type" className={styles.quizLink}>Not sure which? Take the 1-minute quiz</Link>
           </div>
 
           <div className={styles.question}>
@@ -578,10 +557,10 @@ export default function NameFinder() {
                 </button>
               </div>
               {error && <p className={styles.error}>{error}</p>}
-              {challenge && turnstileSiteKey && (
+              {challenge && turnstileKey() && (
                 <div className={styles.challenge}>
                   <p>You’ve looked at a lot of names. A quick check that you’re a person, then we’ll carry on.</p>
-                  <Turnstile siteKey={turnstileSiteKey} onToken={(token) => void fetchIdeas({ ...challenge, turnstile: token })} />
+                  <Turnstile siteKey={turnstileKey()!} onToken={(token) => void fetchIdeas({ ...challenge, turnstile: token })} />
                 </div>
               )}
               {loading && ideas.length === 0 && (

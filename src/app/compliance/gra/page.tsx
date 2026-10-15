@@ -1,8 +1,12 @@
 import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
+import { JsonLd, breadcrumbLd, serviceLd } from '@/lib/structured-data'
 import Link from 'next/link'
 
-export const metadata = pageMetadata('GRA Tax Activation & Compliance', 'Connect your business to the Ghana Revenue Authority (GRA). Activate your domestic tax office and prepare for Tax Clearance Certificates.', '/compliance/gra')
+const metadataTitle = 'GRA Tax Activation & Compliance'
+const metadataDescription = 'Connect your business to the Ghana Revenue Authority (GRA). Activate your domestic tax office and prepare for Tax Clearance Certificates.'
+
+export const metadata = pageMetadata(metadataTitle, metadataDescription, '/compliance/gra')
 
 export default function GRAPage() {
   return (
@@ -10,6 +14,7 @@ export default function GRAPage() {
       title="GRA Tax Activation" 
       subtitle="Connecting your business to the Ghana Revenue Authority."
     >
+      <JsonLd data={[serviceLd({ name: metadataTitle, description: metadataDescription, path: '/compliance/gra' }), breadcrumbLd([{ name: metadataTitle, path: '/compliance/gra' }])]} />
       <section>
         <h2>Tax Activation vs. Registration</h2>
         <p>

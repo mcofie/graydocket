@@ -1,16 +1,16 @@
 import Link from 'next/link'
 import { ArrowRight, Plus } from 'lucide-react'
 import { pageMetadata } from '@/lib/metadata'
+import { JsonLd, breadcrumbLd, faqLd, webAppLd } from '@/lib/structured-data'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import NameFinder from './NameFinder'
 import styles from './name-ideas.module.css'
 
-export const metadata = pageMetadata(
-  'Business Name Ideas',
-  'Stuck on a name? Get business name ideas for Ghana, check them against the ORC register and for a website address, then register the one you love.',
-  '/name-ideas'
-)
+const DESCRIPTION =
+  'Stuck on a name? Get business name ideas for Ghana, check them against the ORC register and for a website address, then register the one you love.'
+
+export const metadata = pageMetadata('Business Name Ideas', DESCRIPTION, '/name-ideas')
 
 const STEPS = [
   { title: 'Find a name you love', text: 'Try a few feels, keep the names that stand out and say them out loud.' },
@@ -40,12 +40,6 @@ const FAQS = [
     a: 'It helps. When you keep a name, we check whether its .com and .com.gh addresses are free, so your name and website can match.',
   },
 ]
-
-const faqJsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'FAQPage',
-  mainEntity: FAQS.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
-}
 
 export default function NameIdeasPage() {
   return (
@@ -84,7 +78,13 @@ export default function NameIdeasPage() {
             ))}
           </div>
         </section>
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
+        <JsonLd
+          data={[
+            webAppLd({ name: 'GrayDocket Business Name Finder', description: DESCRIPTION, path: '/name-ideas' }),
+            faqLd(FAQS),
+            breadcrumbLd([{ name: 'Business name ideas', path: '/name-ideas' }]),
+          ]}
+        />
       </main>
       <Footer />
     </div>

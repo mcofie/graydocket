@@ -1,8 +1,12 @@
 import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
+import { JsonLd, breadcrumbLd, serviceLd } from '@/lib/structured-data'
 import Link from 'next/link'
 
-export const metadata = pageMetadata('Tax Identification Number (TIN)', 'Understand individual and corporate TIN generation in Ghana, linking your Ghana Card to GRA tax and ORC business records.', '/compliance/tin')
+const metadataTitle = 'Tax Identification Number (TIN)'
+const metadataDescription = 'Understand individual and corporate TIN generation in Ghana, linking your Ghana Card to GRA tax and ORC business records.'
+
+export const metadata = pageMetadata(metadataTitle, metadataDescription, '/compliance/tin')
 
 export default function TINPage() {
   return (
@@ -10,6 +14,7 @@ export default function TINPage() {
       title="TIN Generation" 
       subtitle="Your individual and corporate Tax Identification Number."
     >
+      <JsonLd data={[serviceLd({ name: metadataTitle, description: metadataDescription, path: '/compliance/tin' }), breadcrumbLd([{ name: metadataTitle, path: '/compliance/tin' }])]} />
       <section>
         <h2>The Importance of TIN</h2>
         <p>

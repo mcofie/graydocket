@@ -1,8 +1,12 @@
 import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
+import { JsonLd, breadcrumbLd, serviceLd } from '@/lib/structured-data'
 import Link from 'next/link'
 
-export const metadata = pageMetadata('Business Name Renewal', 'Renew your Sole Proprietorship or Partnership with the ORC in Ghana every year. Keep your business name legally registered.', '/compliance/renewal')
+const metadataTitle = 'Business Name Renewal'
+const metadataDescription = 'Renew your Sole Proprietorship or Partnership with the ORC in Ghana every year. Keep your business name legally registered.'
+
+export const metadata = pageMetadata(metadataTitle, metadataDescription, '/compliance/renewal')
 
 export default function RenewalPage() {
   return (
@@ -10,6 +14,7 @@ export default function RenewalPage() {
       title="Business Name Renewal" 
       subtitle="Keep your Sole Proprietorship or Partnership active."
     >
+      <JsonLd data={[serviceLd({ name: metadataTitle, description: metadataDescription, path: '/compliance/renewal' }), breadcrumbLd([{ name: metadataTitle, path: '/compliance/renewal' }])]} />
       <section>
         <h2>The Annual Renewal Cycle</h2>
         <p>
