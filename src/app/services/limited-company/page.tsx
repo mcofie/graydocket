@@ -1,8 +1,12 @@
 import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
+import { JsonLd, breadcrumbLd, serviceLd } from '@/lib/structured-data'
 import Link from 'next/link'
 
-export const metadata = pageMetadata('Company Limited by Shares (Ltd)', 'Form a private company limited by shares in Ghana under Companies Act, 2019 (Act 992). Full ORC filing, constitution, TIN, and business bank account.', '/services/limited-company')
+const metadataTitle = 'Company Limited by Shares (Ltd)'
+const metadataDescription = 'Form a private company limited by shares in Ghana under Companies Act, 2019 (Act 992). Full ORC filing, constitution, TIN, and business bank account.'
+
+export const metadata = pageMetadata(metadataTitle, metadataDescription, '/services/limited-company')
 
 export default function LimitedCompanyPage() {
   return (
@@ -10,6 +14,7 @@ export default function LimitedCompanyPage() {
       title="Limited Company (Shares)" 
       subtitle="The gold standard for startups and established businesses in Ghana."
     >
+      <JsonLd data={[serviceLd({ name: metadataTitle, description: metadataDescription, path: '/services/limited-company' }), breadcrumbLd([{ name: metadataTitle, path: '/services/limited-company' }])]} />
       <section>
         <h2>Overview</h2>
         <p>

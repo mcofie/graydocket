@@ -2,6 +2,7 @@ import { pageMetadata } from '@/lib/metadata'
 import Link from 'next/link'
 import { Check, Plus } from 'lucide-react'
 import Header from '@/components/Header'
+import { JsonLd, breadcrumbLd, faqLd, serviceLd } from '@/lib/structured-data'
 import Footer from '@/components/Footer'
 import { HeroArtRow } from '@/components/doodles/HeroDoodles'
 import { getBusinessTypes, getServices, getSystemFee } from '@/lib/actions'
@@ -101,6 +102,15 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
   return (
     <div className={styles.wrapper}>
       <Header />
+      <JsonLd
+        data={[
+          ...plans.map((p) =>
+            serviceLd({ name: `${p.name} registration in Ghana`, description: `${p.audience} ${p.included.join('. ')}.`, path: '/pricing', price: p.total, timeline: p.timeline })
+          ),
+          faqLd(FAQS),
+          breadcrumbLd([{ name: 'Pricing', path: '/pricing' }]),
+        ]}
+      />
       <main className={styles.main}>
         <section className={styles.hero}>
           <HeroArtRow className={styles.heroArt} />

@@ -5,6 +5,8 @@
 // refreshing only when it expires or the ORC rejects it. Results are cached briefly, and
 // identical searches already in flight share one request.
 
+import { cacheGet, cacheSet, hitCounter } from '@/lib/shared-limits'
+
 const ORC_BASE = 'https://rgdonline.gegov.gov.gh/orc-app/'
 const USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -14,6 +16,19 @@ const RESULT_TTL_MS = 10 * 60 * 1000
 const MAX_CACHED_RESULTS = 500
 const PAGE_TIMEOUT_MS = 5000
 const SEARCH_TIMEOUT_MS = 6000
+
+// Protecting the ORC site, so heavy use (or a bot) can't get our server blocked:
+// - answers are shared across instances: a taken name stays taken, a free one is rechecked sooner
+// - a total budget of searches per minute across all visitors; name-finder checks may only use part
+//   of it, so customers checking a name in the registration form always come first
+// - at most a few searches at once from each instance
+const SHARED_TTL_TAKEN_S = 24 * 60 * 60
+const SHARED_TTL_FREE_S = 60 * 60
+const SEARCHES_PER_MINUTE = Number(process.env.ORC_SEARCHES_PER_MINUTE) || 90
+const LOW_PRIORITY_SHARE = 0.6
+const MAX_CONCURRENT = 3
+
+export type SearchPriority = 'high' | 'low'
 
 export type OrcNameResult = {
   available: boolean
@@ -145,8 +160,28 @@ async function runSearch(name: string): Promise<OrcNameResult> {
   }
 }
 
+const BUSY: OrcNameResult = {
+  available: true,
+  error: 'unreachable',
+  message: 'Lots of name checks right now. Please try again in a minute; we also check every name during processing.',
+}
+
+// A small queue so each instance runs only a few ORC searches at once
+let running = 0
+const waiting: Array<() => void> = []
+async function withSlot<T>(task: () => Promise<T>) {
+  if (running >= MAX_CONCURRENT) await new Promise<void>((resolve) => waiting.push(resolve))
+  running += 1
+  try {
+    return await task()
+  } finally {
+    running -= 1
+    waiting.shift()?.()
+  }
+}
+
 /** Check a business name against the ORC register, using the cache when we can */
-export async function searchOrcName(rawName: string): Promise<OrcNameResult> {
+export async function searchOrcName(rawName: string, { priority = 'high' }: { priority?: SearchPriority } = {}): Promise<OrcNameResult> {
   const name = rawName.trim().replace(/\s+/g, ' ')
   if (name.length < 3) return { available: true, message: 'Name too short' }
 
@@ -157,8 +192,18 @@ export async function searchOrcName(rawName: string): Promise<OrcNameResult> {
   const pending = searchesInFlight.get(key)
   if (pending) return pending
 
-  const search = runSearch(name).then((result) => {
+  const search = (async () => {
+    const sharedHit = await cacheGet<OrcNameResult>(`orc:${key}`)
+    if (sharedHit) return sharedHit
+
+    const used = await hitCounter('orc:searches', 60)
+    if (used > SEARCHES_PER_MINUTE * (priority === 'low' ? LOW_PRIORITY_SHARE : 1)) return BUSY
+
+    const result = await withSlot(() => runSearch(name))
     // Only cache real answers, so a temporary outage doesn't stick
+    if (!result.error) await cacheSet(`orc:${key}`, result, result.available ? SHARED_TTL_FREE_S : SHARED_TTL_TAKEN_S)
+    return result
+  })().then((result) => {
     if (!result.error) {
       results.set(key, { result, at: Date.now() })
       if (results.size > MAX_CACHED_RESULTS) results.delete(results.keys().next().value as string)

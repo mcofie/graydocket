@@ -1,8 +1,12 @@
 import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
+import { JsonLd, breadcrumbLd, serviceLd } from '@/lib/structured-data'
 import Link from 'next/link'
 
-export const metadata = pageMetadata('Partnership Registration', 'Register a partnership in Ghana under the Incorporated Private Partnerships Act (Act 152) with the ORC.', '/services/partnership')
+const metadataTitle = 'Partnership Registration'
+const metadataDescription = 'Register a partnership in Ghana under the Incorporated Private Partnerships Act (Act 152) with the ORC.'
+
+export const metadata = pageMetadata(metadataTitle, metadataDescription, '/services/partnership')
 
 export default function PartnershipPage() {
   return (
@@ -10,6 +14,7 @@ export default function PartnershipPage() {
       title="Partnership Registration" 
       subtitle="For two or more individuals wanting to trade together under a single name."
     >
+      <JsonLd data={[serviceLd({ name: metadataTitle, description: metadataDescription, path: '/services/partnership' }), breadcrumbLd([{ name: metadataTitle, path: '/services/partnership' }])]} />
       <section>
         <h2>Overview</h2>
         <p>

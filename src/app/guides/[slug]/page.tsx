@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { pageMetadata } from '@/lib/metadata'
 import Header from '@/components/Header'
+import { JsonLd, articleLd, breadcrumbLd } from '@/lib/structured-data'
 import Footer from '@/components/Footer'
 import { articles, getArticle } from '@/app/dashboard/resources/content'
 import ArticleView from '@/app/dashboard/resources/ArticleView'
@@ -25,6 +26,12 @@ export default async function PublicGuidePage({ params }: { params: Promise<{ sl
 
   return (
     <div className={styles.wrapper}>
+      <JsonLd
+        data={[
+          articleLd({ title: article.title, summary: article.summary, path: `/guides/${article.slug}` }),
+          breadcrumbLd([{ name: 'Resources', path: '/resources' }, { name: article.title, path: `/guides/${article.slug}` }]),
+        ]}
+      />
       <Header />
       <main className={styles.main}>
         <ArticleView

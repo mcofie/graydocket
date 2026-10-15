@@ -1,8 +1,12 @@
 import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
+import { JsonLd, breadcrumbLd, serviceLd } from '@/lib/structured-data'
 import Link from 'next/link'
 
-export const metadata = pageMetadata('SSNIT Employer Registration', 'Register as an employer with the Social Security and National Insurance Trust (SSNIT) in Ghana. Comply with mandatory pension obligations.', '/compliance/ssnit')
+const metadataTitle = 'SSNIT Employer Registration'
+const metadataDescription = 'Register as an employer with the Social Security and National Insurance Trust (SSNIT) in Ghana. Comply with mandatory pension obligations.'
+
+export const metadata = pageMetadata(metadataTitle, metadataDescription, '/compliance/ssnit')
 
 export default function SSNITPage() {
   return (
@@ -10,6 +14,7 @@ export default function SSNITPage() {
       title="SSNIT Registration" 
       subtitle="Ensuring social security compliance for your team."
     >
+      <JsonLd data={[serviceLd({ name: metadataTitle, description: metadataDescription, path: '/compliance/ssnit' }), breadcrumbLd([{ name: metadataTitle, path: '/compliance/ssnit' }])]} />
       <section>
         <h2>Employer Registration</h2>
         <p>

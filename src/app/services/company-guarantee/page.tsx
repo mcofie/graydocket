@@ -1,8 +1,12 @@
 import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
+import { JsonLd, breadcrumbLd, serviceLd } from '@/lib/structured-data'
 import Link from 'next/link'
 
-export const metadata = pageMetadata('Company Limited by Guarantee (NGO & Foundation)', 'Register a non-profit organization, NGO, or charity in Ghana with the ORC. Complete constitution preparation, vetting, and incorporation.', '/services/company-guarantee')
+const metadataTitle = 'Company Limited by Guarantee (NGO & Foundation)'
+const metadataDescription = 'Register a non-profit organization, NGO, or charity in Ghana with the ORC. Complete constitution preparation, vetting, and incorporation.'
+
+export const metadata = pageMetadata(metadataTitle, metadataDescription, '/services/company-guarantee')
 
 export default function CompanyGuaranteePage() {
   return (
@@ -10,6 +14,7 @@ export default function CompanyGuaranteePage() {
       title="Company Limited by Guarantee" 
       subtitle="The preferred structure for NGOs, charities, and foundations."
     >
+      <JsonLd data={[serviceLd({ name: metadataTitle, description: metadataDescription, path: '/services/company-guarantee' }), breadcrumbLd([{ name: metadataTitle, path: '/services/company-guarantee' }])]} />
       <section>
         <h2>Overview</h2>
         <p>

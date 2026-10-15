@@ -1,8 +1,12 @@
 import { pageMetadata } from '@/lib/metadata'
 import InfoPageLayout from '@/components/InfoPageLayout'
+import { JsonLd, breadcrumbLd, serviceLd } from '@/lib/structured-data'
 import Link from 'next/link'
 
-export const metadata = pageMetadata('Annual Returns Filing', 'File company annual returns with the ORC in Ghana on time. Maintain corporate good standing and prevent statutory penalties.', '/compliance/annual-returns')
+const metadataTitle = 'Annual Returns Filing'
+const metadataDescription = 'File company annual returns with the ORC in Ghana on time. Maintain corporate good standing and prevent statutory penalties.'
+
+export const metadata = pageMetadata(metadataTitle, metadataDescription, '/compliance/annual-returns')
 
 export default function AnnualReturnsPage() {
   return (
@@ -10,6 +14,7 @@ export default function AnnualReturnsPage() {
       title="Annual Returns Filing" 
       subtitle="Stay in the Office of the Registrar's good graces."
     >
+      <JsonLd data={[serviceLd({ name: metadataTitle, description: metadataDescription, path: '/compliance/annual-returns' }), breadcrumbLd([{ name: metadataTitle, path: '/compliance/annual-returns' }])]} />
       <section>
         <h2>What are Annual Returns?</h2>
         <p>
