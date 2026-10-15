@@ -17,6 +17,8 @@ import {
 } from './constants'
 import PersonForm from './PersonForm'
 import NameCheck from './NameCheck'
+import ShortlistPicks from './ShortlistPicks'
+import { withEnding } from '@/lib/name-ideas'
 import DomainCheck from './DomainCheck'
 import ResumeDrafts, { type SavedDraft } from './ResumeDrafts'
 import { useNameCheck, warmNameCheck } from './useNameCheck'
@@ -1006,10 +1008,22 @@ function NewRegistrationContent() {
                 {...fieldState(step1Issues, 'businessName')}
               />
               {fieldMessage(step1Issues, 'businessName')}
+              <ShortlistPicks
+                current={formData.businessName}
+                onPick={(name) =>
+                  handleInputChange(
+                    'businessName',
+                    withEnding(name, selectedType === 'limited_by_shares' ? 'company' : selectedType === 'limited_by_guarantee' ? 'nonprofit' : 'sole')
+                  )
+                }
+              />
               <span className="form-hint">
                 {isCompany
                   ? 'Name must end with "Limited" or "LTD" for private companies. We\'ll conduct a name search with ORC.'
-                  : 'We\'ll conduct a name search with ORC to ensure availability. Use block letters, no abbreviations.'}
+                  : 'We\'ll conduct a name search with ORC to ensure availability. Use block letters, no abbreviations.'}{' '}
+                {!formData.businessName.trim() && (
+                  <Link href="/name-ideas" target="_blank" className={styles.quizLink}>Stuck on a name? Get ideas</Link>
+                )}
               </span>
 
               <NameCheck

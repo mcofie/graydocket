@@ -11,6 +11,7 @@ const COLUMNS: Array<{ title: string; links: Array<{ label: string; href: string
     title: 'Products',
     links: [
       { label: 'Start', href: '/find-your-business-type' },
+      { label: 'Business name ideas', href: '/name-ideas' },
       { label: 'Agent', href: '/pricing?view=existing' },
       { label: 'Pricing', href: '/pricing' },
       { label: 'Track an application', href: '/track' },

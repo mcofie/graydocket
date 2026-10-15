@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ChevronDown, Menu, X, Rocket, ShieldCheck, BookOpen, MessageCircle } from 'lucide-react'
+import { ChevronDown, Menu, X, Rocket, ShieldCheck, BookOpen, MessageCircle, Sparkles } from 'lucide-react'
 import styles from './Header.module.css'
 
 const PRODUCTS = [
@@ -18,6 +18,12 @@ const PRODUCTS = [
     desc: 'All-in-one compliance for your business',
     href: '/pricing?view=existing',
     icon: ShieldCheck,
+  },
+  {
+    title: 'Name ideas',
+    desc: 'Find a business name and check it’s free',
+    href: '/name-ideas',
+    icon: Sparkles,
   },
 ]
 
