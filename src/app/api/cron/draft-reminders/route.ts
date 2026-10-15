@@ -108,7 +108,8 @@ export async function GET(request: NextRequest) {
 
     const hi = firstName(person.full_name) ? `Hi ${firstName(person.full_name)}, ` : 'Hi, '
     const what = name && name !== 'Untitled Business' ? `"${name}"` : `your ${draft.business_types?.name || 'business'} registration`
-    const link = `${appUrl}/dashboard/applications/${draft.id}`
+    // Straight back into the form at the step they left (Review and pay if it's ready); login keeps the address
+    const link = `${appUrl}/dashboard/applications/new?draft=${draft.id}`
     const message =
       draft.ready === 'true'
         ? `${hi}${what} is ready to send to our team. Complete payment${draft.total_amount ? ` of ${money(draft.total_amount)}` : ''} here: ${link}`

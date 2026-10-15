@@ -1843,3 +1843,149 @@ p.scanError svg {
   display: block;
   margin-top: 8px;
 }
+
+/* ---------- Website address (under the business name) ---------- */
+.domains {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: #f7f7f8;
+}
+
+.domainsTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.domainList {
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.domainRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.domainChosen {
+  border-color: var(--brand-ink);
+  background: var(--brand-soft);
+}
+
+.domainName {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13.5px;
+  color: #111827;
+}
+
+.domainStatus {
+  flex-shrink: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.domain_available { color: var(--brand-ink); }
+.domain_taken { color: #9ca3af; }
+.domain_unknown { color: #b45309; }
+
+.domainRemove {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--btn-height-sm);
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--btn-radius);
+  background: var(--brand-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.domainNote {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
+/* Phones: domain with its status underneath on the left, the button on the right */
+@media (max-width: 520px) {
+  .domains {
+    padding: 12px;
+  }
+
+  .domainRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 2px;
+    padding: 10px 8px 10px 12px;
+  }
+
+  .domainName {
+    grid-column: 1;
+    font-size: 14px;
+  }
+
+  .domainStatus {
+    grid-column: 1;
+    grid-row: 2;
+    font-size: 12px;
+  }
+
+  .domainRow > button {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
+/* ---------- Draft that can't be continued ---------- */
+.draftsNote {
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.draftsNote {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.saveStatusBad {
+  color: #b91c1c;
+}
+
+.saveErrorNote {
+  margin-top: 24px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fef2f2;
+  font-size: 13.5px;
+  color: #b91c1c;
+}
+
+.saveErrorNote + .stepNav {
+  margin-top: 12px;
+}

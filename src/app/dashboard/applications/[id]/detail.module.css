@@ -518,3 +518,10 @@
   text-underline-offset: 3px;
   text-decoration-color: rgba(17, 24, 39, 0.3);
 }
+
+/* "Delete draft" at the foot of an unfinished application: small and quiet */
+.quietDelete {
+  margin-top: 48px;
+  display: flex;
+  justify-content: center;
+}

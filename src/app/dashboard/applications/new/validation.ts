@@ -125,7 +125,7 @@ export function ownershipIssues(input: {
 export function describeIssues(issues: Issue[]) {
   const names = [...new Set(issues.map((i) => i.label))]
   const shown = names.slice(0, 4).join('; ')
-  return `Some details still need attention: ${shown}${names.length > 4 ? `, and ${names.length - 4} more` : ''}. Use Edit details to finish them.`
+  return `Some details still need attention: ${shown}${names.length > 4 ? `, and ${names.length - 4} more` : ''}. Please complete them, then try again.`
 }
 
 /**

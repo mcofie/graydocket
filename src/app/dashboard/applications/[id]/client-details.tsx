@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import PayNowButton from '@/components/checkout/PayNowButton'
+import DeleteDraft from '@/components/drafts/DeleteDraft'
+import { useRouter } from 'next/navigation'
 import { ArrowLeft, ArrowRight, ArrowUpRight, FileText, X, Download, ChevronRight } from 'lucide-react'
 import Tabs from '@/components/ui/Tabs'
 import styles from './detail.module.css'
@@ -55,6 +57,7 @@ function Rows({ rows }: { rows: Array<[string, React.ReactNode]> }) {
 }
 
 export default function ApplicationDetailContent({ app, appId }: { app: any; appId: string }) {
+  const router = useRouter()
   const [tab, setTab] = useState<Tab>('progress')
   const [selectedDoc, setSelectedDoc] = useState<any>(null)
 
@@ -78,7 +81,11 @@ export default function ApplicationDetailContent({ app, appId }: { app: any; app
   const shareholders: any[] = formData.shareholders || []
   const proprietor = formData.proprietor
   const legacyAddress = formData.businessAddress || {}
-  const editHref = `/dashboard/applications/${appId}/edit`
+  // Unpaid drafts continue in the full registration form (add-ons, delivery, payment); applications
+  // sent back for corrections use the edit form
+  const editHref = status === 'draft' && app.payment_status !== 'paid'
+    ? `/dashboard/applications/new?draft=${appId}`
+    : `/dashboard/applications/${appId}/edit`
 
   return (
     <div className={styles.page}>
@@ -349,6 +356,19 @@ export default function ApplicationDetailContent({ app, appId }: { app: any; app
       </footer>
 
       {/* Document viewer */}
+      {/* Deliberately quiet: the page is about finishing the application, not removing it */}
+      {status === 'draft' && app.payment_status !== 'paid' && (
+        <div className={styles.quietDelete}>
+          <DeleteDraft
+            applicationId={appId}
+            name={app.business_name || 'this application'}
+            onDeleted={() => router.push('/dashboard')}
+            trigger="quiet"
+            prompt="No longer need this?"
+          />
+        </div>
+      )}
+
       {selectedDoc && (
         <div
           className={styles.viewer}

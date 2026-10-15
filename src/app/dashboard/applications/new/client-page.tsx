@@ -8,7 +8,7 @@ import { usePaystackPayment } from 'react-paystack'
 import { startCheckout, confirmPayment } from '@/lib/checkout'
 import { 
   getBusinessTypes, 
-  saveApplicationDraft, getLatestDraft, getServices, getMyProfile, discardDraft
+  saveApplicationDraft, getDraft, getMyDrafts, getServices, getMyProfile, discardDraft
 } from '@/lib/actions'
 import styles from './new.module.css'
 import {
@@ -17,6 +17,8 @@ import {
 } from './constants'
 import PersonForm from './PersonForm'
 import NameCheck from './NameCheck'
+import DomainCheck from './DomainCheck'
+import ResumeDrafts, { type SavedDraft } from './ResumeDrafts'
 import { useNameCheck, warmNameCheck } from './useNameCheck'
 import { priceForType, addOnsWithPrices, courierFeeFrom, quoteApplication, type DbBusinessType } from './pricing'
 import { regionFromDigitalAddress, todayISO, splitFullName, personDisplayName, isValidPhone, type Issue } from './helpers'
@@ -38,6 +40,8 @@ const initialFormData = () => ({
   // Business Details
   businessName: '',
   businessNameAlt: '',
+  // Website address picked under the name (adds the Domain Name add-on)
+  preferredDomain: '',
   businessSector: '',
   businessSectorOther: '',
   natureOfBusiness: '',
@@ -113,6 +117,7 @@ function StepNav({
   issues = [],
   showIssues,
   onJump,
+  saveError,
 }: {
   onBack?: () => void
   onSave: () => void
@@ -127,10 +132,13 @@ function StepNav({
   /** Continue was pressed with problems: show the list */
   showIssues?: boolean
   onJump?: (issue: Issue) => void
+  /** Why the last save failed, shown above the buttons */
+  saveError?: string
 }) {
   return (
     <>
     <IssueList issues={issues} show={Boolean(showIssues)} onJump={(i) => onJump?.(i)} />
+    {saveError && <p className={styles.saveErrorNote} role="alert">{saveError}</p>}
     <div className={styles.stepNav}>
       {onBack ? (
         <button type="button" className="btn btn-ghost" onClick={onBack}>
@@ -141,7 +149,7 @@ function StepNav({
       )}
       <div className={styles.navRight}>
         <button type="button" className="btn btn-secondary" onClick={() => onSave()} disabled={saving || saveDisabled}>
-          {saving ? 'Saving…' : 'Save draft'}
+          {saving ? 'Saving…' : 'Save and exit'}
         </button>
         <button type="button" className="btn btn-primary" onClick={onNext} disabled={nextDisabled} id={nextId}>
           {nextLabel} <ArrowRight size={16} />
@@ -163,6 +171,9 @@ function NewRegistrationContent() {
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
+  // Last database save, shown by the step counter ("Saved 2:41 pm" or why it failed)
+  const [savedAt, setSavedAt] = useState<Date | null>(null)
+  const [saveError, setSaveError] = useState('')
   const [resultTrackingId, setResultTrackingId] = useState('')
   
   const searchParams = useSearchParams()
@@ -276,86 +287,103 @@ function NewRegistrationContent() {
   }
 
 
-  // Load from DB (prioritize) or LocalStorage (fallback)
+  // ---- Which application this form is for ----
+  // /dashboard/applications/new             a blank form (saved drafts are offered in a banner)
+  // /dashboard/applications/new?draft=<id>   continue that saved draft
+  // Unsaved typing is kept in the browser per draft, so a reload doesn't lose it.
+  const draftParam = searchParams.get('draft')
+  const [savedDrafts, setSavedDrafts] = useState<SavedDraft[]>([])
+  const [draftMissing, setDraftMissing] = useState(false)
+  const localKey = (id: string | null) => `graydocket_draft:${id || 'new'}`
+
   useEffect(() => {
-    // A ?type= link (e.g. from the landing page guide) preselects the business type,
-    // restarting at the first step if it differs from a saved draft's type
-    const applyTypeParam = (draftType?: string | null) => {
+    // A ?type= link (e.g. from the quiz or a guide) preselects the business type on a blank form
+    const applyTypeParam = () => {
       const urlType = searchParams.get('type')
       if (!urlType || !businessTypes.some((t) => t.id === urlType)) return
       setSelectedType(urlType)
-      if (draftType && draftType !== urlType) setStep(0)
-      // A name checked in the business-type quiz comes through as ?name=
       const urlName = searchParams.get('name')?.trim().slice(0, 120)
       if (urlName) setFormData((prev) => ({ ...prev, businessName: urlName }))
     }
 
-    async function loadDraft() {
-      // 1. Try DB
-      const { draft } = await getLatestDraft()
-      if (draft && draft.form_data) {
-        draftIdRef.current = draft.id
-        setDraftId(draft.id)
-        const data = draft.form_data as any
-        if (data.currentStep !== undefined) setStep(data.currentStep)
-        if (data.businessType) setSelectedType(data.businessType)
-        if (data.selectedAddOns) setSelectedAddOns(data.selectedAddOns)
-        if (data.formData) setFormData(data.formData)
-        if (data.proprietor) setProprietor(data.proprietor)
-        if (data.directors) setDirectors(data.directors)
-        if (data.secretary) setSecretary(data.secretary)
-        if (data.shareholders) setShareholders(data.shareholders)
-        if (data.companyDetails) { setCompanyDetails(data.companyDetails); setAuditorLater(Boolean(data.companyDetails.auditorLater)); setCapitalAuto(data.companyDetails.capitalAuto ?? !data.companyDetails.issuedShares) }
-        if (data.deliveryMethod) setDeliveryMethod(data.deliveryMethod)
-        if (data.deliveryAddress) setDeliveryAddress(data.deliveryAddress)
-        if (data.affiliateCode && !searchParams.get('ref')) setAffiliateCode(data.affiliateCode)
-        applyTypeParam(data.businessType)
-        setIsDraftLoaded(true)
-        return
+    /** Fill the form from a saved state: a database draft (either saved shape) or the browser copy */
+    const applySaved = (data: any) => {
+      const type = data.selectedType ?? data.businessType ?? null
+      if (type) setSelectedType(type)
+      // Business fields are under formData in drafts, but at the top level once checkout has run
+      const base = initialFormData()
+      const business = data.formData && typeof data.formData === 'object'
+        ? data.formData
+        : Object.fromEntries(Object.keys(base).filter((k) => data[k] !== undefined).map((k) => [k, data[k]]))
+      setFormData({ ...base, ...business })
+      if (data.selectedAddOns) setSelectedAddOns(data.selectedAddOns)
+      if (data.proprietor) setProprietor(data.proprietor)
+      if (data.directors) setDirectors(data.directors)
+      if (data.secretary) setSecretary(data.secretary)
+      if (data.shareholders) setShareholders(data.shareholders)
+      if (data.companyDetails) { setCompanyDetails({ ...initialCompanyDetails(), ...data.companyDetails }); setAuditorLater(Boolean(data.companyDetails.auditorLater)); setCapitalAuto(data.companyDetails.capitalAuto ?? !data.companyDetails.issuedShares) }
+      const method = data.deliveryMethod ?? data.delivery_method
+      if (method === 'courier' || method === 'digital') setDeliveryMethod(method)
+      const address = data.deliveryAddress ?? data.delivery_address
+      if (address) setDeliveryAddress({ ...initialDeliveryAddress(), ...address })
+      if (data.affiliateCode && !searchParams.get('ref')) setAffiliateCode(data.affiliateCode)
+      // Where to pick up: the saved step, or the review step for an application that's ready to pay
+      const company = type === 'limited_by_shares' || type === 'limited_by_guarantee'
+      const saved = data.step ?? data.currentStep
+      setStep(typeof saved === 'number' ? saved : data.ready_for_payment ? (company ? 6 : 5) : type ? 1 : 0)
+    }
+
+    const readLocal = (id: string | null) => {
+      try {
+        const raw = localStorage.getItem(localKey(id))
+        return raw ? JSON.parse(raw) : null
+      } catch {
+        return null
+      }
+    }
+
+    async function load() {
+      // The single shared copy used before drafts were kept apart
+      try { localStorage.removeItem('graydocket_draft') } catch {}
+      getMyDrafts().then((r) => setSavedDrafts(r.drafts))
+
+      if (draftParam) {
+        const { draft } = await getDraft(draftParam)
+        if (draft) {
+          draftIdRef.current = draft.id
+          setDraftId(draft.id)
+          applySaved(readLocal(draft.id) || draft.form_data || {})
+          setIsDraftLoaded(true)
+          return
+        }
+        // Paid, deleted, or someone else's: start a blank form and say so
+        setDraftMissing(true)
       }
 
-      // 2. Fallback to LocalStorage
-      const saved = localStorage.getItem('graydocket_draft')
-      if (!saved) prefillFromAccount()
-      let savedType: string | null = null
-      if (saved) {
-        try {
-          const data = JSON.parse(saved)
-          if(data.step !== undefined) setStep(data.step)
-          if(data.selectedType !== undefined) setSelectedType(data.selectedType)
-          savedType = data.selectedType
-          if(data.selectedAddOns) setSelectedAddOns(data.selectedAddOns)
-          if(data.formData) setFormData(data.formData)
-          if(data.proprietor) setProprietor(data.proprietor)
-          if(data.directors) setDirectors(data.directors)
-          if(data.secretary) setSecretary(data.secretary)
-          if(data.shareholders) setShareholders(data.shareholders)
-          if(data.companyDetails) { setCompanyDetails(data.companyDetails); setAuditorLater(Boolean(data.companyDetails.auditorLater)); setCapitalAuto(data.companyDetails.capitalAuto ?? !data.companyDetails.issuedShares) }
-          if(data.deliveryMethod) setDeliveryMethod(data.deliveryMethod)
-          if(data.deliveryAddress) setDeliveryAddress(data.deliveryAddress)
-          if(data.affiliateCode && !searchParams.get('ref')) setAffiliateCode(data.affiliateCode)
-        } catch (e) {
-          console.error("Draft load failed", e)
-        }
-      }
-      applyTypeParam(savedType)
+      // A blank form, with the owner's details from their account
+      try { localStorage.removeItem(localKey(null)) } catch {}
+      void prefillFromAccount()
+      applyTypeParam()
       setIsDraftLoaded(true)
     }
-    loadDraft()
+    load()
+    // Runs once: the URL's draft decides what this page is for
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Auto-save to LocalStorage
+  // Keep unsaved typing in the browser for this draft
   useEffect(() => {
-    if(!isDraftLoaded) return;
+    if (!isDraftLoaded) return
     const appState = { step, selectedType, selectedAddOns, formData, proprietor, directors, secretary, shareholders, companyDetails: { ...companyDetails, auditorLater, capitalAuto }, deliveryMethod, deliveryAddress, affiliateCode }
+    const key = localKey(draftId)
     // Browser storage holds about 5 MB. ID photos can exceed that, so if the full draft doesn't fit,
     // keep everything except the photos here (they're in the form and in the saved application)
     const noPhotos = (p: PersonEntry) => ({ ...p, idPhotos: [], ghanaCardPhotoUrl: '' })
     try {
-      localStorage.setItem('graydocket_draft', JSON.stringify(appState))
+      localStorage.setItem(key, JSON.stringify(appState))
     } catch {
       try {
-        localStorage.setItem('graydocket_draft', JSON.stringify({
+        localStorage.setItem(key, JSON.stringify({
           ...appState,
           proprietor: noPhotos(proprietor),
           directors: directors.map(noPhotos),
@@ -365,7 +393,7 @@ function NewRegistrationContent() {
         // Storage unavailable (private browsing): the database draft still works
       }
     }
-  }, [step, selectedType, selectedAddOns, formData, proprietor, directors, secretary, shareholders, companyDetails, auditorLater, capitalAuto, deliveryMethod, deliveryAddress, affiliateCode, isDraftLoaded])
+  }, [step, selectedType, selectedAddOns, formData, proprietor, directors, secretary, shareholders, companyDetails, auditorLater, capitalAuto, deliveryMethod, deliveryAddress, affiliateCode, isDraftLoaded, draftId])
 
   /** Save to the database. Returns the application id (invites need one). */
   const handleSaveDraft = async (override?: { directors?: PersonEntry[] }): Promise<string | null> => {
@@ -394,16 +422,33 @@ function NewRegistrationContent() {
       totalAmount: totalPrice,
       deliveryMethod,
       deliveryAddress,
-      step
+      step,
+      applicationId: draftIdRef.current,
     })
 
-    if (res.error) console.error("Draft save failed:", res.error)
-    else if (res.applicationId) {
+    if (res.error) {
+      console.error('Draft save failed:', res.error)
+      setSaveError('Couldn’t save just now. Your answers are kept on this device; try again in a moment.')
+    } else if (res.applicationId) {
+      setSaveError('')
+      setSavedAt(new Date())
+      const first = draftIdRef.current !== res.applicationId
       draftIdRef.current = res.applicationId
       setDraftId(res.applicationId)
+      // Now it's saved, the address points at it, so a reload or a shared tab continues this one
+      if (first) {
+        try { localStorage.removeItem(localKey(null)) } catch {}
+        router.replace(`${pathname}?draft=${res.applicationId}`, { scroll: false })
+      }
     }
     setSavingDraft(false)
     return res.error ? null : draftIdRef.current
+  }
+
+  /** "Save and exit": save, then go to the application's page (it has "Continue application") */
+  const handleSaveAndExit = async () => {
+    const id = await handleSaveDraft()
+    if (id) router.push(`/dashboard/applications/${id}`)
   }
 
   // Start over: discard the saved draft (database and browser), reset every field in place,
@@ -416,7 +461,10 @@ function NewRegistrationContent() {
       draftIdRef.current = null
       setDraftId(null)
     }
-    localStorage.removeItem('graydocket_draft')
+    try {
+      localStorage.removeItem(localKey(draftIdRef.current))
+      localStorage.removeItem(localKey(null))
+    } catch {}
 
     setStep(0)
     setSelectedType(null)
@@ -433,7 +481,7 @@ function NewRegistrationContent() {
     setDeliveryAddress(initialDeliveryAddress())
     setSubmitError('')
 
-    if (searchParams.get('type') || searchParams.get('name')) router.replace(pathname)
+    if (searchParams.get('type') || searchParams.get('name') || searchParams.get('draft')) router.replace(pathname)
     setConfirmingReset(false)
     setResetting(false)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -476,6 +524,12 @@ function NewRegistrationContent() {
   const lastStep = progressSteps.length - 1
 
   // ---- Handlers ----
+
+  /** Pick (or drop) a website address: it rides on the Domain Name add-on */
+  const chooseDomain = (domain: string | null) => {
+    setFormData((prev) => ({ ...prev, preferredDomain: domain || '' }))
+    setSelectedAddOns((prev) => (domain ? (prev.includes('domain') ? prev : [...prev, 'domain']) : prev.filter((a) => a !== 'domain')))
+  }
 
   const toggleAddOn = (id: string) => {
     setSelectedAddOns((prev) =>
@@ -588,8 +642,25 @@ function NewRegistrationContent() {
 
   const goTo = (n: number) => {
     errs.setShowErrors(false)
+    // Moving forward from the business details on saves the application, so it's never lost and
+    // shows up under "unfinished applications"
+    if (n > step && step >= 1 && selectedType) void handleSaveDraft()
     setStep(n)
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  /** Pay: check every step first; if something's wrong, go to that step and highlight it */
+  const deliveryStep = progressSteps.findIndex((p) => p.label === 'Delivery')
+  const allIssues = [
+    ...step1Issues.map((i) => ({ ...i, step: 1 })),
+    ...(isCompany ? directorsIssues : proprietorIssueList).map((i) => ({ ...i, step: 2 })),
+    ...(isCompany ? step3Issues.map((i) => ({ ...i, step: 3 })) : []),
+    ...deliveryIssues.map((i) => ({ ...i, step: deliveryStep })),
+  ]
+  const jumpAcross = (issue: Issue & { step: number }) => {
+    errs.setShowErrors(true)
+    setStep(issue.step)
+    errs.jumpTo(issue)
   }
 
   /** Continue: move on, or show what's wrong and go to the first problem */
@@ -638,6 +709,7 @@ function NewRegistrationContent() {
       deliveryMethod,
       deliveryAddress: deliveryMethod === 'courier' ? deliveryAddress : null,
       affiliateCode,
+      applicationId: draftIdRef.current,
     })
     if (checkout.error !== null) {
       setSubmitError(checkout.error)
@@ -665,7 +737,8 @@ function NewRegistrationContent() {
           setSubmitting(false)
           return
         }
-        localStorage.removeItem('graydocket_draft')
+        try { localStorage.removeItem(localKey(draftIdRef.current)) } catch {}
+        setSavedDrafts((prev) => prev.filter((d) => d.id !== draftIdRef.current))
         setResultTrackingId(confirmed.trackingId || '')
         setSubmitted(true)
         setSubmitting(false)
@@ -779,6 +852,15 @@ function NewRegistrationContent() {
         <span className={styles.progressMeta}>
           Step {step + 1} of {progressSteps.length} · <strong>{progressSteps[step]?.label}</strong>
         </span>
+        {(savingDraft || savedAt || saveError) && (
+          <span className={`${styles.saveStatus} ${saveError && !savingDraft ? styles.saveStatusBad : ''}`} aria-live="polite">
+            {savingDraft
+              ? 'Saving…'
+              : saveError
+                ? 'Couldn’t save'
+                : <><Check size={13} /> Saved {savedAt!.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true })}</>}
+          </span>
+        )}
         {!confirmingReset && (
           <button type="button" className={styles.textBtn} onClick={() => setConfirmingReset(true)}>Start over</button>
         )}
@@ -810,9 +892,17 @@ function NewRegistrationContent() {
         ))}
       </div>
 
+      {draftMissing && (
+        <p className={styles.draftsNote}>That application can’t be continued here: it may have been paid for or removed. You’re starting a new one.</p>
+      )}
+
       {/* ============ Step 0: Business Type ============ */}
       {step === 0 && (
         <div className={styles.stepCard}>
+          <ResumeDrafts
+            drafts={savedDrafts.filter((d) => d.id !== draftId)}
+            onDeleted={(id) => setSavedDrafts((prev) => prev.filter((d) => d.id !== id))}
+          />
           <h2 className={styles.stepTitle}>What are you registering?</h2>
           <p className={styles.stepDesc}>
             We&apos;ll handle the ORC filing.{' '}
@@ -877,7 +967,8 @@ function NewRegistrationContent() {
             })}
           </div>
           <StepNav
-            onSave={handleSaveDraft}
+            onSave={handleSaveAndExit}
+            saveError={saveError}
             saving={savingDraft}
             saveDisabled={!selectedType}
             onNext={() => goTo(1)}
@@ -925,6 +1016,13 @@ function NewRegistrationContent() {
                 checking={nameCheck.checking}
                 result={nameCheck.result}
                 onRetry={nameCheck.retry}
+              />
+              <DomainCheck
+                businessName={formData.businessName}
+                enabled={Boolean(nameCheck.result && (nameCheck.result.available || nameCheck.result.error))}
+                chosen={formData.preferredDomain || ''}
+                onChoose={chooseDomain}
+                price={dynamicAddOns.find((a) => a.id === 'domain')?.price ?? 0}
               />
             </div>
             <div className={`form-group ${styles.formFull}`}>
@@ -1107,7 +1205,8 @@ function NewRegistrationContent() {
 
           <StepNav
             onBack={() => goTo(0)}
-            onSave={handleSaveDraft}
+            onSave={handleSaveAndExit}
+            saveError={saveError}
             saving={savingDraft}
             onNext={() => tryNext(step1Issues, 2)}
             issues={step1Issues}
@@ -1127,7 +1226,8 @@ function NewRegistrationContent() {
           <PersonForm person={proprietor} onChange={handleProprietorChange} prefix="prop" title="Proprietor" showErrors={showErrors} focusRequest={focusRequest} />
           <StepNav
             onBack={() => goTo(1)}
-            onSave={handleSaveDraft}
+            onSave={handleSaveAndExit}
+            saveError={saveError}
             saving={savingDraft}
             onNext={() => tryNext(proprietorIssueList, 3)}
             issues={proprietorIssueList}
@@ -1180,7 +1280,8 @@ function NewRegistrationContent() {
 
           <StepNav
             onBack={() => goTo(1)}
-            onSave={handleSaveDraft}
+            onSave={handleSaveAndExit}
+            saveError={saveError}
             saving={savingDraft}
             onNext={() => tryNext(directorsIssues, 3)}
             issues={directorsIssues}
@@ -1226,7 +1327,8 @@ function NewRegistrationContent() {
 
           <StepNav
             onBack={() => goTo(2)}
-            onSave={handleSaveDraft}
+            onSave={handleSaveAndExit}
+            saveError={saveError}
             saving={savingDraft}
             onNext={() => tryNext(step3Issues, 4)}
             issues={step3Issues}
@@ -1258,7 +1360,7 @@ function NewRegistrationContent() {
                 </span>
                 <span className={styles.addOnBody}>
                   <h4>{addon.name}</h4>
-                  <p>{addon.desc}</p>
+                  <p>{addon.id === 'domain' && formData.preferredDomain ? `${formData.preferredDomain}, the address you picked` : addon.desc}</p>
                 </span>
                 <span className={styles.addOnPrice}>{addon.price === 0 ? 'Free' : `GH₵ ${addon.price}`}</span>
               </button>
@@ -1272,7 +1374,8 @@ function NewRegistrationContent() {
 
           <StepNav
             onBack={() => goTo(step - 1)}
-            onSave={handleSaveDraft}
+            onSave={handleSaveAndExit}
+            saveError={saveError}
             saving={savingDraft}
             onNext={() => goTo(step + 1)}
             nextLabel="Continue to delivery"
@@ -1414,7 +1517,8 @@ function NewRegistrationContent() {
 
           <StepNav
             onBack={() => goTo(step - 1)}
-            onSave={handleSaveDraft}
+            onSave={handleSaveAndExit}
+            saveError={saveError}
             saving={savingDraft}
             onNext={() => tryNext(deliveryIssues, step + 1)}
             nextLabel="Continue to review"
@@ -1462,6 +1566,12 @@ function NewRegistrationContent() {
               <div className={styles.reviewRow}>
                 <span className={styles.reviewLabel}>Alternative Name</span>
                 <span className={styles.reviewValue}>{formData.businessNameAlt}</span>
+              </div>
+            )}
+            {formData.preferredDomain && selectedAddOns.includes('domain') && (
+              <div className={styles.reviewRow}>
+                <span className={styles.reviewLabel}>Website address</span>
+                <span className={styles.reviewValue}>{formData.preferredDomain}</span>
               </div>
             )}
             <div className={styles.reviewRow}>
@@ -1701,13 +1811,15 @@ function NewRegistrationContent() {
             </div>
           )}
 
+          <IssueList issues={allIssues} show={allIssues.length > 0} onJump={(i) => jumpAcross(i as Issue & { step: number })} verb="pay" />
+
           {submitError && <div className={styles.submitError}>{submitError}</div>}
 
           <div className={styles.stepNav}>
             <button type="button" className="btn btn-ghost" onClick={() => goTo(lastStep - 1)}>
               <ArrowLeft size={16} /> Back
             </button>
-            <button type="button" className="btn btn-primary btn-lg" onClick={handlePayAndSubmit} disabled={submitting || (isCompany && directors.some(awaitingInvite))} id="submit-application">
+            <button type="button" className="btn btn-primary btn-lg" onClick={() => (allIssues.length > 0 ? jumpAcross(allIssues[0]) : handlePayAndSubmit())} disabled={submitting || (isCompany && directors.some(awaitingInvite))} id="submit-application">
               {submitting ? 'Processing payment…' : `Pay GH₵ ${totalPrice.toLocaleString()} and submit`}
             </button>
           </div>

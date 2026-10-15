@@ -163,6 +163,8 @@ export async function saveApplicationDraft(data: {
   deliveryMethod: string
   deliveryAddress: DeliveryAddress
   step: number
+  /** The draft being edited; without it a new draft is created (never matched by business type) */
+  applicationId?: string | null
 }) {
   const supabase = await createClient()
 
@@ -183,14 +185,18 @@ export async function saveApplicationDraft(data: {
     return { error: `Profile missing. Did you register? (ID: ${user.id})` }
   }
 
-  // Check for existing draft for this user and business type
-  const { data: existingDraft } = await supabase
-    .from('applications')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('business_type_id', data.businessTypeId)
-    .eq('status', 'draft')
-    .single()
+  // The draft this form is editing, if it's still the caller's own unpaid draft. Drafts are matched
+  // by id only, so someone can have two registrations of the same type in progress.
+  const { data: existingDraft } = data.applicationId
+    ? await supabase
+        .from('applications')
+        .select('id')
+        .eq('id', data.applicationId)
+        .eq('user_id', user.id)
+        .eq('status', 'draft')
+        .neq('payment_status', 'paid')
+        .maybeSingle()
+    : { data: null }
 
   // Directors sent a link: fold in the details they've sent back
   const { directors: withAnswers } = await applyInviteAnswers(existingDraft?.id, data.formData.directors)
@@ -253,12 +259,53 @@ export async function saveApplicationDraft(data: {
 }
 
 /** Delete one of the signed-in user's drafts (used by "Start over" in the registration form). */
+/** One of the signed-in customer's unpaid drafts, to continue in the registration form */
+export async function getDraft(applicationId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || !/^[0-9a-f-]{36}$/i.test(applicationId)) return { draft: null }
+  const { data } = await supabase
+    .from('applications')
+    .select('id, business_name, form_data, updated_at')
+    .eq('id', applicationId)
+    .eq('user_id', user.id)
+    .eq('status', 'draft')
+    .neq('payment_status', 'paid')
+    .maybeSingle()
+  return { draft: data || null }
+}
+
+/** The customer's unfinished applications, newest first (small columns only) */
+export async function getMyDrafts() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { drafts: [] as Array<{ id: string; name: string; type: string | null; updatedAt: string; readyToPay: boolean; step: number | null }> }
+  const { data } = await supabase
+    .from('applications')
+    .select('id, business_name, updated_at, ready:form_data->>ready_for_payment, step:form_data->>currentStep, business_types:business_type_id(name)')
+    .eq('user_id', user.id)
+    .eq('status', 'draft')
+    .neq('payment_status', 'paid')
+    .order('updated_at', { ascending: false })
+    .limit(10)
+  return {
+    drafts: (data || []).map((d) => ({
+      id: d.id as string,
+      name: (d.business_name as string) || 'Untitled business',
+      type: (d.business_types as { name?: string } | null)?.name || null,
+      updatedAt: d.updated_at as string,
+      readyToPay: d.ready === 'true',
+      step: d.step != null && !Number.isNaN(Number(d.step)) ? Number(d.step) : null,
+    })),
+  }
+}
+
 export async function discardDraft(applicationId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
-  // Only ever deletes the caller's own application, and only while it is still a draft
+  // Only ever deletes the caller's own application, and only while it is still an unpaid draft
   const adminClient = await createAdminClient()
   const { data: removed, error } = await adminClient
     .from('applications')
@@ -266,44 +313,31 @@ export async function discardDraft(applicationId: string) {
     .eq('id', applicationId)
     .eq('user_id', user.id)
     .eq('status', 'draft')
+    .neq('payment_status', 'paid')
     .select('business_name, tracking_id')
 
   if (error) return { error: error.message }
+  if (!removed || removed.length === 0) return { error: 'This application can’t be deleted. It may already be paid for.' }
 
-  if (removed && removed.length > 0) {
+  // Director invite links hold people's details: remove them with the draft
+  const { data: inviteFiles } = await adminClient.storage.from(DOCUMENTS_BUCKET).list(`invites/${applicationId}`, { limit: 100 })
+  if (inviteFiles?.length) {
+    await adminClient.storage.from(DOCUMENTS_BUCKET).remove(inviteFiles.map((f) => `invites/${applicationId}/${f.name}`))
+  }
+
+  {
     notify({
       channel: 'activity',
-      title: `↩️ Registration discarded · ${removed[0].business_name || 'Unnamed business'}`,
-      summary: 'The customer chose “Start over” and deleted their draft.',
+      title: `🗑️ Draft deleted · ${removed[0].business_name || 'Unnamed business'}`,
+      summary: 'The customer deleted an unfinished application.',
       user: { id: user.id },
       fields: [['Draft', code(removed[0].tracking_id)]],
     })
   }
 
   revalidatePath('/dashboard')
+  revalidatePath('/dashboard/applications')
   return { error: null }
-}
-
-export async function getLatestDraft(businessTypeId?: string) {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { draft: null }
-
-  let query = supabase
-    .from('applications')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('status', 'draft')
-    .order('updated_at', { ascending: false })
-    .limit(1)
-
-  if (businessTypeId) {
-    query = query.eq('business_type_id', businessTypeId)
-  }
-
-  const { data, error } = await query.single()
-  return { draft: data || null, error: error?.message || null }
 }
 
 /** Every document for each of the signed-in customer's businesses (issued by us and provided by them) */
@@ -2052,7 +2086,7 @@ export async function updateApplicationDraft(applicationId: string, formData: Re
   // 1. Fetch current application to verify ownership and draft status
   const { data: app } = await supabase
     .from('applications')
-    .select('user_id, status')
+    .select('user_id, status, form_data')
     .eq('id', applicationId)
     .single()
 
@@ -2072,11 +2106,13 @@ export async function updateApplicationDraft(applicationId: string, formData: Re
 
   // 3. Update application
   const businessName = (newFormData.formData as any)?.businessName || (newFormData as any).businessName || 'Untitled Business'
+  // Merge into what's saved: the edit form only sends what it shows, and replacing the whole record
+  // would drop add-ons, delivery and pricing chosen in the registration form
   const { error: updateErr } = await supabase
     .from('applications')
     .update({
       business_name: businessName,
-      form_data: newFormData,
+      form_data: { ...((app.form_data as Record<string, unknown> | null) || {}), ...newFormData },
       updated_at: new Date().toISOString()
     })
     .eq('id', applicationId)

@@ -1,0 +1,146 @@
+.linkTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: #b91c1c;
+  cursor: pointer;
+}
+
+.linkTrigger:hover span {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.menuTrigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 500;
+  color: #b91c1c;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menuTrigger.dark {
+  color: #fca5a5;
+}
+
+.menuTrigger:hover {
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.menuTrigger.dark:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.confirm {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fef2f2;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #7f1d1d;
+}
+
+.confirm.dark {
+  max-width: 280px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f3f4f6;
+}
+
+.confirm strong {
+  font-weight: 600;
+}
+
+.error {
+  font-weight: 500;
+  color: #b91c1c;
+}
+
+.dark .error {
+  color: #fca5a5;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.keep,
+.danger {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.keep {
+  background: transparent;
+  color: inherit;
+}
+
+.keep:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.dark .keep:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.danger {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.danger:hover {
+  background: #b91c1c;
+}
+
+.keep:disabled,
+.danger:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Quiet: small grey text with an understated link */
+.quiet {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.quietBtn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: #6b7280;
+  text-decoration: underline;
+  text-decoration-color: #d1d5db;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.quietBtn:hover {
+  color: #374151;
+  text-decoration-color: #9ca3af;
+}

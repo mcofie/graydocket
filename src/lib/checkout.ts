@@ -25,6 +25,8 @@ type CheckoutInput = {
   deliveryMethod: 'digital' | 'courier'
   deliveryAddress: Record<string, unknown> | null
   affiliateCode?: string
+  /** The saved draft this checkout is for; without it a new application is created */
+  applicationId?: string | null
 }
 
 type CheckoutStart =
@@ -67,17 +69,18 @@ export async function startCheckout(input: CheckoutInput): Promise<CheckoutStart
     if (partner && partner.id !== user.id) referredById = partner.id
   }
 
-  // Reuse the customer's unpaid draft for this business type if there is one
-  const { data: existing } = await supabase
-    .from('applications')
-    .select('id, tracking_id')
-    .eq('user_id', user.id)
-    .eq('business_type_id', quote.dbTypeId)
-    .eq('status', 'draft')
-    .eq('payment_status', 'pending')
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  // The draft being paid for, if it's still the customer's own unpaid draft. Matched by id only, so a
+  // second registration of the same type never overwrites the first.
+  const { data: existing } = input.applicationId
+    ? await supabase
+        .from('applications')
+        .select('id, tracking_id')
+        .eq('id', input.applicationId)
+        .eq('user_id', user.id)
+        .eq('status', 'draft')
+        .neq('payment_status', 'paid')
+        .maybeSingle()
+    : { data: null }
 
   // Directors sent a link: use their answers, and wait for anyone who hasn't replied
   const { directors, pending } = await applyInviteAnswers(existing?.id, input.formData.directors)
@@ -157,6 +160,7 @@ export async function resumeCheckout(applicationId: string): Promise<CheckoutSta
 
   const form = (app.form_data || {}) as Record<string, unknown>
   return startCheckout({
+    applicationId: app.id,
     typeId: String(form.businessType || ''),
     businessName: app.business_name,
     formData: form,

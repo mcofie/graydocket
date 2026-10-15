@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Check, ArrowLeft, ArrowRight, AlertCircle, Clock } from 'lucide-react'
 import { 
-  getApplicationDetails, resubmitApplication, updateApplicationDraft
+  getApplicationDetails, resubmitApplication, updateApplicationDraft, getServices
 } from '@/lib/actions'
 import styles from '../../new/new.module.css'
 import {
@@ -14,6 +14,8 @@ import {
 } from '../../new/constants'
 import PersonForm from '../../new/PersonForm'
 import NameCheck from '../../new/NameCheck'
+import DomainCheck from '../../new/DomainCheck'
+import { addOnsWithPrices } from '../../new/pricing'
 import { useNameCheck, warmNameCheck } from '../../new/useNameCheck'
 import { useDirectorInvites, awaitingInvite } from '../../new/useDirectorInvites'
 import DirectorInvite, { DirectorInviteTip } from '../../new/DirectorInvite'
@@ -46,6 +48,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
   const [formData, setFormData] = useState({
     businessName: '',
     businessNameAlt: '',
+    preferredDomain: '',
     businessSector: '',
     businessSectorOther: '',
     natureOfBusiness: '',
@@ -81,6 +84,17 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     beneficialOwnerDOB: '',
   })
 
+  // Extras chosen in the registration form (kept when saving); a website address rides on the domain add-on
+  const [selectedAddOns, setSelectedAddOns] = useState<string[]>([])
+  const [domainPrice, setDomainPrice] = useState(0)
+  useEffect(() => {
+    getServices().then((res) => setDomainPrice(addOnsWithPrices(res.services || []).find((a) => a.id === 'domain')?.price ?? 0))
+  }, [])
+  const chooseDomain = (domain: string | null) => {
+    setFormData((prev) => ({ ...prev, preferredDomain: domain || '' }))
+    setSelectedAddOns((prev) => (domain ? (prev.includes('domain') ? prev : [...prev, 'domain']) : prev.filter((a) => a !== 'domain')))
+  }
+
   // Founders without an auditor yet can add one later; capital follows the shareholders until edited
   const [auditorLater, setAuditorLater] = useState(false)
   const [capitalAuto, setCapitalAuto] = useState(false)
@@ -110,6 +124,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     const fullFormData = {
       formData,
       businessType: selectedType,
+      selectedAddOns,
       ...(isCompany
         ? {
             directors,
@@ -141,7 +156,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     return () => {
       clearTimeout(timer)
     }
-  }, [formData, proprietor, directors, secretary, shareholders, companyDetails, auditorLater, capitalAuto, initialLoaded, appStatus])
+  }, [formData, proprietor, directors, secretary, shareholders, companyDetails, auditorLater, capitalAuto, selectedAddOns, initialLoaded, appStatus])
 
   useEffect(() => {
     async function loadApp() {
@@ -193,6 +208,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
         const newFormData = {
             businessName: getValue(data, 'businessName'),
             businessNameAlt: getValue(data, 'businessNameAlt'),
+            preferredDomain: getValue(data, 'preferredDomain'),
             businessSector: getValue(data, 'businessSector'),
             businessSectorOther: getValue(data, 'businessSectorOther'),
             natureOfBusiness: getValue(data, 'natureOfBusiness'),
@@ -221,6 +237,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
             beneficialOwnerAddress: '', beneficialOwnerDOB: '',
         })
         
+        if (Array.isArray(data.selectedAddOns)) setSelectedAddOns(data.selectedAddOns)
         const savedCompany = data.companyDetails || data.formData?.companyDetails
         if (savedCompany) {
           setAuditorLater(Boolean(savedCompany.auditorLater))
@@ -275,6 +292,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     setCompanyDetails((prev) => ({ ...prev, [field]: value }))
   }
 
+  /** "Save and exit": save, then go back to the application's page */
   const handleSaveDraft = async () => {
     setSavingDraft(true)
     setSubmitError('')
@@ -283,6 +301,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     const fullFormData = {
       formData,
       businessType: selectedType,
+      selectedAddOns,
       ...(isCompany
         ? {
             directors,
@@ -299,11 +318,11 @@ export default function EditSubmissionContent({ applicationId }: Props) {
 
     if (result.error) {
       setSubmitError(result.error)
-    } else {
-      setDraftSavedMessage('Draft saved')
-      setTimeout(() => setDraftSavedMessage(''), 3000)
+      setSavingDraft(false)
+      return
     }
-    setSavingDraft(false)
+    setDraftSavedMessage('Draft saved')
+    router.push(`/dashboard/applications/${applicationId}`)
   }
 
   const handleSubmit = async () => {
@@ -313,6 +332,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
     const fullFormData = {
       formData,
       businessType: selectedType,
+      selectedAddOns,
       ...(isCompany
         ? {
             directors,
@@ -438,7 +458,7 @@ export default function EditSubmissionContent({ applicationId }: Props) {
       <div className={styles.navRight}>
         {isDraft && (
           <button type="button" className="btn btn-secondary" onClick={handleSaveDraft} disabled={savingDraft}>
-            {savingDraft ? 'Saving…' : 'Save draft'}
+            {savingDraft ? 'Saving…' : 'Save and exit'}
           </button>
         )}
         {next}
@@ -516,6 +536,14 @@ export default function EditSubmissionContent({ applicationId }: Props) {
                 checking={nameCheck.checking}
                 result={nameCheck.result}
                 onRetry={nameCheck.retry}
+              />
+              <DomainCheck
+                businessName={formData.businessName}
+                enabled={Boolean(nameCheck.result && (nameCheck.result.available || nameCheck.result.error))}
+                chosen={selectedAddOns.includes('domain') ? formData.preferredDomain || '' : ''}
+                onChoose={chooseDomain}
+                price={domainPrice}
+                canChoose={isDraft}
               />
             </div>
             <div className={`form-group ${styles.formFull}`}>

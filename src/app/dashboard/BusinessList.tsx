@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import DeleteDraft from '@/components/drafts/DeleteDraft'
 import { MoreHorizontal, Eye, Pencil, Globe, Copy, Check, LifeBuoy, ArrowUpRight } from 'lucide-react'
 import styles from './overview.module.css'
 import { STAGES } from '@/lib/application-flow'
@@ -28,6 +30,7 @@ function RowMenu({ business }: { business: Business }) {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const router = useRouter()
 
   useEffect(() => {
     if (!open) return
@@ -82,7 +85,11 @@ function RowMenu({ business }: { business: Business }) {
             <span>View details</span>
           </Link>
           {canEdit && (
-            <Link href={`/dashboard/applications/${business.id}/edit`} className={styles.menuItem} role="menuitem">
+            <Link
+              href={business.status === 'draft' ? `/dashboard/applications/new?draft=${business.id}` : `/dashboard/applications/${business.id}/edit`}
+              className={styles.menuItem}
+              role="menuitem"
+            >
               <Pencil size={19} strokeWidth={1.75} />
               <span>{business.status === 'draft' ? 'Continue application' : 'Fix and resubmit'}</span>
             </Link>
@@ -114,6 +121,18 @@ function RowMenu({ business }: { business: Business }) {
             <LifeBuoy size={19} strokeWidth={1.75} />
             <span>Get help</span>
           </Link>
+          {business.status === 'draft' && (
+            <DeleteDraft
+              applicationId={business.id}
+              name={business.business_name || 'this application'}
+              dark
+              trigger="menu"
+              onDeleted={() => {
+                setOpen(false)
+                router.refresh()
+              }}
+            />
+          )}
         </div>
       )}
     </div>
