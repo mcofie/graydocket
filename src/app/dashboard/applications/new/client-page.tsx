@@ -348,7 +348,23 @@ function NewRegistrationContent() {
   useEffect(() => {
     if(!isDraftLoaded) return;
     const appState = { step, selectedType, selectedAddOns, formData, proprietor, directors, secretary, shareholders, companyDetails: { ...companyDetails, auditorLater, capitalAuto }, deliveryMethod, deliveryAddress, affiliateCode }
-    localStorage.setItem('graydocket_draft', JSON.stringify(appState))
+    // Browser storage holds about 5 MB. ID photos can exceed that, so if the full draft doesn't fit,
+    // keep everything except the photos here (they're in the form and in the saved application)
+    const noPhotos = (p: PersonEntry) => ({ ...p, idPhotos: [], ghanaCardPhotoUrl: '' })
+    try {
+      localStorage.setItem('graydocket_draft', JSON.stringify(appState))
+    } catch {
+      try {
+        localStorage.setItem('graydocket_draft', JSON.stringify({
+          ...appState,
+          proprietor: noPhotos(proprietor),
+          directors: directors.map(noPhotos),
+          secretary: noPhotos(secretary),
+        }))
+      } catch {
+        // Storage unavailable (private browsing): the database draft still works
+      }
+    }
   }, [step, selectedType, selectedAddOns, formData, proprietor, directors, secretary, shareholders, companyDetails, auditorLater, capitalAuto, deliveryMethod, deliveryAddress, affiliateCode, isDraftLoaded])
 
   /** Save to the database. Returns the application id (invites need one). */

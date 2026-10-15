@@ -3,6 +3,7 @@ import { ScanFace, ChevronDown, ChevronUp, CheckCircle2, UploadCloud, X, AlertCi
 import { PersonEntry, ghanaRegions } from './constants'
 import styles from './new.module.css'
 import { PERSON_REQUIRED, adultCutoffISO, personProblems, regionFromDigitalAddress } from './helpers'
+import { MAX_ID_PHOTOS, PhotoError, compressImage, parseGhanaCardText } from './idcard'
 
 // =====================================================
 // Helpers
@@ -92,9 +93,12 @@ export default function PersonForm({ person, onChange, prefix, title, showErrors
     setOpenSection(sectionOf(focusRequest.id.slice(prefix.length + 1)))
   }, [focusRequest, prefix])
   const [isScanning, setIsScanning] = useState(false)
-  const [scanned, setScanned] = useState(false)
-  const [scanError, setScanError] = useState('')
+  const [scanNote, setScanNote] = useState<{ ok: boolean; text: string } | null>(null)
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const [photoError, setPhotoError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const photos = person.idPhotos || []
+  const roomFor = MAX_ID_PHOTOS - photos.length - (person.ghanaCardPhotoUrl ? 1 : 0)
 
   const handleGhanaCardChange = (val: string) => {
     const formatted = formatGhanaCard(val)
@@ -102,75 +106,70 @@ export default function PersonForm({ person, onChange, prefix, title, showErrors
   }
 
   const handleScanClick = () => {
-    setScanError('')
+    setScanNote(null)
     fileInputRef.current?.click()
   }
 
-  const parseGhanaCardText = (text: string) => {
-    const cardIdMatch = text.match(/GHA-\d{9}-\d/) || text.match(/GHA-\d{9}-[A-Z0-9]/)
-    if (cardIdMatch) {
-      onChange('ghanaCardNumber', cardIdMatch[0])
-    }
-
-    const dobMatch = text.match(/(\d{2})[-./](\d{2})[-./](\d{4})/)
-    if (dobMatch) {
-      const day = dobMatch[1]
-      const month = dobMatch[2]
-      const year = dobMatch[3]
-      onChange('dateOfBirth', `${year}-${month}-${day}`)
-    }
-
-    const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
-    const surnameIdx = lines.findIndex(l => l.toUpperCase().includes('SURNAME') || l.toUpperCase().includes('NOM'))
-    if (surnameIdx !== -1 && lines[surnameIdx + 1]) {
-      onChange('surname', lines[surnameIdx + 1].replace(/[^A-Za-z]/g, ''))
-    }
-
-    const givenNameIdx = lines.findIndex(l => l.toUpperCase().includes('GIVEN NAMES') || l.toUpperCase().includes('PRENOMS'))
-    if (givenNameIdx !== -1 && lines[givenNameIdx + 1]) {
-      const names = lines[givenNameIdx + 1].split(' ')
-      onChange('firstName', names[0].replace(/[^A-Za-z]/g, ''))
-      if (names.slice(1).length > 0) {
-        onChange('otherNames', names.slice(1).join(' ').replace(/[^A-Za-z\s]/g, ''))
-      }
-    }
-
-    if (text.toUpperCase().includes('SEX: M') || text.toUpperCase().includes('SEX M') || text.toUpperCase().includes('MALE')) {
-      onChange('gender', 'Male')
-    } else if (text.toUpperCase().includes('SEX: F') || text.toUpperCase().includes('SEX F') || text.toUpperCase().includes('FEMALE')) {
-      onChange('gender', 'Female')
-    }
-
-    if (text.toUpperCase().includes('GHANA') || text.toUpperCase().includes('GHANAIAN')) {
-      onChange('nationality', 'Ghanaian')
-    }
-
-    setScanned(true)
-    setOpenSection('id')
-  }
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  /** Read the card, fill what we could read, and keep the photo as one of their ID photos */
+  const handleScanFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
-
     setIsScanning(true)
-    setScanError('')
-
+    setScanNote(null)
     try {
+      const image = await compressImage(file)
       const { createWorker } = await import('tesseract.js')
       const worker = await createWorker('eng')
-      const { data: { text } } = await worker.recognize(file)
+      const { data: { text } } = await worker.recognize(image)
       await worker.terminate()
 
-      console.log("[OCR Raw Text]:", text)
-      parseGhanaCardText(text)
-    } catch (err: any) {
-      console.error("[OCR Scan Error]", err)
-      setScanError('Failed to parse card image. Please ensure the photo is clear and well-lit.')
+      const reading = parseGhanaCardText(text)
+      const LABELS: Record<string, string> = {
+        ghanaCardNumber: 'card number', surname: 'surname', firstName: 'first name', otherNames: 'other names',
+        dateOfBirth: 'date of birth', gender: 'gender', nationality: 'nationality',
+      }
+      const filled = Object.entries(reading).filter(([, v]) => v)
+      for (const [key, value] of filled) onChange(key, value)
+      if (roomFor > 0) onChange('idPhotos', [...photos, image])
+
+      setScanNote(
+        filled.length > 0
+          ? { ok: true, text: `Filled in your ${filled.map(([k]) => LABELS[k]).join(', ')}. Check they’re right.` }
+          : { ok: false, text: 'We couldn’t read the card clearly, so please type the details. Its photo has been added below.' }
+      )
+      setOpenSection(filled.some(([k]) => k !== 'ghanaCardNumber') ? 'personal' : 'id')
+    } catch (err) {
+      setScanNote({
+        ok: false,
+        text: err instanceof PhotoError ? err.message : 'We couldn’t read that photo. Make sure it’s clear and well lit, or type the details.',
+      })
     } finally {
       setIsScanning(false)
-      e.target.value = ''
     }
+  }
+
+  /** Add ID photos, shrunk so they save quickly */
+  const handleAddPhotos = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    e.target.value = ''
+    if (files.length === 0) return
+    setPhotoError('')
+    if (roomFor <= 0) return setPhotoError(`You can add up to ${MAX_ID_PHOTOS} photos. Remove one first.`)
+    setPhotoBusy(true)
+    const added: string[] = []
+    let problem = ''
+    for (const file of files.slice(0, roomFor)) {
+      try {
+        added.push(await compressImage(file))
+      } catch (err) {
+        problem = err instanceof PhotoError ? err.message : 'One of those photos couldn’t be added.'
+      }
+    }
+    if (files.length > roomFor) problem = `Only ${MAX_ID_PHOTOS} photos per person, so we added the first ${roomFor}.`
+    if (added.length) onChange('idPhotos', [...photos, ...added])
+    setPhotoError(problem)
+    setPhotoBusy(false)
   }
 
   return (
@@ -186,26 +185,18 @@ export default function PersonForm({ person, onChange, prefix, title, showErrors
             return <span className={styles.completion}>{remaining} detail{remaining > 1 ? 's' : ''} left</span>
           })()}
         </div>
-        <input 
-          type="file" 
-          accept="image/*" 
-          ref={fileInputRef} 
-          hidden
-          onChange={handleFileChange} 
-        />
-        {!scanned ? (
-          <div className={styles.scanWrap}>
-            <button type="button" onClick={handleScanClick} className="btn btn-secondary btn-sm" disabled={isScanning}>
-              {isScanning ? 'Scanning card…' : <><ScanFace size={16} /> Scan Ghana Card to fill in</>}
-            </button>
-            {scanError && <span className={styles.scanError}>{scanError}</span>}
-          </div>
-        ) : (
-          <span className={styles.scanOk}>
-            <CheckCircle2 size={16} /> Details filled from card
-          </span>
-        )}
+        <input type="file" accept="image/*" ref={fileInputRef} hidden onChange={handleScanFile} />
+        <div className={styles.scanWrap}>
+          <button type="button" onClick={handleScanClick} className="btn btn-secondary btn-sm" disabled={isScanning}>
+            {isScanning ? 'Reading card…' : <><ScanFace size={16} /> {scanNote?.ok ? 'Scan again' : 'Scan Ghana Card to fill in'}</>}
+          </button>
+        </div>
       </div>
+      {scanNote && (
+        <p className={scanNote.ok ? styles.scanOk : styles.scanError} role="status">
+          {scanNote.ok ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />} {scanNote.text}
+        </p>
+      )}
 
       {/* Accordion 1: Personal Info */}
       <div className={styles.accordion}>
@@ -302,27 +293,12 @@ export default function PersonForm({ person, onChange, prefix, title, showErrors
               <div className={`form-group ${styles.formFull}`}>
                 <label className="form-label">Upload ID Photos (Front, Back, etc.)</label>
                 <div>
-                  <label className={styles.uploadBtn}>
-                    <UploadCloud size={16} /> Add photos
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      multiple
-                      hidden
-                      onChange={(e) => {
-                        const files = Array.from(e.target.files || [])
-                        const promises = files.map(file => new Promise<string>((resolve) => {
-                           const reader = new FileReader()
-                           reader.onloadend = () => resolve(reader.result as string)
-                           reader.readAsDataURL(file)
-                        }))
-                        Promise.all(promises).then(results => {
-                           const existing = person.idPhotos || []
-                           onChange('idPhotos', [...existing, ...results])
-                        })
-                      }}
-                    />
+                  <label className={`${styles.uploadBtn} ${roomFor <= 0 || photoBusy ? styles.uploadBtnOff : ''}`}>
+                    <UploadCloud size={16} /> {photoBusy ? 'Adding…' : 'Add photos'}
+                    <input type="file" accept="image/*" multiple hidden disabled={roomFor <= 0 || photoBusy} onChange={handleAddPhotos} />
                   </label>
+                  <span className={`form-hint ${styles.uploadHint}`}>Front and back of the Ghana Card, clear and readable. Up to {MAX_ID_PHOTOS}.</span>
+                  {photoError && <span className={styles.fieldError}><AlertCircle size={13} /> {photoError}</span>}
                   
                   {((person.idPhotos && person.idPhotos.length > 0) || person.ghanaCardPhotoUrl) && (
                     <div className={styles.photoList}>

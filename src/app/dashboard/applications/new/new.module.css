@@ -1803,3 +1803,43 @@
 .shareActions > :global(.btn-ghost) {
   flex: 0 0 auto;
 }
+
+/* Result of scanning a Ghana Card: a full-width note under the person's header */
+p.scanOk,
+p.scanError {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+p.scanOk {
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+}
+
+p.scanError {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+p.scanOk svg,
+p.scanError svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.uploadBtnOff {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
+}
+
+.uploadHint {
+  display: block;
+  margin-top: 8px;
+}
